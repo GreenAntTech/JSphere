@@ -102,7 +102,7 @@ globalThis.addEventListener('message', function (event) {
     }
     var eventData = thisEvent.data;
     var eventOrigin = thisEvent.origin;
-    var message = eventData.split('::');
+    var message = (eventData) ? eventData.split('::') : '';
     var subject = message[0];
     var data = message[1];
     var listenerFound = false;
