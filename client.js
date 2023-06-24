@@ -94,18 +94,18 @@ globalThis.addEventListener('message', (event) => {
         console.warn(`No message listener was found for the subject '${subject}'`);
     }
 }, false);
-// REGISTER EVENTS THAT RESPOND WHEN "postMessage" IS USED
-export function addMessageListener(subject, func) {
+// SUBSCRIBE TO A MESSAGE SUBJECT
+export function subscribeTo(subject, func) {
     if (!subject || (typeof subject != 'string')) {
-        console.warn('A subject must be specified when registering an event:', subject);
+        console.warn('A subject must be specified when subscribing to a message:', subject);
         return;
     }
     registeredMessages[subject] = func;
 }
-// REGISTER EVENTS THAT THE DEVICE RESPONDS TO WHEN "postMessage" IS USED
-export function addDeviceMessageListener(subject) {
+// REGISTER MESSAGE SUBJECT THAT THE DEVICE SUBSCRIBES TO 
+export function deviceSubscribesTo(subject) {
     if (!subject || (typeof subject != 'string')) {
-        console.warn('A subject must be specified when registering an event:', subject);
+        console.warn('A subject must be specified when subscribing to a message:', subject);
         return;
     }
     registeredDeviceMessages[subject] = true;
@@ -194,10 +194,9 @@ class AppState {
 }
 export const appState = new AppState();
 /**
- * STATE MANAGEMENT
+ * FEATURE MANAGEMENT
  *
- * A simple state management object that post an AppStateUpdated message whenever state properties are
- * updated.
+ * A simple implementation for flagging features.
  */
 class Feature {
     featureFlags = [];
@@ -468,17 +467,6 @@ export function createComponent(element, ctx) {
                 return element.getAttribute('data-render-at') === 'client';
             }
         },
-        // '_reset': {
-        //     value: () => {
-        //         if (element.hasAttribute('data-view-template')) {
-        //             element.innerHTML = '';
-        //             element.removeAttribute('data-view-template');
-        //         }
-        //         element.removeAttribute('data-listening');
-        //         _messageListeners = {};
-        //         _childComponents = {};
-        //     }
-        // },
         '_subscribedTo': {
             value: (subject) => {
                 return (_messageListeners[subject]) ? true : false;
