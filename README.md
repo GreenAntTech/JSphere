@@ -13,7 +13,7 @@ JSphere requires you to [install](https://deno.com/manual/getting_started/instal
 ### Install the JSphere CLI tool
 The JSphere command line interface tool provides commands for working with JSphere.  To install the CLI tool open a command line console and enter the following:
 ```
-deno install --allow-all -f -n js https://esm.sh/gh/greenanttech/jsphere[@version]/cli.js
+deno install --allow-all -f -n js https://esm.sh/gh/greenanttech/jsphere/cli.js
 ```
 You can specify a specific version of the CLI tool to install by providing a version number as follows:
 ```
