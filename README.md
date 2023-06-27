@@ -1,9 +1,9 @@
 # JSphere
 JSphere is a lightweight and flexible web application server for Deno.
 
-JSphere decouples your application logic from the application's runtime environment, allowing for highly composable and scalable application architecture.
+JSphere decouples your application logic from the application's runtime environment, allowing for highly composable and scalable application architectures.
 
-JSphere Element is a lightweight JavaScript library for building composable, message driven, navigable web interfaces.
+JSphere Element (element.js) is a lightweight JavaScript library for building composable, message-driven, and easily navigable web interfaces.  JSphere Element web interfaces can be rendered at the client or at the server allowing you flexible options for how hydration will occur at the client.
 
 ## Getting Started
 
@@ -63,6 +63,6 @@ http://localhost
 ```
 
 ## Learn More ##
-- [The Basics](https://deno.com/manual/getting_started/installation)
-- [Advance Stuff](https://deno.com/manual/getting_started/installation)
-- [Blow Your Mind Stuff](https://deno.com/manual/getting_started/installation)
+- [The Basics]()
+- [Advance Stuff]()
+- [Blow Your Mind Stuff]()
