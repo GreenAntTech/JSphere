@@ -1,7 +1,7 @@
 # JSphere
-JSphere is a lightweight, flexible and extensible web application server designed to simplify the process of getting your JavaScript/TypeScript based applications from prototype to production with minimal effort.
+JSphere is a lightweight and flexible web application server for Deno.
 
-JSphere decouples your application logic from the application's runtime environment, allowing you to foucs more time on application development and less time on managing your application infrastructure.
+JSphere decouples your application logic from the application's runtime environment, allowing for highly composable and scalable application architecture.
 
 ## Getting Started
 
@@ -11,7 +11,7 @@ JSphere requires you to [install](https://deno.com/manual/getting_started/instal
 ### Install the JSphere CLI tool
 The JSphere command line interface tool provides commands for working with JSphere.  To install the CLI tool open a command line console and enter the following:
 ```
-deno install --allow-all -f -n js https://raw.githubusercontent.com/GreenAntTech/JSphereServer/main/tools/cli/cli.ts
+deno install --allow-all -f -n js https://esm.sh/gh/greenanttech/jsphere[@version]/cli.js
 ```
 To use the CLI tool commands you type:
 ```
@@ -53,7 +53,7 @@ To stop the JSphere application server press the key combination required by you
 ### View Your Application in a Browser ###
 To view your application enter the following in the address bar of your preferred browser:
 ```
-http://localhost/app/client/index.html
+http://localhost
 ```
 
 ## Learn More ##
