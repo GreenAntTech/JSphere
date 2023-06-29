@@ -20515,14 +20515,13 @@ async function handleRequest7(request) {
                         status: 304
                     });
                 } else {
+                    const headers = Object.assign({
+                        'eTag': item.eTag,
+                        'content-type': item.contentType
+                    }, item.headers);
                     response = new Response(item.content, {
                         status: 200,
-                        headers: {
-                            'etag': item.eTag,
-                            'content-type': item.contentType || '',
-                            'cache-control': item.cacheControl || '',
-                            'access-control-allow-origin': item.allowOrigin || ''
-                        }
+                        headers
                     });
                 }
             } else {
@@ -20761,7 +20760,7 @@ async function getServerContext(request, routeParams) {
         domain: await getDomainContext(request),
         request: await getRequestContext(request, routeParams),
         response: getResponseContext(request),
-        settings: domain.appConfig.settings || {},
+        settings: Object.assign(domain.appConfig.settings || {}, domain.settings),
         utils: new Utils(),
         parser: new mod12.DOMParser(),
         getPackageItem: async (path59)=>{

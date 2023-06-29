@@ -929,6 +929,7 @@ function decode(src) {
     return dst;
 }
 const cmdArgs = parse1(Deno.args);
+const VERSION = 'main';
 try {
     switch(cmdArgs._[0]){
         case 'build':
@@ -961,6 +962,9 @@ try {
         case 'run':
             await processRunCmd(cmdArgs);
             break;
+        case 'version':
+            processVersionCmd();
+            break;
         default:
             processHelpCmd();
     }
@@ -980,7 +984,7 @@ function processHelpCmd() {
 }
 async function processStartCmd(cmdArgs1) {
     try {
-        const version = cmdArgs1.v || 'main';
+        const version = cmdArgs1.v || VERSION;
         let process;
         if (typeof cmdArgs1.reload == 'undefined') {
             process = Deno.run({
@@ -1315,6 +1319,9 @@ async function processResetCmd(cmdArgs10) {
     } catch (e10) {
         critical(e10.message);
     }
+}
+function processVersionCmd() {
+    console.log(VERSION);
 }
 async function cloneRepo(config) {
     let process;
