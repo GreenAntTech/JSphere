@@ -7,6 +7,14 @@ export interface IObject {
     [name:string]: unknown
 }
 
+export type ContextExtensionConfig = {
+    extension: string
+    domain: string, 
+    appId: string, 
+    settings: Record<string, unknown|IObject>
+    appConfig: IObject
+}
+
 export type IServerContext = {
     domain: IDomainContext
     request: IRequestContext
@@ -97,15 +105,15 @@ export interface IStorage {
 }
 
 export interface ITransaction {
-    run: (query:string, parameters:Record<string, unknown>, config?:Record<string, unknown>) =>  Promise<unknown>
+    run: (query:string, parameters:IObject, config?:IObject) =>  Promise<unknown>
     commit: () => void
     rollback: () => void
 }
 
 export interface IDataStore {
-    run: (query:string, parameters:Record<string, unknown>, config?:Record<string, unknown>) =>  Promise<unknown>
-    readTransaction: (fn: (tx:ITransaction) => Promise<unknown>, config?:Record<string, unknown>) => Promise<unknown>
-    writeTransaction: (fn: (tx:ITransaction) => Promise<unknown>, config?:Record<string, unknown>) => Promise<unknown>
+    run: (query:string, parameters:IObject, config?:IObject) =>  Promise<unknown>
+    readTransaction: (fn: (tx:ITransaction) => Promise<unknown>, config?:IObject) => Promise<unknown>
+    writeTransaction: (fn: (tx:ITransaction) => Promise<unknown>, config?:IObject) => Promise<unknown>
 }
 
 export interface IParser {
