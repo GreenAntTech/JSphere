@@ -1,3 +1,6 @@
+import { Document } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/interface/document.d.ts";
+import { XMLDocument } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/xml/document.d.ts";
+
 export { HTMLElement } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/html/element.d.ts";
 export { HTMLTemplateElement } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/html/template-element.d.ts";
 export { Document } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/interface/document.d.ts";

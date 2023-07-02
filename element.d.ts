@@ -1,7 +1,3 @@
-export { Document, HTMLElement, HTMLTemplateElement, NodeListOf, Window } from "https://esm.sh/v126/gh/microsoft/typescript@v5.0.4/src/lib/dom.generated.d.ts";
-
-import { Document, HTMLElement } from "https://esm.sh/v126/gh/microsoft/typescript@v5.0.4/src/lib/dom.generated.d.ts";
-
 export interface IObject {
     [name:string]: unknown
 }
@@ -48,6 +44,15 @@ export type AppContext = {
 
 export interface IFeature {
     flag: (obj: Record<string, () => void>) => void
+}
+
+export interface Link extends IComponent {
+    _click: () => void
+    _disabled: boolean
+    _hidden: boolean
+    _href: string
+    _onclick: (e: Event) => void
+    _value: string
 }
 
 export interface IRepeater extends IComponent {
