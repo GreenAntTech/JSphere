@@ -3,18 +3,18 @@ export interface IObject {
 }
 
 export interface IComponent extends HTMLElement {
-    _addMessageListener: (subject:string, func:(config: IObject) => void) => void
     _components: Record<string, IComponent>
-    _defineProperties: (props:IPropertiesObject) => void
+    _extend: (props:IPropertiesObject) => void
     _render: (props?:IObject) => Promise<void>|void
     _renderAtClient: boolean
     _onMessageReceived: (subject:string, data:IObject) => void
-    _subscribedTo: (subject:string) => boolean
-    _removeMessageListener: (subject:string) => void
     _reset: () => void
+    _subscribeTo: (subject:string, func:(config:IObject) => void) => void
+    _subscribedTo: (subject:string) => boolean
+    _unsubscribeTo: (subject:string) => void
     _template: HTMLElement
     _useState: (state:IObject, obj:IObject) => IObject
-    _useTemplate: (template:string, func?:(config:IObject) => void) => Promise<Record<string, IComponent>>
+    _useTemplate: (template:string, func?:(config:IObject) => void) => Record<string, IComponent>
     _useTemplateUrl: (url:string, func?:(config:IObject) => void) => Promise<Record<string, IComponent>>
 }
 

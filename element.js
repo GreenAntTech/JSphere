@@ -1321,7 +1321,7 @@
     });
   });
   registerComponent("Link", (element) => {
-    element._defineProperties({
+    element._extend({
       render: {
         value: (props) => {
           if (typeof props.onclick !== "function" && element.hasAttribute("onclick"))
