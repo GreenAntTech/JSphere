@@ -31,13 +31,13 @@ export interface IComponentSetter {
 }
 
 export interface IPropertiesObject {
-    [name:string]: IComponentGetter | IComponentMethod | IComponentSetter
+    [name:string]: IComponentGetter | IComponentMethod | IComponentSetter | ((value: unknown) => Promise<unknown> | unknown)
 }
 
-export type AppContext = {
+export type IAppContext = {
     document: Document
     getResource: (path: string) => Promise<string>
-    importModule: (url: string) => unknown
+    importModule: (url: string) => Promise<any>
     loadCaptions: (url: string) => Promise<(value: string, ...args: string[]) => string>
     [key: string] : unknown
 }
@@ -46,7 +46,7 @@ export interface IFeature {
     flag: (obj: Record<string, () => void>) => void
 }
 
-export interface Link extends IComponent {
+export interface ILink extends IComponent {
     _click: () => void
     _disabled: boolean
     _hidden: boolean
