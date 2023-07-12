@@ -920,7 +920,7 @@ function decode(src) {
     return dst;
 }
 const cmdArgs = parse1(Deno.args);
-const VERSION = 'v0.0.1-Beta-3';
+const VERSION = 'v0.0.1-Beta.5';
 (async function() {
     try {
         switch(cmdArgs._[0]){
