@@ -35,7 +35,7 @@
   var import_mod2 = __require("https://deno.land/std@0.179.0/flags/mod.ts");
   var import_hex = __require("https://deno.land/std@0.179.0/encoding/hex.ts");
   var cmdArgs = (0, import_mod2.parse)(Deno.args);
-  var VERSION = "main";
+  var VERSION = "v0.0.1-Beta-3";
   (async function() {
     try {
       switch (cmdArgs._[0]) {

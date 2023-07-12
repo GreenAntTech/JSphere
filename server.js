@@ -637,6 +637,7 @@
       response: getResponseContext(request),
       settings: Object.assign(domain.appConfig.settings || {}, domain.settings),
       utils: new Utils(),
+      parseHTML: DenoDOM.parseHTML,
       parser: new DenoDOM.DOMParser(),
       getPackageItem: async (path) => {
         const packageItem = await jsphere_exports.getPackageItem(domainHostname, path);
