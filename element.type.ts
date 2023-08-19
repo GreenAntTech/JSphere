@@ -2,9 +2,9 @@ export interface IObject {
     [name:string]: unknown
 }
 
-export interface IComponent extends HTMLElement {
-    _components: Record<string, IComponent>
-    _extend: (props:IPropertiesObject) => void
+export type Component = HTMLElement & {
+    _components: Record<string, Component>
+    _extend: (props:PropertiesObject) => void
     _render: (props?:IObject) => Promise<void>|void
     _renderAtClient: boolean
     _onMessageReceived: (subject:string, data:IObject) => void
@@ -14,27 +14,27 @@ export interface IComponent extends HTMLElement {
     _unsubscribeTo: (subject:string) => void
     _template: HTMLElement
     _useState: (state:IObject, obj:IObject) => IObject
-    _useTemplate: (template:string, func?:(config:IObject) => void) => Record<string, IComponent>
-    _useTemplateUrl: (url:string, func?:(config:IObject) => void) => Promise<Record<string, IComponent>>
+    _useTemplate: (template:string, func?:(config:IObject) => void) => Record<string, Component>
+    _useTemplateUrl: (url:string, func?:(config:IObject) => void) => Promise<Record<string, Component>>
 }
 
-export interface IComponentMethod {
+export type ComponentMethod = {
     value: (value: unknown) => Promise<unknown> | unknown
 }
 
-export interface IComponentGetter {
+export type ComponentGetter = {
     get: () => unknown
 }
 
-export interface IComponentSetter {
+export type ComponentSetter = {
     set: (value:  unknown) => void
 }
 
-export interface IPropertiesObject {
-    [name:string]: IComponentGetter | IComponentMethod | IComponentSetter | ((value: unknown) => Promise<unknown> | unknown)
+export type PropertiesObject = {
+    [name:string]: ComponentGetter | ComponentMethod | ComponentSetter | ((value: unknown) => Promise<unknown> | unknown)
 }
 
-export type IAppContext = {
+export type AppContext = {
     document: Document
     getResource: (path: string) => Promise<string>
     importModule: (url: string) => Promise<any>
@@ -42,11 +42,11 @@ export type IAppContext = {
     [key: string] : unknown
 }
 
-export interface IFeature {
+export type Feature = {
     flag: (obj: Record<string, () => void>) => void
 }
 
-export interface ILink extends IComponent {
+export type Link = Component & {
     _click: () => void
     _disabled: boolean
     _hidden: boolean
@@ -55,8 +55,8 @@ export interface ILink extends IComponent {
     _value: string
 }
 
-export interface IRepeater extends IComponent {
-    _add: (id: string) => Promise<Record<string, IComponent>>
+export type Repeater = Component & {
+    _add: (id: string) => Promise<Record<string, Component>>
     _removeAll: () => void
     _visible: boolean
 }

@@ -18,69 +18,69 @@ export type ContextExtensionConfig = {
     appConfig: IObject
 }
 
-export type IServerContext = {
-    domain: IDomainContext
-    request: IRequestContext
-    response: IResponseContext
+export type ServerContext = {
+    domain: DomainContext
+    request: RequestContext
+    response: ResponseContext
     settings: IObject
     user: IObject
-    utils: IUtils
+    utils: Utils
     db: IDataStore
     cache: ICache
     storage: IStorage
-    feature: IFeature
+    feature: Feature
     parser: IParser
-    getPackageItem: (path: string) => Promise<IPackageItem | null>
+    getPackageItem: (path: string) => Promise<PackageItem | null>
     [key: string] : unknown
 }
 
-export interface IDomainContext {
+export type DomainContext = {
     appId?: string
     hostname: string
     cacheDTS: number
 }
 
-export interface IRequestContext {
-    path: string
-    headers: IHeaders
+export type RequestContext = {
+    url: URL
+    headers: Headers
     cookies: Record<string, string>
     params: Record<string, string>
     data: IObject|Blob
-    files: Array<IRequestFile>
+    files: Array<RequestFile>
 }
 
-export interface IResponseContext {
+export type ResponseContext = {
     redirect: (url: string, status: number) => Response
-    send: (body: Uint8Array|IObject|string, init: IObject) => Response
+    send: (body: Uint8Array|IObject|string|null, init: IObject) => Response
     json: (body: IObject, status?: number) => Response
     text: (body: string, status?: number) => Response
     html: (body: string, status?: number) => Response
 }
 
-export interface IPackageItem {
+export type PackageItem = {
     eTag: string
     contentType: string
     content: Uint8Array
     headers?: Record<string, string>
 }
 
-export interface IHeaders {
+export type Headers = {
     append (name: string, value: string): void
     delete (name: string): void
     get (name: string): string | null
     has (name: string): boolean
     set (name: string, value: string): void
-    forEach (callbackfn: (value: string, key: string, parent: IHeaders) => void, thisArg?: unknown): void
+    forEach (callbackfn: (value: string, key: string, parent: Headers) => void, thisArg?: unknown): void
 }
 
-export interface IRequestFile {
+export type RequestFile = {
     content: Uint8Array
     filename: string
     size: number
     type: string
 }
 
-export interface IUtils {
+export type Utils = {
     createId: () =>  string
     createHash: (value: string) =>  Promise<string>
     compareWithHash: (value: string, hash: string) => Promise<boolean>
@@ -88,7 +88,7 @@ export interface IUtils {
     encrypt: (data: string) =>  Promise<string>
 }
 
-export interface IFeature {
+export type Feature = {
     flag: (obj: Record<string, () => void>) => void
 }
 
@@ -97,6 +97,10 @@ export interface ICache {
     set: (key: string, value: unknown, expires?: number) => void|Promise<void>
     setExpires: (key: string, expires?: number) => unknown|Promise<unknown>
     remove: (key: string) => void|Promise<void>
+}
+
+export interface IMail {
+    send: () =>  Promise<void>
 }
 
 export interface IStorage {
