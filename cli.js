@@ -1149,6 +1149,9 @@ async function processCreatePackageCmd(cmdArgs) {
             await Deno.mkdir(`${Deno.cwd()}/${packageName}/server`, {
                 recursive: true
             });
+            await Deno.mkdir(`${Deno.cwd()}/${packageName}/shared`, {
+                recursive: true
+            });
             await Deno.mkdir(`${Deno.cwd()}/${packageName}/tests`, {
                 recursive: true
             });
@@ -1168,7 +1171,7 @@ async function processCreateProjectCmd(cmdArgs) {
             const envSettings = {
                 useLocalConfig: 'true',
                 localRoot: projectName,
-                localConfig: '.jsphere-' + projectName.toLowerCase()
+                localConfig: '.jsphere'
             };
             await Deno.writeFile(`${Deno.cwd()}/${projectName}/.env`, (new TextEncoder).encode(getEnvContent(envSettings)));
             await Deno.writeFile(`${Deno.cwd()}/${projectName}/DockerFile`, (new TextEncoder).encode(getDockerFileContent(projectName)));
@@ -1399,6 +1402,7 @@ REMOTE_HOST=${envSettings.remoteHost || ''}
 REMOTE_ROOT=${envSettings.remoteRoot || ''}
 REMOTE_AUTH=${envSettings.remoteAuth || ''}
 SERVER_HTTP_PORT=80
+AUTHORIZATION_TOKEN=
 `;
     return content;
 }
@@ -1461,9 +1465,9 @@ function getClientIndexContent() {
     return content;
 }
 function getServerDateTimeContent() {
-    const content = `import type { IServerContext } from "https://raw.githubusercontent.com/GreenAntTech/JSphere/main/server.d.ts";
+    const content = `import type { ServerContext } from "https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.type.ts";
 
-export function onGET (ctx: IServerContext) : Response {
+export function onGET (ctx:ServerContext) : Response {
     const date = new Date();
     return ctx.response.json({ datetime: date.toLocaleString() });
 }    

@@ -8088,18 +8088,18 @@ const mod8 = await async function() {
         Attr: Attr,
         NodeList: NodeListPublic,
         HTMLCollection: HTMLCollectionPublic,
+        DOMImplementation,
+        DocumentType,
+        Document: Document1,
         DOMParser,
         DOMTokenList,
         NamedNodeMap,
-        HTMLTemplateElement,
         NodeType,
         nodesAndTextNodes,
         Text,
         Comment,
-        DOMImplementation,
-        DocumentType,
-        Document: Document1,
-        DocumentFragment: DocumentFragment1
+        DocumentFragment: DocumentFragment1,
+        HTMLTemplateElement
     };
 }();
 class FileSystemProvider {
@@ -8414,19 +8414,21 @@ async function handleRequest2(request) {
     const auth = request.HTTPRequest.headers.get('Authorization');
     const token = Deno.env.get('AUTHORIZATION_TOKEN');
     const accessAllowed = auth && token ? auth === `token ${token}` : false;
-    if (!accessAllowed) {
-        response = new Response('Forbidden', {
-            status: 401
-        });
-    } else if (url.pathname == '/~/resetdomain' && request.method == 'POST' && domain) {
-        try {
-            if (request.HTTPRequest.headers.get('Authorization')) mod9.resetDomain(domainHostname, domain);
-            response = new Response('Domain application was reset.', {
-                status: 200
-            });
-        } catch (e) {
-            response = new Response(e.message, {
-                status: 500
+    if (url.pathname.startsWith('/~/')) {
+        if (accessAllowed) {
+            if (url.pathname == '/~/resetdomain' && request.method === 'POST') {
+                if (domain) mod9.resetDomain(domainHostname, domain);
+                response = new Response('Domain application was reset.', {
+                    status: 200
+                });
+            } else {
+                response = new Response('Not Found.', {
+                    status: 404
+                });
+            }
+        } else {
+            response = new Response('Forbidden', {
+                status: 401
             });
         }
     }
