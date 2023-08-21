@@ -1477,7 +1477,7 @@ export function onGET (ctx:ServerContext) : Response {
 function getDockerFileContent(projectName) {
     const content = `FROM --platform=linux/amd64 ubuntu
 FROM denoland/deno:ubuntu
-WORKDIR /${projectName}
+WORKDIR /JSphereProject
 RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.js
 EXPOSE 80
 EXPOSE 9229
