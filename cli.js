@@ -148,7 +148,7 @@ class Logger {
         return this.#_log(LogLevels.CRITICAL, msg, ...args);
     }
 }
-const { Deno: Deno1  } = globalThis;
+const { Deno: Deno1 } = globalThis;
 const noColor = typeof Deno1?.noColor === "boolean" ? Deno1.noColor : true;
 let enabled = !noColor;
 function code(open, close) {
@@ -510,7 +510,7 @@ function parse(rawDotenv, restrictEnvAccessTo = []) {
     let match;
     const keysForExpandCheck = [];
     while((match = RE_KeyValue.exec(rawDotenv)) != null){
-        const { key , interpolated , notInterpolated , unquoted  } = match?.groups;
+        const { key, interpolated, notInterpolated, unquoted } = match?.groups;
         if (unquoted) {
             keysForExpandCheck.push(key);
         }
@@ -525,7 +525,7 @@ function parse(rawDotenv, restrictEnvAccessTo = []) {
     });
     return env;
 }
-async function load({ envPath =".env" , examplePath =".env.example" , defaultsPath =".env.defaults" , export: _export = false , allowEmptyValues =false , restrictEnvAccessTo =[]  } = {}) {
+async function load({ envPath = ".env", examplePath = ".env.example", defaultsPath = ".env.defaults", export: _export = false, allowEmptyValues = false, restrictEnvAccessTo = [] } = {}) {
     const conf = await parseFile(envPath, restrictEnvAccessTo);
     if (defaultsPath) {
         const confDefaults = await parseFile(defaultsPath, restrictEnvAccessTo);
@@ -599,7 +599,7 @@ class MissingEnvVarsError extends Error {
 function expand(str, variablesMap) {
     if (RE_ExpandValue.test(str)) {
         return expand(str.replace(RE_ExpandValue, function(...params) {
-            const { inBrackets , inBracketsDefault , notInBrackets , notInBracketsDefault  } = params[params.length - 1];
+            const { inBrackets, inBracketsDefault, notInBrackets, notInBracketsDefault } = params[params.length - 1];
             const expandValue = inBrackets || notInBrackets;
             const defaultValue = inBracketsDefault || notInBracketsDefault;
             return variablesMap[expandValue] || expand(defaultValue, variablesMap);
@@ -608,7 +608,7 @@ function expand(str, variablesMap) {
         return str;
     }
 }
-const { hasOwn  } = Object;
+const { hasOwn } = Object;
 function get(obj, key) {
     if (hasOwn(obj, key)) {
         return obj[key];
@@ -632,7 +632,7 @@ function hasKey(obj, keys) {
     const key = keys[keys.length - 1];
     return hasOwn(o, key);
 }
-function parse1(args, { "--": doubleDash = false , alias ={} , boolean: __boolean = false , default: defaults = {} , stopEarly =false , string =[] , collect =[] , negatable =[] , unknown =(i)=>i  } = {}) {
+function parse1(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i)=>i } = {}) {
     const aliases = {};
     const flags = {
         bools: {},
@@ -1174,7 +1174,7 @@ async function processCreateProjectCmd(cmdArgs) {
                 localConfig: '.jsphere'
             };
             await Deno.writeFile(`${Deno.cwd()}/${projectName}/.env`, (new TextEncoder).encode(getEnvContent(envSettings)));
-            await Deno.writeFile(`${Deno.cwd()}/${projectName}/DockerFile`, (new TextEncoder).encode(getDockerFileContent(projectName)));
+            await Deno.writeFile(`${Deno.cwd()}/${projectName}/DockerFile`, (new TextEncoder).encode(getDockerFileContent()));
             await Deno.mkdir(`${Deno.cwd()}/${projectName}/${envSettings.localConfig}`, {
                 recursive: true
             });
@@ -1474,7 +1474,7 @@ export function onGET (ctx:ServerContext) : Response {
 `;
     return content;
 }
-function getDockerFileContent(projectName) {
+function getDockerFileContent() {
     const content = `FROM --platform=linux/amd64 ubuntu
 FROM denoland/deno:ubuntu
 WORKDIR /JSphereProject
