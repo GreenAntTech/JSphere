@@ -973,13 +973,13 @@ function processHelpCmd() {
     console.log('encrypt <domain_domain>');
     console.log('reset <domain_domain>');
     console.log('run [-v=<version>] [--http=<port_number>] [--debug=<port_number>]');
-    console.log('start [-v=<version>] [-i=<port_number>] [--reload]');
+    console.log('start [-v=<version>] [--debug=<port_number>] [--reload]');
     console.log('version');
 }
 async function processStartCmd(cmdArgs) {
     try {
         const version = cmdArgs.v || VERSION;
-        const inspectPort = cmdArgs.i || '9229';
+        const debugPort = cmdArgs.debug || '9229';
         let command;
         if (typeof cmdArgs.reload == 'undefined') {
             command = new Deno.Command(Deno.execPath(), {
@@ -987,7 +987,7 @@ async function processStartCmd(cmdArgs) {
                     'run',
                     '--allow-all',
                     '--no-check',
-                    `--inspect=0.0.0.0:${inspectPort}`,
+                    `--inspect=0.0.0.0:${debugPort}`,
                     `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`
                 ],
                 stdin: 'piped'
@@ -999,7 +999,7 @@ async function processStartCmd(cmdArgs) {
                     '--allow-all',
                     '--no-check',
                     '--reload',
-                    `--inspect=0.0.0.0:${inspectPort}`,
+                    `--inspect=0.0.0.0:${debugPort}`,
                     `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`
                 ],
                 stdin: 'piped'
