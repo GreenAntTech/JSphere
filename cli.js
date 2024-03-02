@@ -920,7 +920,7 @@ function decode(src) {
     return dst;
 }
 const cmdArgs = parse1(Deno.args);
-const VERSION = 'v0.0.1-preview.1';
+const VERSION = 'v0.0.1-preview.2';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -973,12 +973,13 @@ function processHelpCmd() {
     console.log('encrypt <domain_domain>');
     console.log('reset <domain_domain>');
     console.log('run [-v=<version>] [--http=<port_number>] [--debug=<port_number>]');
-    console.log('start [-v=<version>] [--reload]');
+    console.log('start [-v=<version>] [-i=<port_number>] [--reload]');
     console.log('version');
 }
 async function processStartCmd(cmdArgs) {
     try {
         const version = cmdArgs.v || VERSION;
+        const inspectPort = cmdArgs.i || '9229';
         let command;
         if (typeof cmdArgs.reload == 'undefined') {
             command = new Deno.Command(Deno.execPath(), {
@@ -986,7 +987,7 @@ async function processStartCmd(cmdArgs) {
                     'run',
                     '--allow-all',
                     '--no-check',
-                    '--inspect=0.0.0.0:9229',
+                    `--inspect=0.0.0.0:${inspectPort}`,
                     `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`
                 ],
                 stdin: 'piped'
@@ -998,7 +999,7 @@ async function processStartCmd(cmdArgs) {
                     '--allow-all',
                     '--no-check',
                     '--reload',
-                    '--inspect=0.0.0.0:9229',
+                    `--inspect=0.0.0.0:${inspectPort}`,
                     `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`
                 ],
                 stdin: 'piped'
@@ -1402,13 +1403,13 @@ REMOTE_HOST=${envSettings.remoteHost || ''}
 REMOTE_ROOT=${envSettings.remoteRoot || ''}
 REMOTE_AUTH=${envSettings.remoteAuth || ''}
 SERVER_HTTP_PORT=80
-AUTHORIZATION_TOKEN=
+AUTHORIZATION_TOKEN=dev
 `;
     return content;
 }
 function getDomainContent() {
     const content = `{
-    "appId": "",
+    "appId": "app",
     "appFile": "app",
     "settings": {
     },
@@ -1432,8 +1433,6 @@ function getApplicationContent() {
     "routeMappings": [
         { "route": "/", "path": "/app/client/index.html" },
         { "route": "/api/datetime", "path": "/app/server/datetime.ts" }
-    ],
-    "featureFlags": [
     ],
     "settings": {
     }
@@ -1465,7 +1464,7 @@ function getClientIndexContent() {
     return content;
 }
 function getServerDateTimeContent() {
-    const content = `import type { ServerContext } from "https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.type.ts";
+    const content = `import type { ServerContext } from "https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.d.ts";
 
 export function onGET (ctx:ServerContext) : Response {
     const date = new Date();

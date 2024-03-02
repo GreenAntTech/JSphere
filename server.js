@@ -8547,7 +8547,7 @@ async function handleRequest6(request) {
         try {
             let routePath = request.routePath;
             if (!routePath.endsWith('.ts') && !routePath.endsWith('.js')) routePath += '.js';
-            module1 = await import(`http://127.0.0.1${routePath}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
+            module1 = await import(`http://127.0.0.1:${url.port}${routePath}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
         } catch (e) {
             console.log(e);
             if (e.message.startsWith('Module not found')) {
@@ -8612,16 +8612,11 @@ async function handleRequest7(request) {
     }
     return response;
 }
-const serverConfig = {};
 const domains = {};
 let host;
 async function init1() {
     setProjectHost();
-    await setServerConfig();
     setRequestHandlers();
-}
-function getServerConfig() {
-    return serverConfig;
 }
 function getHostProvider(config) {
     switch(config.name){
@@ -8675,7 +8670,11 @@ async function handleRequest8(request) {
         const url = new URL(request.url);
         const domainHostname = url.hostname;
         const domain = domains[domainHostname];
-        if (domain && response.status == 200) response.headers.append('set-cookie', `featureFlags=${domain.appConfig.featureFlags.join(',')};domain=${domainHostname};path=/`);
+        if (domain && response.status == 200) {
+            if (domain.appConfig.featureFlags.length > 0) {
+                response.headers.append('set-cookie', `featureFlags=${domain.appConfig.featureFlags.join(',')};domain=${domainHostname};path=/`);
+            }
+        }
         return response;
     }
 }
@@ -8716,7 +8715,6 @@ async function getPackageItem(domainHostname, path) {
 }
 const mod9 = {
     init: init1,
-    getServerConfig: getServerConfig,
     getHostProvider: getHostProvider,
     getProjectHost: getProjectHost,
     getDomain: getDomain,
@@ -8787,21 +8785,6 @@ function setProjectHost() {
     }
     info(`Host Name: ${envHostName}`);
     info(`Host Root: ${envHostRoot}`);
-}
-async function setServerConfig() {
-    let envServerConfig;
-    const path = `server.json`;
-    if (host.name == 'FileSystem') {
-        envServerConfig = Deno.env.get('LOCAL_CONFIG');
-    } else {
-        envServerConfig = Deno.env.get('REMOTE_CONFIG');
-    }
-    const content = await host.getConfigFile(path);
-    if (content) {
-        const config = JSON.parse(content);
-        Object.assign(serverConfig, config);
-        info(`Server Config: ${envServerConfig}/${path}`);
-    } else warning(`Could not retrieve server configuration '${envServerConfig}/${path}'.`);
 }
 function setRequestHandlers() {
     handlers1.push(mod10);
