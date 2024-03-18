@@ -8305,7 +8305,7 @@ async function handleRequest(request) {
             const appProvider = mod9.getHostProvider({
                 name: appConfig.host.name,
                 root: appConfig.host.name == 'FileSystem' ? Deno.cwd().replaceAll('\\', '/') : appConfig.host.root,
-                auth: appConfig.host.auth
+                auth: appConfig.host.auth.encrypted ? await new Utils().decrypt(appConfig.host.auth.value) : appConfig.host.auth.value
             });
             if (appProvider) {
                 domain.appProvider = appProvider;

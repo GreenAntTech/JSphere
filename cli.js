@@ -920,7 +920,7 @@ function decode(src) {
     return dst;
 }
 const cmdArgs = parse1(Deno.args);
-const VERSION = 'v0.0.1-preview.2';
+const VERSION = 'v0.0.1-preview.3';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -1221,31 +1221,44 @@ async function processDecryptCmd(cmdArgs) {
                     'decrypt'
                 ]);
                 const repo = env[env.CONFIG];
-                let domainFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`));
+                const domainFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`));
                 const domainConfig = JSON.parse(domainFile);
                 const settings = domainConfig.settings;
                 for(const setting in settings){
-                    if (typeof settings[setting] === 'object' && settings[setting].encrypt) {
+                    if (typeof settings[setting] === 'object' && settings[setting].encrypted === true) {
                         const decBuffer = await crypto.subtle.decrypt({
                             name: "RSA-OAEP"
                         }, privateKey, decode(new TextEncoder().encode(settings[setting].value)));
                         const decData = new Uint8Array(decBuffer);
-                        domainFile = domainFile.replace(`"${settings[setting].value}"`, `"${new TextDecoder().decode(decData)}"`);
+                        settings[setting].value = new TextDecoder().decode(decData);
+                        settings[setting].encrypted = false;
                     }
                 }
                 for(const extension in domainConfig.contextExtensions){
                     const settings = domainConfig.contextExtensions[extension].settings;
                     for(const setting in settings){
-                        if (typeof settings[setting] === 'object' && settings[setting].encrypt) {
+                        if (typeof settings[setting] === 'object' && settings[setting].encrypted === true) {
                             const decBuffer = await crypto.subtle.decrypt({
                                 name: "RSA-OAEP"
                             }, privateKey, decode(new TextEncoder().encode(settings[setting].value)));
                             const decData = new Uint8Array(decBuffer);
-                            domainFile = domainFile.replace(`"${settings[setting].value}"`, `"${new TextDecoder().decode(decData)}"`);
+                            settings[setting].value = new TextDecoder().decode(decData);
+                            settings[setting].encrypted = false;
                         }
                     }
                 }
-                await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(domainFile));
+                await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(JSON.stringify(domainConfig, null, '\t')));
+                const appFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`));
+                const appConfig = JSON.parse(appFile);
+                if (appConfig.host.auth.encrypted === true) {
+                    const decBuffer = await crypto.subtle.decrypt({
+                        name: "RSA-OAEP"
+                    }, privateKey, decode(new TextEncoder().encode(appConfig.host.auth.value)));
+                    const decData = new Uint8Array(decBuffer);
+                    appConfig.host.auth.value = new TextDecoder().decode(decData);
+                    appConfig.host.auth.encrypted = false;
+                }
+                await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
             } else error(`Please set a value for the CRYPTO_PRIVATE_KEY environment variable.`);
         } else error(`Please provide a domain.`);
     } catch (e) {
@@ -1268,31 +1281,44 @@ async function processEncryptCmd(cmdArgs) {
                     'encrypt'
                 ]);
                 const repo = env[env.CONFIG];
-                let domainFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`));
+                const domainFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`));
                 const domainConfig = JSON.parse(domainFile);
                 const settings = domainConfig.settings;
                 for(const setting in settings){
-                    if (typeof settings[setting] === 'object' && settings[setting].encrypt) {
+                    if (typeof settings[setting] === 'object' && settings[setting].encrypted === false) {
                         const encBuffer = await crypto.subtle.encrypt({
                             name: "RSA-OAEP"
                         }, publicKey, new TextEncoder().encode(settings[setting].value));
                         const encData = new Uint8Array(encBuffer);
-                        domainFile = domainFile.replace(`"${settings[setting].value}"`, `"${new TextDecoder().decode(encode(encData))}"`);
+                        settings[setting].value = new TextDecoder().decode(encode(encData));
+                        settings[setting].encrypted = true;
                     }
                 }
                 for(const extension in domainConfig.contextExtensions){
                     const settings = domainConfig.contextExtensions[extension].settings;
                     for(const setting in settings){
-                        if (typeof settings[setting] === 'object' && settings[setting].encrypt) {
+                        if (typeof settings[setting] === 'object' && settings[setting].encrypted === false) {
                             const encBuffer = await crypto.subtle.encrypt({
                                 name: "RSA-OAEP"
                             }, publicKey, new TextEncoder().encode(settings[setting].value));
                             const encData = new Uint8Array(encBuffer);
-                            domainFile = domainFile.replace(`"${settings[setting].value}"`, `"${new TextDecoder().decode(encode(encData))}"`);
+                            settings[setting].value = new TextDecoder().decode(encode(encData));
+                            settings[setting].encrypted = true;
                         }
                     }
                 }
-                await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(domainFile));
+                await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(JSON.stringify(domainConfig, null, '\t')));
+                const appFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`));
+                const appConfig = JSON.parse(appFile);
+                if (appConfig.host.auth.encrypted === false) {
+                    const encBuffer = await crypto.subtle.encrypt({
+                        name: "RSA-OAEP"
+                    }, publicKey, new TextEncoder().encode(appConfig.host.auth.value));
+                    const encData = new Uint8Array(encBuffer);
+                    appConfig.host.auth.value = new TextDecoder().decode(encode(encData));
+                    appConfig.host.auth.encrypted = true;
+                }
+                await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
             } else error(`Please set a value for the CRYPTO_PUBLIC_KEY environment variable.`);
         } else error(`Please provide a domain.`);
     } catch (e) {
