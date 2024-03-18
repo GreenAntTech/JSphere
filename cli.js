@@ -920,7 +920,7 @@ function decode(src) {
     return dst;
 }
 const cmdArgs = parse1(Deno.args);
-const VERSION = 'v0.0.1-preview.3';
+const VERSION = 'v0.0.1-preview.4';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -1115,7 +1115,7 @@ async function processCheckoutCmd(cmdArgs) {
                         await cloneRepo({
                             provider: appConfig.host.name,
                             owner: appConfig.host.root,
-                            accessToken: appConfig.host.auth,
+                            accessToken: appConfig.host.auth.encrypted ? await decrypt(appConfig.host.auth.value, env) : appConfig.host.auth.value,
                             repo: key
                         });
                     }
@@ -1380,6 +1380,21 @@ async function processResetCmd(cmdArgs) {
 }
 function processVersionCmd() {
     console.log(VERSION);
+}
+async function decrypt(data, env) {
+    const keyData = decode(new TextEncoder().encode(env.CRYPTO_PRIVATE_KEY));
+    const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
+        name: "RSA-OAEP",
+        hash: "SHA-512"
+    }, true, [
+        'decrypt'
+    ]);
+    const decBuffer = await crypto.subtle.decrypt({
+        name: "RSA-OAEP"
+    }, privateKey, decode(new TextEncoder().encode(data)));
+    const decData = new Uint8Array(decBuffer);
+    const decString = new TextDecoder().decode(decData);
+    return decString;
 }
 async function cloneRepo(config) {
     let command;
