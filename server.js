@@ -2866,6 +2866,8 @@ function delay(ms, options = {}) {
         }
     });
 }
+var _computedKey;
+_computedKey = Symbol.asyncIterator;
 class MuxAsyncIterator {
     #iteratorCount = 0;
     #yields = [];
@@ -2909,7 +2911,7 @@ class MuxAsyncIterator {
             this.#signal = deferred();
         }
     }
-    [Symbol.asyncIterator]() {
+    [_computedKey]() {
         return this.iterate();
     }
 }
@@ -3664,11 +3666,13 @@ const __default = {
     DocumentFragment: null
 };
 const HTMLCollectionFakeClass = (()=>{
+    var _computedKey;
+    _computedKey = Symbol.hasInstance;
     return class HTMLCollection {
         constructor(){
             throw new TypeError("Illegal constructor");
         }
-        static [Symbol.hasInstance](value) {
+        static [_computedKey](value) {
             return value.constructor === HTMLCollectionClass;
         }
     };
@@ -3741,11 +3745,13 @@ const HTMLCollectionPublic = HTMLCollectionFakeClass;
 const CTOR_KEY = Symbol();
 var NodeType;
 const NodeListFakeClass = (()=>{
+    var _computedKey;
+    _computedKey = Symbol.hasInstance;
     return class NodeList {
         constructor(){
             throw new TypeError("Illegal constructor");
         }
-        static [Symbol.hasInstance](value) {
+        static [_computedKey](value) {
             return value.constructor === NodeListClass;
         }
     };
@@ -7068,6 +7074,8 @@ function getSelectorEngine() {
 function disableCodeGeneration() {
     codeGenerationAllowed = false;
 }
+var _computedKey1, _computedKey11;
+_computedKey1 = Symbol.iterator;
 class DOMTokenList {
     #_value = "";
     get #value() {
@@ -7122,7 +7130,7 @@ class DOMTokenList {
             yield i1;
         }
     }
-    *[Symbol.iterator]() {
+    *[_computedKey1]() {
         yield* this.#set.values();
     }
     item(index) {
@@ -7282,6 +7290,7 @@ const getNamedNodeMapValueSym = Symbol();
 const getNamedNodeMapAttrNamesSym = Symbol();
 const getNamedNodeMapAttrNodeSym = Symbol();
 const removeNamedNodeMapAttrSym = Symbol();
+_computedKey11 = Symbol.iterator;
 class NamedNodeMap {
     static #indexedAttrAccess = function(map, index) {
         if (index + 1 > this.length) {
@@ -7357,7 +7366,7 @@ class NamedNodeMap {
             }
         }
     }
-    *[Symbol.iterator]() {
+    *[_computedKey11]() {
         for(let i1 = 0; i1 < this.length; i1++){
             yield this[i1];
         }
@@ -8313,15 +8322,23 @@ async function handleRequest(request) {
                 domain.currentCacheDTS = currentCacheDTS, domain.packageItemCache = {};
                 let module1;
                 const contextExtension = domain.contextExtensions['feature'];
-                if (contextExtension.uri === 'jsphere://Feature') module1 = mod5;
-                else module1 = await import(contextExtension.uri);
+                if (contextExtension.uri === 'jsphere://Feature') {
+                    module1 = mod5;
+                } else if (contextExtension.uri.startsWith('/')) {
+                    module1 = await import(`http://127.0.0.1:${url.port}${contextExtension.uri}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
+                } else {
+                    module1 = await import(contextExtension.uri);
+                }
                 contextExtension.instance = module1.getInstance({
                     extension: 'feature',
                     domain: domainHostname,
                     appId: domain.appId,
-                    settings: contextExtension.settings || {},
-                    appConfig: domain.appConfig
-                }, new Utils());
+                    settings: await mod9.getSettings(contextExtension.settings || {}),
+                    appConfig: {
+                        featureFlags: domain.appConfig.featureFlags,
+                        settings: domain.appConfig.settings
+                    }
+                });
             } else throw new Error(`Repo provider '${appConfig.host.name}' is not a registered provider.`);
             mod9.initializeDomain(domainHostname, true);
         }
@@ -8331,13 +8348,14 @@ async function handleRequest(request) {
 async function handleRequest1(request) {
     let response = false;
     const url = new URL(request.url);
-    const isInit = mod9.isDomainInitialized(url.hostname);
-    if (!url.pathname.startsWith('/~/') && url.hostname != '127.0.0.1' && !isInit) {
-        mod9.initializeDomain(url.hostname, false);
+    const domainHostname = url.hostname;
+    const isInit = mod9.isDomainInitialized(domainHostname);
+    if (!url.pathname.startsWith('/~/') && domainHostname != '127.0.0.1' && !isInit) {
+        mod9.initializeDomain(domainHostname, false);
         try {
-            let file = await mod9.getProjectHost().getConfigFile(`.domains/${url.hostname}.json`);
+            let file = await mod9.getProjectHost().getConfigFile(`.domains/${domainHostname}.json`);
             if (file === null) {
-                const domainParts = url.hostname.split('.');
+                const domainParts = domainHostname.split('.');
                 domainParts.shift();
                 file = await mod9.getProjectHost().getConfigFile(`.domains/${domainParts.join('.')}.json`);
                 if (file === null) throw new Error('Domain Not Registered');
@@ -8357,7 +8375,7 @@ async function handleRequest1(request) {
                 auth: appConfig.host.auth.encrypted ? await new Utils().decrypt(appConfig.host.auth.value) : appConfig.host.auth.value
             });
             if (appProvider) {
-                mod9.setDomain(url.hostname, {
+                mod9.setDomain(domainHostname, {
                     initialized: true,
                     appId: domainConfig.appId,
                     appFile: domainConfig.appFile,
@@ -8378,31 +8396,38 @@ async function handleRequest1(request) {
                     currentCacheDTS: Date.now(),
                     packageItemCache: {}
                 });
-                const domain = mod9.getDomain(url.hostname);
-                const utils = new Utils();
+                const domain = mod9.getDomain(domainHostname);
                 for(const prop in domain.contextExtensions){
                     const contextExtension = domain.contextExtensions[prop];
                     let module1;
                     if (prop === 'cache' && contextExtension.uri === 'jsphere://Cache') module1 = mod4;
-                    else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') module1 = mod5;
-                    else module1 = await import(contextExtension.uri);
+                    else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') {
+                        module1 = mod5;
+                    } else if (contextExtension.uri.startsWith('/')) {
+                        module1 = await import(`http://127.0.0.1:${url.port}${contextExtension.uri}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
+                    } else {
+                        module1 = await import(contextExtension.uri);
+                    }
                     contextExtension.instance = await module1.getInstance({
                         extension: prop,
-                        domain: url.hostname,
+                        domain: domainHostname,
                         appId: domain.appId,
-                        settings: contextExtension.settings || {},
-                        appConfig: domain.appConfig
-                    }, utils);
+                        settings: await mod9.getSettings(contextExtension.settings || {}),
+                        appConfig: {
+                            featureFlags: domain.appConfig.featureFlags,
+                            settings: domain.appConfig.settings
+                        }
+                    });
                 }
                 const cache = domain.contextExtensions['cache'].instance;
-                const currentCacheDTS = await cache.get(`${url.hostname}::currentCacheDTS`);
-                if (currentCacheDTS === null) await cache.set(`${url.hostname}::currentCacheDTS`, domain.currentCacheDTS);
+                const currentCacheDTS = await cache.get(`${domainHostname}::currentCacheDTS`);
+                if (currentCacheDTS === null) await cache.set(`${domainHostname}::currentCacheDTS`, domain.currentCacheDTS);
                 else domain.currentCacheDTS = currentCacheDTS;
             } else throw new Error(`Repo provider '${appConfig.host.name}' is not a registered provider.`);
-            mod9.initializeDomain(url.hostname, true);
+            mod9.initializeDomain(domainHostname, true);
         } catch (e) {
-            mod9.initializeDomain(url.hostname, undefined);
-            error(`DomainInitHandler[${url.hostname}]: ${e.message}`);
+            mod9.initializeDomain(domainHostname, undefined);
+            error(`DomainInitHandler[${domainHostname}]: ${e.message}`);
             response = new Response(`${e.message}`, {
                 status: 500
             });
@@ -8713,6 +8738,23 @@ async function getPackageItem(domainHostname, path) {
         return null;
     }
 }
+async function getSettings(settings) {
+    const utils = new Utils();
+    const decryptedSettings = {};
+    for(const setting in settings){
+        if (settings[setting].value) {
+            if (settings[setting].encrypted && settings[setting].encrypted === true) {
+                const value = settings[setting].value;
+                decryptedSettings[setting] = await utils.decrypt(value);
+            } else {
+                decryptedSettings[setting] = settings[setting].value;
+            }
+        } else {
+            decryptedSettings[setting] = settings[setting];
+        }
+    }
+    return decryptedSettings;
+}
 const mod9 = {
     init: init1,
     getHostProvider: getHostProvider,
@@ -8723,7 +8765,8 @@ const mod9 = {
     isDomainInitialized: isDomainInitialized,
     initializeDomain: initializeDomain,
     handleRequest: handleRequest8,
-    getPackageItem: getPackageItem
+    getPackageItem: getPackageItem,
+    getSettings: getSettings
 };
 const mod10 = {
     handleRequest: handleRequest

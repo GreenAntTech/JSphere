@@ -920,7 +920,7 @@ function decode(src) {
     return dst;
 }
 const cmdArgs = parse1(Deno.args);
-const VERSION = 'v0.0.1-preview.4';
+const VERSION = 'v0.0.1-preview.5';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -941,6 +941,9 @@ const VERSION = 'v0.0.1-preview.4';
                 break;
             case 'encrypt':
                 await processEncryptCmd(cmdArgs);
+                break;
+            case 'exportkey':
+                await processExportKeyCmd(cmdArgs);
                 break;
             case 'help':
                 processHelpCmd();
@@ -965,16 +968,17 @@ const VERSION = 'v0.0.1-preview.4';
     }
 })();
 function processHelpCmd() {
-    console.log('build [-v=<version>] [--no-cache]');
-    console.log('checkout <jsphere_config_repo>|<app_config_file_without_json_extension>/<package_name_within_app_config>');
-    console.log('create <project|package> <name> [--git-init]');
-    console.log('cryptokeys');
-    console.log('decrypt <domain_domain>');
-    console.log('encrypt <domain_domain>');
-    console.log('reset <domain_domain>');
-    console.log('run [-v=<version>] [--http=<port_number>] [--debug=<port_number>]');
-    console.log('start [-v=<version>] [--debug=<port_number>] [--reload]');
-    console.log('version');
+    info('build [-v=<version>] [--no-cache]');
+    info('checkout <jsphere_config_repo>|<app_config_file_without_json_extension>/<package_name_within_app_config>');
+    info('create <project|package> <name> [--git-init]');
+    info('cryptokeys');
+    info('decrypt <domain_domain>');
+    info('encrypt <domain_domain>');
+    info('exportkey private|public <file>');
+    info('reset <domain_domain>');
+    info('run [-v=<version>] [--http=<port_number>] [--debug=<port_number>]');
+    info('start [-v=<version>] [--debug=<port_number>] [--reload]');
+    info('version');
 }
 async function processStartCmd(cmdArgs) {
     try {
@@ -1231,7 +1235,7 @@ async function processDecryptCmd(cmdArgs) {
                         }, privateKey, decode(new TextEncoder().encode(settings[setting].value)));
                         const decData = new Uint8Array(decBuffer);
                         settings[setting].value = new TextDecoder().decode(decData);
-                        settings[setting].encrypted = false;
+                        delete settings[setting].encrypted;
                     }
                 }
                 for(const extension in domainConfig.contextExtensions){
@@ -1243,7 +1247,7 @@ async function processDecryptCmd(cmdArgs) {
                             }, privateKey, decode(new TextEncoder().encode(settings[setting].value)));
                             const decData = new Uint8Array(decBuffer);
                             settings[setting].value = new TextDecoder().decode(decData);
-                            settings[setting].encrypted = false;
+                            delete settings[setting].encrypted;
                         }
                     }
                 }
@@ -1256,7 +1260,7 @@ async function processDecryptCmd(cmdArgs) {
                     }, privateKey, decode(new TextEncoder().encode(appConfig.host.auth.value)));
                     const decData = new Uint8Array(decBuffer);
                     appConfig.host.auth.value = new TextDecoder().decode(decData);
-                    appConfig.host.auth.encrypted = false;
+                    delete appConfig.host.auth.encrypted;
                 }
                 await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
             } else error(`Please set a value for the CRYPTO_PRIVATE_KEY environment variable.`);
@@ -1285,7 +1289,7 @@ async function processEncryptCmd(cmdArgs) {
                 const domainConfig = JSON.parse(domainFile);
                 const settings = domainConfig.settings;
                 for(const setting in settings){
-                    if (typeof settings[setting] === 'object' && settings[setting].encrypted === false) {
+                    if (typeof settings[setting] === 'object' && settings[setting].encrypted === undefined) {
                         const encBuffer = await crypto.subtle.encrypt({
                             name: "RSA-OAEP"
                         }, publicKey, new TextEncoder().encode(settings[setting].value));
@@ -1297,7 +1301,7 @@ async function processEncryptCmd(cmdArgs) {
                 for(const extension in domainConfig.contextExtensions){
                     const settings = domainConfig.contextExtensions[extension].settings;
                     for(const setting in settings){
-                        if (typeof settings[setting] === 'object' && settings[setting].encrypted === false) {
+                        if (typeof settings[setting] === 'object' && settings[setting].encrypted === undefined) {
                             const encBuffer = await crypto.subtle.encrypt({
                                 name: "RSA-OAEP"
                             }, publicKey, new TextEncoder().encode(settings[setting].value));
@@ -1310,7 +1314,7 @@ async function processEncryptCmd(cmdArgs) {
                 await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(JSON.stringify(domainConfig, null, '\t')));
                 const appFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`));
                 const appConfig = JSON.parse(appFile);
-                if (appConfig.host.auth.encrypted === false) {
+                if (appConfig.host.auth.encrypted === undefined) {
                     const encBuffer = await crypto.subtle.encrypt({
                         name: "RSA-OAEP"
                     }, publicKey, new TextEncoder().encode(appConfig.host.auth.value));
@@ -1358,6 +1362,43 @@ async function processCryptoKeysCmd() {
         critical(e.message);
     }
 }
+async function processExportKeyCmd(cmdArgs) {
+    try {
+        const keyType = cmdArgs._[1];
+        const file = cmdArgs._[2];
+        const pemContent = await Deno.readTextFile(file);
+        let KeyMatch;
+        if (keyType == 'public') {
+            KeyMatch = pemContent.match(/-----BEGIN PUBLIC KEY-----\s*([\s\S]*?)\s*-----END PUBLIC KEY-----/);
+            if (!KeyMatch) {
+                error("Public key not found in PEM file");
+                return;
+            }
+        } else if (keyType == 'private') {
+            KeyMatch = pemContent.match(/-----BEGIN PRIVATE KEY-----\s*([\s\S]*?)\s*-----END PRIVATE KEY-----/);
+            if (!KeyMatch) {
+                error("Private key not found in PEM file");
+                return;
+            }
+        } else {
+            error("Invalid key type specified. Key type must be public or private");
+            return;
+        }
+        const base64PrivateKey = KeyMatch[1].replace(/\s|\\n/g, '');
+        const binaryPrivateKey = atob(base64PrivateKey);
+        const privateKeyBytes = new Uint8Array(binaryPrivateKey.length);
+        for(let i = 0; i < binaryPrivateKey.length; i++){
+            privateKeyBytes[i] = binaryPrivateKey.charCodeAt(i);
+        }
+        const privateKeyHex = encode(privateKeyBytes);
+        const hexString = new Array(privateKeyHex.length);
+        for(let i = 0; i < hexString.length; i++)hexString[i] = String.fromCharCode(privateKeyHex[i]);
+        const key = hexString.join('');
+        info('Exported Private Key:', key);
+    } catch (e) {
+        critical(e.message);
+    }
+}
 async function processResetCmd(cmdArgs) {
     try {
         const domain = cmdArgs._[1];
@@ -1379,7 +1420,7 @@ async function processResetCmd(cmdArgs) {
     }
 }
 function processVersionCmd() {
-    console.log(VERSION);
+    info(VERSION);
 }
 async function decrypt(data, env) {
     const keyData = decode(new TextEncoder().encode(env.CRYPTO_PRIVATE_KEY));

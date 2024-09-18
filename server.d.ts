@@ -100,7 +100,7 @@ export interface ICache {
 }
 
 export interface IMail {
-    send: () =>  Promise<void>
+    send: (config: IObject) => Promise<void>
 }
 
 export interface IStorage {
