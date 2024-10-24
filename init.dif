@@ -71,7 +71,12 @@ This guide provides comprehensive instructions for the AI assistant to help user
    - If successful: Proceed to next step
    - If failed: Troubleshoot and request new token
 
-5. Fork the JSphere repository from the GitHub GreenAntTech account using this CLI command:
+5. Check if the jsphere repo already exist in the user's GitHub account:
+   ```bash
+   gh repo list --limit 100
+   ```
+
+6. Fork the JSphere repository from the GitHub GreenAntTech account using this CLI command if it doesn't:
    ```bash
    gh repo fork GreenAntTech/JSphere --clone=false
    ```
