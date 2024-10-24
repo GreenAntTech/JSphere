@@ -3,7 +3,6 @@ export const feature$: Feature
 export function createComponent$ (name:string, handler:(el:Component) => void) : string
 export function createComponent$ (handler:(el:Component) => void) : string
 export function renderDocument$ (html:string, config:IObject) : Promise<string>
-export function createDocumentFromFile$ (path:string, config:IObject) : Promise<string>
 export function deviceSubscribesTo$ (subject:string) : void
 export function emitMessage$ (subject:string, data?:IObject, target?: Window & typeof globalThis) : void
 export function navigateTo$ (path:string) : void
@@ -11,19 +10,10 @@ export function registerAllowedOrigin$ (uri:string) : void
 export function registerCaptions$ (name:string, captions:Record<string, string>) : void
 export function registerDependencies$ (dependencies:Record<string, string>) : Promise<void>
 export function registerRoute$ (path:string, handler:(path:string, params:IObject) => Promise<void> | void) : void
-export function renderComponents$ (config?:IObject, element?:Component) : Promise<Record<string, Component>>
-export function runAtClient$ (fn:() => Promise<unknown>) : unknown
-export function runAtServer$ (fn:() => Promise<unknown>) : unknown
-export function runOnce$ (fn:() => Promise<unknown>) : unknown
-export function runOnLoaded$ (fn:() => Promise<unknown>) : unknown
 export function subscribeTo$ (subject:string, handler:(data:IObject) => Promise<void>) : void
 
 export interface IObject {
     [name:string]: unknown
-}
-
-export type Themes = {
-    [name:string]: Record<string, string|IObject>
 }
 
 export type RouteHandlers = {
@@ -47,37 +37,37 @@ export type ComponentHandlers = {
 }
 
 export type Component = HTMLElement & {
-    after$: (component:Component|string, elId?:string) => Promise<Component>
-    append$: (component:Component|string, elId?:string) => Promise<Component>
-    before$: (component:Component|string, elId?:string) => Promise<Component>
+    addAfter$: (type:string, elId:string, tagName?:string) => Promise<Component>
+    addBefore$: (type:string, elId:string, tagName?:string) => Promise<Component>
+    addFirst$: (type:string, elId:string, tagName?:string) => Promise<Component>
+    addLast$: (type:string, elId:string, tagName?:string) => Promise<Component>
     captions$: (name:string) => (value:string, ...args:Array<string>) => void
-    children$: Record<string, Component>
+    children$: Record<string, Component|Array<Component>>
     define$: (props:PropertiesObject) => void
-    extend$: (props:PropertiesObject) => void
+    hidden$: boolean
     id$: string
     is$: string
-    load$: (value:string) => Promise<void>
     onMessageReceived$: (subject:string, data:IObject) => Promise<void>
-    onServer$: (props?:unknown) => Promise<void>|void
-    onClient$: (props?:unknown) => Promise<void>|void
-    onStateChange$: (dataFunc:() => void, reactiveFunc:() => void) => void
+    onRender$: (props?:unknown) => Promise<void>|void
+    onHydrate$: (props?:unknown) => Promise<void>|void
     parent$: Component
-    prepend$: (component:Component|string, elId?:string) => Promise<Component>
     remove$: () => void
     removeChild$: () => void
     removeChildren$: () => void
-    init$: (props?:unknown) => Promise<void>|void
+    template$: (props:IObject) => unknown 
+    render$: (props?:unknown) => Promise<void>|void
+    hydrate$: (props?:unknown) => Promise<void>|void
     renderAtClient$: boolean
+    renderAtServer$: boolean
     subscribeTo$: (subject:string, func:(config:IObject) => void) => void
     listensFor$: (subject:string) => boolean
-    setThemes$: (themes:string, cascade?:boolean) => void;
-    unsetThemes$: (themes:string, cascade?:boolean) => void;
     unsubscribeTo$: (subject:string) => void
-    use$: () => Promise<Array<string>>
-    useState$: (obj:IObject) => IObject
-    useTemplate$: (template?:string, func?:() => void) => Record<string, Component>
-    useTemplateUrl$: (url:string, func?:() => void) => Promise<Record<string, Component>>
-    useThemes$: (themes:Themes, theme:string) => void
+    use$: () => Array<string>
+    // Link Properties
+    disabled$: boolean
+    href$: string
+    text$: string
+    src$: (props:IObject) => unknown
 }
 
 type ComponentMethod = {
@@ -96,16 +86,31 @@ type PropertiesObject = {
     [name:string]: ComponentGetter | ComponentMethod | ComponentSetter | ((...args: any[]) => Promise<unknown> | unknown)
 }
 
+export type Link = Component & {
+    disabled$: boolean
+    href$: string
+    text$: string
+}
+
 export type ServerContext = {
     domain: DomainContext
-    getPackageItem: (path: string) => Promise<PackageItem | null>
+    request: RequestContext
     parser: IParser
-    [key: string] : unknown
+    getPackageItem: (path: string) => Promise<PackageItem | null>
 }
 
 type DomainContext = {
     hostname: string
     cacheDTS: number
+}
+
+export type RequestContext = {
+    url: URL
+    params: Record<string, string>
+}
+
+interface IParser {
+    parseFromString: (markupLanguage: string, mimeType: "text/html" | "image/svg+xml" | "text/xml", globals?: unknown) => Document | XMLDocument
 }
 
 type PackageItem = {
@@ -115,34 +120,15 @@ type PackageItem = {
     headers?: Record<string, string>
 }
 
-interface IParser {
-    parseFromString: (markupLanguage: string, mimeType: "text/html" | "image/svg+xml" | "text/xml", globals?: unknown) => Document | XMLDocument
-}
-
 type AppContext = {
     document?: Document
-    getPackageItem?: (path: string) => Promise<PackageItem | null>
-    getResource: (path: string) => Promise<string>
-    importModule: (url: string) => Promise<any>
+    getPackageItem?: (path: string) => Promise<PackageItem|null>
+    getResource: (path: string) => Promise<string|null>
+    importModule: (url: string) => Promise<IObject>
     parser?: IParser
     [key: string] : unknown
 }
 
 export type Feature = {
     flag: (obj: Record<string, () => void>) => void
-}
-
-export type GenericComponent = Component & {
-    click$: () => void
-    hidden$: boolean
-    onclick$: (e: Event) => void
-    value$: string
-}
-
-export type Link = Component & {
-    click$: () => void
-    disabled$: boolean
-    href$: string
-    onclick$: (e: Event) => void | boolean
-    value$: string
 }
