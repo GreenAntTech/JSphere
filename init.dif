@@ -85,7 +85,7 @@ This guide provides comprehensive instructions for the AI assistant to help user
 
 2. Execute installation:
    ```bash
-   deno install --allow-all -f -n js https://esm.sh/gh/greenanttech/jsphere/cli.js
+   deno install --allow-all -f -n js https://raw.githubusercontent.com/GreenAntTech/JSphere/main/cli.js
    ```
 
 3. Verify installation:
