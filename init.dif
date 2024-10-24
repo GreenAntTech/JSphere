@@ -71,6 +71,11 @@ This guide provides comprehensive instructions for the AI assistant to help user
    - If successful: Proceed to next step
    - If failed: Troubleshoot and request new token
 
+5. Fork the JSphere repository from the GitHub GreenAntTech account using this CLI command:
+   ```bash
+   gh repo fork GreenAntTech/JSphere --clone=false
+   ```
+
 ## 3. JSphere CLI Installation
 
 1. Request permission to install JSphere CLI:
