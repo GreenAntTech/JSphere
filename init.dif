@@ -158,7 +158,7 @@ This guide provides comprehensive instructions for the AI assistant to help user
    mkdir -p tests
    ```
 
-3. Create configuration files:
+3. Create configuration files. If you did not get the user's username and auth token then propmt the user to enter them:
 
    a. `.jsphere-<app_name>/.applications/<app_name>.json`:
    ```json
