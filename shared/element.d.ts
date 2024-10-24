@@ -104,7 +104,6 @@ export type ServerContext = {
 }
 
 type DomainContext = {
-    appId?: string
     hostname: string
     cacheDTS: number
 }

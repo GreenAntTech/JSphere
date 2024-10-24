@@ -8303,7 +8303,7 @@ async function handleRequest(request) {
         const currentCacheDTS = await cache.get(`${domainHostname}::currentCacheDTS`);
         if (currentCacheDTS > domain.currentCacheDTS) {
             mod9.initializeDomain(domainHostname, false);
-            const file = await mod9.getProjectHost().getConfigFile(`.applications/${domain.appFile}.json`);
+            const file = await mod9.getProjectHost().getConfigFile(`.applications/${domain.appConfigFile}`);
             if (file === null) throw new Error('Domain Application Not Registered');
             const appConfig = JSON.parse(file);
             if (!appConfig.host) appConfig.host = {};
@@ -8332,7 +8332,6 @@ async function handleRequest(request) {
                 contextExtension.instance = module1.getInstance({
                     extension: 'feature',
                     domain: domainHostname,
-                    appId: domain.appId,
                     settings: await mod9.getSettings(contextExtension.settings || {}),
                     appConfig: {
                         featureFlags: domain.appConfig.featureFlags,
@@ -8361,10 +8360,13 @@ async function handleRequest1(request) {
                 if (file === null) throw new Error('Domain Not Registered');
             }
             const domainConfig = JSON.parse(file);
-            file = await mod9.getProjectHost().getConfigFile(`.applications/${domainConfig.appFile}.json`);
+            file = await mod9.getProjectHost().getConfigFile(`.applications/${domainConfig.appConfigFile}`);
             if (file === null) throw new Error('Domain Application Not Registered');
             const appConfig = JSON.parse(file);
             if (!appConfig.host) appConfig.host = {};
+            if (!appConfig.host.name) throw `The application's host configuration "name" property has not been set in the file ${domainConfig.appConfigFile}`;
+            if (!(appConfig.host.name == 'FileSystem') && !appConfig.host.root) throw `The application's host configuration "root" property has not been set in the file ${domainConfig.appConfigFile}`;
+            if (!appConfig.host.auth) appConfig.host.auth = {};
             if (!appConfig.packages) appConfig.packages = {};
             if (!appConfig.routeMappings) appConfig.routeMappings = [];
             if (!appConfig.featureFlags) appConfig.featureFlags = [];
@@ -8377,8 +8379,7 @@ async function handleRequest1(request) {
             if (appProvider) {
                 mod9.setDomain(domainHostname, {
                     initialized: true,
-                    appId: domainConfig.appId,
-                    appFile: domainConfig.appFile,
+                    appConfigFile: domainConfig.appConfigFile,
                     settings: domainConfig.settings || {},
                     contextExtensions: Object.assign({
                         cache: {
@@ -8411,7 +8412,6 @@ async function handleRequest1(request) {
                     contextExtension.instance = await module1.getInstance({
                         extension: prop,
                         domain: domainHostname,
-                        appId: domain.appId,
                         settings: await mod9.getSettings(contextExtension.settings || {}),
                         appConfig: {
                             featureFlags: domain.appConfig.featureFlags,
@@ -8502,19 +8502,16 @@ async function handleRequest4(request) {
     const extension = extname2(request.routePath);
     if (domain.appConfig.routeMappings && !lookup(extension)) {
         for (const entry of domain.appConfig.routeMappings){
-            const mapping = {
-                route: entry.route,
-                path: entry.path
-            };
             const pattern = new URLPattern({
-                pathname: mapping.route
+                pathname: entry.route
             });
             if (pattern.test(url.href)) {
-                const folder = mapping.path.split('/')[2];
-                if (folder == 'server') {
-                    request.routeParams = pattern.exec(url.href)?.pathname.groups || {};
-                }
-                request.routePath = mapping.path;
+                let path = (entry.path.startsWith('/') ? '' : '/') + entry.path;
+                const folder = path.split('/')[2];
+                const groups = pattern.exec(url.href)?.pathname.groups;
+                if (folder == 'server') request.routeParams = groups || {};
+                if (groups) path = path.replaceAll('*', groups['0']);
+                request.routePath = path;
                 break;
             }
         }
@@ -8884,7 +8881,6 @@ async function getDomainContext(request) {
     const domainHostname = url.hostname;
     const domain = mod9.getDomain(domainHostname);
     const domainContext = {
-        appId: domain.appId,
         hostname: domainHostname,
         cacheDTS: domain.currentCacheDTS
     };

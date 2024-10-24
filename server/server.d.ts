@@ -13,7 +13,6 @@ export interface IObject {
 export type ContextExtensionConfig = {
     extension: string
     domain: string, 
-    appId: string, 
     settings: Record<string, unknown|IObject>
     appConfig: IObject
 }
@@ -35,7 +34,6 @@ export type ServerContext = {
 }
 
 export type DomainContext = {
-    appId?: string
     hostname: string
     cacheDTS: number
 }

@@ -1109,10 +1109,10 @@ async function processCheckoutCmd(cmdArgs) {
             });
         } else {
             const parts = checkout.split('/');
-            const appId = parts[0];
+            const appConfigFile = parts[0];
             const appPackage = parts[1];
-            const appFile = await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${appId}.json`);
-            const appConfig = JSON.parse(new TextDecoder().decode(appFile));
+            const content = await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${appConfigFile}.json`);
+            const appConfig = JSON.parse(new TextDecoder().decode(content));
             if (appConfig.packages) {
                 for(const key in appConfig.packages){
                     if (appPackage == '*' || appPackage == key) {
@@ -1125,7 +1125,7 @@ async function processCheckoutCmd(cmdArgs) {
                     }
                 }
             } else {
-                error(`The application '${appId}' does not have the package '${appPackage}' registered.`);
+                error(`The application '${appConfigFile}' does not have the package '${appPackage}' registered.`);
             }
         }
     } catch (e) {
@@ -1139,6 +1139,9 @@ async function processCreateCmd(cmdArgs) {
             break;
         case 'project':
             await processCreateProjectCmd(cmdArgs);
+            break;
+        case 'repo':
+            await processCreateRepoCmd(cmdArgs);
             break;
         default:
             error(`Missing 'project' or 'package' after create command.`);
@@ -1209,6 +1212,41 @@ async function processCreateProjectCmd(cmdArgs) {
         critical(e.message);
     }
 }
+async function processCreateRepoCmd(cmdArgs) {
+    try {
+        const env = await load({
+            envPath: `${Deno.cwd()}/.env`
+        });
+        env.REMOTE_CONFIG;
+        env.REMOTE_HOST;
+        env.REMOTE_ROOT;
+        const accessToken = env.REMOTE_AUTH;
+        const repoName = cmdArgs._[2];
+        if (repoName) {
+            const response = await fetch(`https://api.github.com/user/repos`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28'
+                },
+                body: JSON.stringify({
+                    "name": repoName,
+                    "description": "JSphere Project",
+                    "homepage": "https://github.com",
+                    "private": true,
+                    "is_template": true
+                })
+            });
+            const result = await response.json();
+            if (result) {
+                console.log(result);
+            }
+        } else error(`Please provide a package name.`);
+    } catch (e) {
+        critical(e.message);
+    }
+}
 async function processDecryptCmd(cmdArgs) {
     try {
         const domain = cmdArgs._[1];
@@ -1252,8 +1290,8 @@ async function processDecryptCmd(cmdArgs) {
                     }
                 }
                 await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(JSON.stringify(domainConfig, null, '\t')));
-                const appFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`));
-                const appConfig = JSON.parse(appFile);
+                const content = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appConfigFile}.json`));
+                const appConfig = JSON.parse(content);
                 if (appConfig.host.auth.encrypted === true) {
                     const decBuffer = await crypto.subtle.decrypt({
                         name: "RSA-OAEP"
@@ -1262,7 +1300,7 @@ async function processDecryptCmd(cmdArgs) {
                     appConfig.host.auth.value = new TextDecoder().decode(decData);
                     delete appConfig.host.auth.encrypted;
                 }
-                await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
+                await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appConfigFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
             } else error(`Please set a value for the CRYPTO_PRIVATE_KEY environment variable.`);
         } else error(`Please provide a domain.`);
     } catch (e) {
@@ -1312,8 +1350,8 @@ async function processEncryptCmd(cmdArgs) {
                     }
                 }
                 await Deno.writeFile(`${Deno.cwd()}/${repo}/.domains/${domain}.json`, new TextEncoder().encode(JSON.stringify(domainConfig, null, '\t')));
-                const appFile = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`));
-                const appConfig = JSON.parse(appFile);
+                const content = new TextDecoder().decode(await Deno.readFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appConfigFile}.json`));
+                const appConfig = JSON.parse(content);
                 if (appConfig.host.auth.encrypted === undefined) {
                     const encBuffer = await crypto.subtle.encrypt({
                         name: "RSA-OAEP"
@@ -1322,7 +1360,7 @@ async function processEncryptCmd(cmdArgs) {
                     appConfig.host.auth.value = new TextDecoder().decode(encode(encData));
                     appConfig.host.auth.encrypted = true;
                 }
-                await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
+                await Deno.writeFile(`${Deno.cwd()}/${repo}/.applications/${domainConfig.appConfigFile}.json`, new TextEncoder().encode(JSON.stringify(appConfig, null, '\t')));
             } else error(`Please set a value for the CRYPTO_PUBLIC_KEY environment variable.`);
         } else error(`Please provide a domain.`);
     } catch (e) {
@@ -1491,8 +1529,7 @@ AUTHORIZATION_TOKEN=dev
 }
 function getDomainContent() {
     const content = `{
-    "appId": "app",
-    "appFile": "app",
+    "appConfigFile": "app.json",
     "settings": {
     },
     "contextExtensions": {
