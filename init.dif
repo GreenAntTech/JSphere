@@ -166,7 +166,8 @@ This guide provides comprehensive instructions for the AI assistant to help user
            }
        },
        "packages": {
-           "<app_name>": {}
+           "<app_name>": {},
+           "jsphere": {}
        },
        "routeMappings": [
            { "route": "/", "path": "/<app_name>/client/index.html" },
@@ -180,7 +181,7 @@ This guide provides comprehensive instructions for the AI assistant to help user
    b. `.jsphere-<app_name>/.domains/localhost.json`:
    ```json
    {
-       "appFile": "<app_name>",
+       "appConfigFile": "<app_name>.json",
        "settings": {},
        "contextExtensions": {}
    }
