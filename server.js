@@ -8303,7 +8303,7 @@ async function handleRequest(request) {
         const currentCacheDTS = await cache.get(`${domainHostname}::currentCacheDTS`);
         if (currentCacheDTS > domain.currentCacheDTS) {
             mod9.initializeDomain(domainHostname, false);
-            const file = await mod9.getProjectHost().getConfigFile(`.applications/${domain.appConfigFile}`);
+            const file = await mod9.getProjectHost().getConfigFile('app.json');
             if (file === null) throw new Error('Domain Application Not Registered');
             const appConfig = JSON.parse(file);
             if (!appConfig.host) appConfig.host = {};
@@ -8360,12 +8360,12 @@ async function handleRequest1(request) {
                 if (file === null) throw new Error('Domain Not Registered');
             }
             const domainConfig = JSON.parse(file);
-            file = await mod9.getProjectHost().getConfigFile(`.applications/${domainConfig.appConfigFile}`);
+            file = await mod9.getProjectHost().getConfigFile('app.json');
             if (file === null) throw new Error('Domain Application Not Registered');
             const appConfig = JSON.parse(file);
             if (!appConfig.host) appConfig.host = {};
-            if (!appConfig.host.name) throw `The application's host configuration "name" property has not been set in the file ${domainConfig.appConfigFile}`;
-            if (!(appConfig.host.name == 'FileSystem') && !appConfig.host.root) throw `The application's host configuration "root" property has not been set in the file ${domainConfig.appConfigFile}`;
+            if (!appConfig.host.name) throw `The application's host configuration "name" property has not been set in the file app.json`;
+            if (!(appConfig.host.name == 'FileSystem') && !appConfig.host.root) throw `The application's host configuration "root" property has not been set in the file app.json`;
             if (!appConfig.host.auth) appConfig.host.auth = {};
             if (!appConfig.packages) appConfig.packages = {};
             if (!appConfig.routeMappings) appConfig.routeMappings = [];
@@ -8635,6 +8635,7 @@ async function handleRequest7(request) {
     return response;
 }
 const domains = {};
+const aliasMappings = {};
 let host;
 async function init1() {
     setProjectHost();
@@ -8704,7 +8705,20 @@ async function getPackageItem(domainHostname, path) {
     const domain = domains[domainHostname];
     const item = domain.packageItemCache[path];
     if (item) return item;
-    const packageKey = path.split('/')[1];
+    let packageKey = path.split('/')[1];
+    if (aliasMappings[packageKey]) {
+        path = path.replace(packageKey, aliasMappings[packageKey]);
+        packageKey = aliasMappings[packageKey];
+    } else {
+        for(const key in domain.appConfig.packages){
+            if (domain.appConfig.packages[key].alias == packageKey) {
+                path = path.replace(packageKey, key);
+                aliasMappings[packageKey] = key;
+                packageKey = key;
+                break;
+            }
+        }
+    }
     if (!domain.appConfig.packages[packageKey]) return null;
     const ref = domain.appConfig.packages[packageKey].tag || 'main';
     const useLocalRepo = domain.appConfig.packages[packageKey].useLocalRepo;
