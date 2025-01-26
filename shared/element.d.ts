@@ -16,6 +16,24 @@ export interface IObject {
     [name:string]: unknown
 }
 
+export interface IRenderConfig {
+    file?: string;
+    html?: string | void;
+    props?: Record<string, unknown>;
+}
+
+export interface IRequestState {
+    pathname: string;
+    hash?: string;
+    params: Record<string, string>;
+}
+
+export type AppContext = {
+    server: boolean;
+    client: boolean;
+    ctx?: ServerContext|null;
+}
+
 export type RouteHandlers = {
     [name:string]: (path:string, params:IObject) => Promise<void>
 }
@@ -25,7 +43,7 @@ export type FeatureHandlers = {
 }
 
 export type MessageHandlers = {
-    [name:string]: (data:IObject, ctx:unknown) => Promise<void>
+    [name:string]: (data:IObject, ctx:unknown) => Promise<IObject|void>
 }
 
 export type DeviceMessageHandlers = {
@@ -37,24 +55,33 @@ export type ComponentHandlers = {
 }
 
 export type Component = HTMLElement & {
-    addAfter$: (type:string, elId:string, tagName?:string) => Promise<Component>
-    addBefore$: (type:string, elId:string, tagName?:string) => Promise<Component>
-    addFirst$: (type:string, elId:string, tagName?:string) => Promise<Component>
-    addLast$: (type:string, elId:string, tagName?:string) => Promise<Component>
+    add$: (props?:IObject) => Promise<Component>
     captions$: (name:string) => (value:string, ...args:Array<string>) => void
     children$: Record<string, Component|Array<Component>>
+    componentState$: number
     define$: (props:PropertiesObject) => void
+    documentState$: string
     hidden$: boolean
+    hydrateOnCallback$: (props?:unknown) => Promise<void>|void
+    hydrateOnComponents$: IObject[]
+    hydrating$: boolean
     id$: string
+    init$: (props?:unknown, isRoot?:boolean) => Promise<void>|void
+    initChildren$: () => void
     is$: string
+    isRendered$: boolean
     onMessageReceived$: (subject:string, data:IObject) => Promise<void>
+    onInit$: (props?:unknown) => Promise<void>|void
     onRender$: (props?:unknown) => Promise<void>|void
     onHydrate$: (props?:unknown) => Promise<void>|void
+    onLoaded$: (props?:unknown) => Promise<void>|void
     parent$: Component
     remove$: () => void
     removeChild$: () => void
     removeChildren$: () => void
-    template$: (props:IObject) => unknown 
+    state$: IObject
+    template$: (props?:IObject) => string|void 
+    useTemplate$: (props?:IObject) => IObject
     render$: (props?:unknown) => Promise<void>|void
     hydrate$: (props?:unknown) => Promise<void>|void
     renderAtClient$: boolean
@@ -66,7 +93,7 @@ export type Component = HTMLElement & {
     // Link Properties
     disabled$: boolean
     href$: string
-    text$: string
+    text$: string|number
     src$: (props:IObject) => unknown
 }
 
@@ -86,10 +113,16 @@ type PropertiesObject = {
     [name:string]: ComponentGetter | ComponentMethod | ComponentSetter | ((...args: any[]) => Promise<unknown> | unknown)
 }
 
+export type GenericComponent = Component & {
+    value$: string
+    onclick$: (event:Event) => void
+}
+
 export type Link = Component & {
     disabled$: boolean
     href$: string
-    text$: string
+    value$: string
+    onclick$: (event:Event) => void
 }
 
 export type ServerContext = {
@@ -118,15 +151,6 @@ type PackageItem = {
     contentType: string
     content: Uint8Array
     headers?: Record<string, string>
-}
-
-type AppContext = {
-    document?: Document
-    getPackageItem?: (path: string) => Promise<PackageItem|null>
-    getResource: (path: string) => Promise<string|null>
-    importModule: (url: string) => Promise<IObject>
-    parser?: IParser
-    [key: string] : unknown
 }
 
 export type Feature = {
