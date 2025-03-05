@@ -3058,12 +3058,12 @@ function getAPIEndpointContent() {
 function getDockerFileContent(projectName) {
     const content = `FROM --platform=linux/amd64 ubuntu
 FROM denoland/deno:ubuntu
-WORKDIR /${projectName}
-COPY .${projectName} ./
+WORKDIR /JSphere
+COPY ${projectName} /JSphere/${projectName}
 RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.js
 EXPOSE 80
 EXPOSE 9229
-ENTRYPOINT ["deno", "run", "--allow-all", "--inspect=0.0.0.0:9229", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.js ${projectName}"]
+ENTRYPOINT ["deno", "run", "--allow-all", "--inspect=0.0.0.0:9229", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.js", "${projectName}"]
 `;
     return content;
 }
@@ -9136,7 +9136,7 @@ async function init1(projectName) {
         });
         for(const key in env)Deno.env.set(key, env[key]);
         mod4.info(`Project Environment File: ${envPath}`);
-        initializeProject(projectName);
+        await initializeProject(projectName);
         currentProjectName = projectName;
     } else {
         mod4.warning('No project is currently being served. Could not find an environment file to load.');
@@ -9612,7 +9612,7 @@ function matchRoute(routeStr, routeObjects) {
 }
 const cmdArgs = parse6(Deno.args);
 await mod10.init(cmdArgs._[0]);
-const serverPort = parseInt(Deno.env.get('server_http_port') || '80');
+const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
 mod4.info(`JSphere Application Server has started.`);
 serve(mod10.handleRequest, {
     port: serverPort
