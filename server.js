@@ -2159,60 +2159,6 @@ function populateMaps(extensions, types) {
 const extensions = Object.create(null);
 const types = Object.create(null);
 populateMaps(extensions, types);
-function getInstance(_config, _utils) {
-    return new Cache();
-}
-class Cache {
-    cache = {};
-    constructor(){}
-    get = (key)=>{
-        const item = this.cache[key];
-        if (item && item.expires !== 0 && Date.now() >= item.expires) {
-            this.remove(key);
-        }
-        return this.cache[key] ? this.cache[key].value : null;
-    };
-    set = (key, value, expires)=>{
-        expires = typeof expires == 'number' && expires > 0 ? Date.now() + expires * 1000 : 0;
-        this.cache[key] = {
-            value,
-            expires
-        };
-    };
-    setExpires = (key, expires)=>{
-        const value = this.get(key);
-        if (value) this.set(key, value, expires);
-        return value;
-    };
-    remove = (key)=>{
-        delete this.cache[key];
-    };
-}
-const mod4 = {
-    getInstance: getInstance
-};
-function getInstance1(config, _utils) {
-    return new Feature(config.appConfig.featureFlags);
-}
-class Feature {
-    featureFlags;
-    constructor(flags){
-        this.featureFlags = flags;
-    }
-    async flag(obj) {
-        for(const prop in obj){
-            const flags = prop.split(',');
-            for (const flag of flags){
-                if (this.featureFlags.includes(flag) || flag == 'default') {
-                    return await obj[prop]();
-                }
-            }
-        }
-    }
-}
-const mod5 = {
-    getInstance: getInstance1
-};
 var LogLevels;
 (function(LogLevels) {
     LogLevels[LogLevels["NOTSET"] = 0] = "NOTSET";
@@ -2802,7 +2748,7 @@ function setup(config) {
     }
 }
 setup(DEFAULT_CONFIG);
-const mod6 = {
+const mod4 = {
     LogLevels: LogLevels,
     Logger: Logger,
     LoggerConfig: LoggerConfig,
@@ -2814,6 +2760,366 @@ const mod6 = {
     error: error,
     critical: critical,
     setup: setup
+};
+async function exists1(path, options) {
+    try {
+        const stat = await Deno.stat(path);
+        if (options && (options.isReadable || options.isDirectory || options.isFile)) {
+            if (options.isDirectory && options.isFile) {
+                throw new TypeError("ExistsOptions.options.isDirectory and ExistsOptions.options.isFile must not be true together.");
+            }
+            if (options.isDirectory && !stat.isDirectory || options.isFile && !stat.isFile) {
+                return false;
+            }
+            if (options.isReadable) {
+                if (stat.mode === null) {
+                    return true;
+                }
+                if (Deno.uid() === stat.uid) {
+                    return (stat.mode & 0o400) === 0o400;
+                } else if (Deno.gid() === stat.gid) {
+                    return (stat.mode & 0o040) === 0o040;
+                }
+                return (stat.mode & 0o004) === 0o004;
+            }
+        }
+        return true;
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) {
+            return false;
+        }
+        if (error instanceof Deno.errors.PermissionDenied) {
+            if ((await Deno.permissions.query({
+                name: "read",
+                path
+            })).state === "granted") {
+                return !options?.isReadable;
+            }
+        }
+        throw error;
+    }
+}
+const VERSION = 'main';
+async function createProject(props) {
+    try {
+        props.projectName = props.projectName.trim();
+        if (!props.projectName) return {
+            status: 400,
+            statusText: 'Project name is required'
+        };
+        if (await exists1(Deno.cwd() + `/${props.projectName}`)) return {
+            status: 400,
+            statusText: `A project with the name '${props.projectName}' already exists.`
+        };
+        await Deno.mkdir(Deno.cwd() + `/${props.projectName}`, {
+            recursive: true
+        });
+        await Deno.writeFile(Deno.cwd() + `/${props.projectName}/.env`, (new TextEncoder).encode(getEnvContent()));
+        await Deno.mkdir(Deno.cwd() + `/${props.projectName}/.${props.projectName}`, {
+            recursive: true
+        });
+        await Deno.writeFile(Deno.cwd() + `/${props.projectName}/.${props.projectName}/.domains.json`, (new TextEncoder).encode(getDomainsConfig()));
+        await Deno.writeFile(Deno.cwd() + `/${props.projectName}/.${props.projectName}/app.json`, (new TextEncoder).encode(getApplicationConfig()));
+        await Deno.mkdir(Deno.cwd() + `/${props.projectName}/app/main/client`, {
+            recursive: true
+        });
+        await Deno.writeFile(Deno.cwd() + `/${props.projectName}/app/main/client/index.html`, (new TextEncoder).encode(getIndexPageContent()));
+        await Deno.mkdir(Deno.cwd() + `/${props.projectName}/app/main/server`, {
+            recursive: true
+        });
+        await Deno.writeFile(Deno.cwd() + `/${props.projectName}/app/main/server/datetime.ts`, (new TextEncoder).encode(getAPIEndpointContent()));
+        return {
+            status: 200,
+            statusText: 'OK'
+        };
+    } catch (e) {
+        error(e);
+        return {
+            status: 500,
+            statusText: 'An error occured. Please check server logs.'
+        };
+    }
+}
+async function retrieveProject(props) {
+    try {
+        props.projectName = props.projectName.trim();
+        if (!props.projectName) return {
+            status: 400,
+            statusText: 'Project name is required'
+        };
+        if (!await exists1(Deno.cwd() + `/${props.projectName}`)) return {
+            status: 404,
+            statusText: `Could not find a project with the name '${props.projectName}'.`
+        };
+        const file = (new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${props.projectName}/.env`));
+        const entries = file.split(`\n`);
+        const env = [];
+        for (const entry of entries){
+            const parts = entry.split('=');
+            env.push({
+                name: parts[0],
+                value: parts[1]
+            });
+        }
+        const domains = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${props.projectName}/.${props.projectName}/.domains.json`)));
+        const apps = {};
+        for await (const dirEntry of Deno.readDir(Deno.cwd() + `/${props.projectName}/.${props.projectName}`)){
+            if (dirEntry.isFile && !dirEntry.name.startsWith('.')) {
+                apps[dirEntry.name.split('.')[0]] = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${props.projectName}/.${props.projectName}/${dirEntry.name}`)));
+            }
+        }
+        return {
+            status: 200,
+            statusText: 'OK',
+            data: {
+                env,
+                domains,
+                apps
+            }
+        };
+    } catch (e) {
+        error(e);
+        return {
+            status: 500,
+            statusText: 'An error occured. Please check server logs.'
+        };
+    }
+}
+async function updateProject(props) {
+    try {
+        props.projectName = props.projectName.trim();
+        if (!props.projectName) return {
+            status: 400,
+            statusText: 'Project name is required'
+        };
+        const project = props.project;
+        if (project.env) {
+            let envStr = '';
+            for (const entry of project.env){
+                envStr += `${entry.name}=${entry.value}\n`;
+            }
+            await Deno.writeFile(Deno.cwd() + `/${props.projectName}/.env`, (new TextEncoder).encode(envStr));
+        }
+        if (project.domains) {
+            await Deno.writeFile(Deno.cwd() + `/${props.projectName}/.${props.projectName}/.domains.json`, (new TextEncoder).encode(JSON.stringify(project.domains, null, '\t')));
+        }
+        if (project.apps) {
+            for(const app in project.apps){
+                if (project.apps[app] === null) {
+                    await Deno.remove(Deno.cwd() + `/${props.projectName}/.${props.projectName}/${app}.json`);
+                    await Deno.remove(Deno.cwd() + `/${props.projectName}/${app}`);
+                } else {
+                    await Deno.writeFile(Deno.cwd() + `/${props.projectName}/.${props.projectName}/${app}.json`, (new TextEncoder).encode(JSON.stringify(project.apps[app], null, '\t')));
+                }
+            }
+        }
+        return {
+            status: 200,
+            statusText: 'OK'
+        };
+    } catch (e) {
+        error(e);
+        return {
+            status: 500,
+            statusText: 'An error occured. Please check server logs.'
+        };
+    }
+}
+async function deleteProject(props) {
+    try {
+        props.projectName = props.projectName.trim();
+        if (!props.projectName) return {
+            status: 400,
+            statusText: 'Project name is required'
+        };
+        await Deno.remove(Deno.cwd() + `/${props.projectName}`);
+        return {
+            status: 200,
+            statusText: 'OK'
+        };
+    } catch (e) {
+        error(e);
+        return {
+            status: 500,
+            statusText: 'An error occured. Please check server logs.'
+        };
+    }
+}
+async function createDockerImage(props) {
+    try {
+        await Deno.writeFile(Deno.cwd() + `/DockerFile`, (new TextEncoder).encode(getDockerFileContent(props.projectName)));
+        const version = props.version || 'latest';
+        const noCache = typeof props.noCache === 'boolean' && props.noCache ? '--no-cache' : '';
+        info(`docker build ${noCache} --pull --rm -f DockerFile -t ${props.projectName.toLowerCase()}:${version} .`);
+        let command;
+        if (noCache) {
+            command = new Deno.Command('docker', {
+                args: [
+                    'build',
+                    '--pull',
+                    '--rm',
+                    '-f',
+                    'DockerFile',
+                    '-t',
+                    `${props.projectName.toLowerCase()}:${version}`,
+                    '.'
+                ],
+                stdin: 'piped'
+            });
+        } else {
+            command = new Deno.Command('docker', {
+                args: [
+                    'build',
+                    '--no-cache',
+                    '--pull',
+                    '--rm',
+                    '-f',
+                    'DockerFile',
+                    '-t',
+                    `${props.projectName.toLowerCase()}:${version}`,
+                    '.'
+                ],
+                stdin: 'piped'
+            });
+        }
+        const child = command.spawn();
+        child.stdin.close();
+        await child.status;
+        await Deno.remove(Deno.cwd() + `/DockerFile`);
+    } catch (e) {
+        error(e.message);
+    }
+}
+function getEnvContent() {
+    const content = `SERVER_HTTP_PORT=80\nSERVER_DEBUG_PORT=9229`;
+    return content;
+}
+function getDomainsConfig() {
+    const json = {
+        localhost: {
+            application: 'app'
+        }
+    };
+    return JSON.stringify(json, null, '\t');
+}
+function getApplicationConfig() {
+    const json = {
+        packages: {
+            main: {}
+        },
+        routeMappings: [
+            {
+                route: "/api/datetime",
+                path: "/main/server/datetime.ts"
+            },
+            {
+                route: "/*",
+                path: "/main/client/index.html"
+            }
+        ],
+        contextExtensions: {},
+        middleware: [],
+        settings: {},
+        featureFlags: []
+    };
+    return JSON.stringify(json, null, '\t');
+}
+function getIndexPageContent() {
+    const content = `<html lang="en">
+    <head>
+        <title>Powered By JSphere</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script type="module">
+            const response = await fetch('/api/datetime', {
+                method:'GET',
+            });
+            const obj = await response.json();
+            document.getElementById('datetime').innerHTML = obj.datetime;
+        </script>
+    </head>
+    <body style="height:100%; width:100%; background-color:#ffffff; overflow: hidden;">
+        <div style="text-align: center; margin-top: 10%;">
+            <div style="font-family:monospace; font-size:2rem; font-weight:bold; margin-bottom:2rem;">Powered By JSphere</div>
+            <div id="datetime" style="font-family:monospace; color:#686868; font-weight:bold;"></div>
+        </div>
+    </body>
+</html>
+`;
+    return content;
+}
+function getAPIEndpointContent() {
+    const content = `export function onGET (ctx:any) {
+    const date = new Date();
+    return ctx.response.json({ datetime: date.toLocaleString() });
+}    
+`;
+    return content;
+}
+function getDockerFileContent(projectName) {
+    const content = `FROM --platform=linux/amd64 ubuntu
+FROM denoland/deno:ubuntu
+WORKDIR /${projectName}
+COPY .${projectName} ./
+RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.js
+EXPOSE 80
+EXPOSE 9229
+ENTRYPOINT ["deno", "run", "--allow-all", "--inspect=0.0.0.0:9229", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${VERSION}/server.js ${projectName}"]
+`;
+    return content;
+}
+function getInstance(_config, _utils) {
+    return new Cache();
+}
+class Cache {
+    cache = {};
+    constructor(){}
+    get = (key)=>{
+        const item = this.cache[key];
+        if (item && item.expires !== 0 && Date.now() >= item.expires) {
+            this.remove(key);
+        }
+        return this.cache[key] ? this.cache[key].value : null;
+    };
+    set = (key, value, expires)=>{
+        expires = typeof expires == 'number' && expires > 0 ? Date.now() + expires * 1000 : 0;
+        this.cache[key] = {
+            value,
+            expires
+        };
+    };
+    setExpires = (key, expires)=>{
+        const value = this.get(key);
+        if (value) this.set(key, value, expires);
+        return value;
+    };
+    remove = (key)=>{
+        delete this.cache[key];
+    };
+}
+const mod5 = {
+    getInstance: getInstance
+};
+function getInstance1(config, _utils) {
+    return new Feature(config.appConfig.featureFlags);
+}
+class Feature {
+    featureFlags;
+    constructor(flags){
+        this.featureFlags = flags;
+    }
+    async flag(obj) {
+        for(const prop in obj){
+            const flags = prop.split(',');
+            for (const flag of flags){
+                if (this.featureFlags.includes(flag) || flag == 'default') {
+                    return await obj[prop]();
+                }
+            }
+        }
+    }
+}
+const mod6 = {
+    getInstance: getInstance1
 };
 function deferred() {
     let methods;
@@ -3118,6 +3424,108 @@ async function serve(handler, options = {}) {
     }
     return await s;
 }
+const base64abc = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "+",
+    "/"
+];
+function encode(data) {
+    const uint8 = typeof data === "string" ? new TextEncoder().encode(data) : data instanceof Uint8Array ? data : new Uint8Array(data);
+    let result1 = "", i1;
+    const l1 = uint8.length;
+    for(i1 = 2; i1 < l1; i1 += 3){
+        result1 += base64abc[uint8[i1 - 2] >> 2];
+        result1 += base64abc[(uint8[i1 - 2] & 0x03) << 4 | uint8[i1 - 1] >> 4];
+        result1 += base64abc[(uint8[i1 - 1] & 0x0f) << 2 | uint8[i1] >> 6];
+        result1 += base64abc[uint8[i1] & 0x3f];
+    }
+    if (i1 === l1 + 1) {
+        result1 += base64abc[uint8[i1 - 2] >> 2];
+        result1 += base64abc[(uint8[i1 - 2] & 0x03) << 4];
+        result1 += "==";
+    }
+    if (i1 === l1) {
+        result1 += base64abc[uint8[i1 - 2] >> 2];
+        result1 += base64abc[(uint8[i1 - 2] & 0x03) << 4 | uint8[i1 - 1] >> 4];
+        result1 += base64abc[(uint8[i1 - 1] & 0x0f) << 2];
+        result1 += "=";
+    }
+    return result1;
+}
+function decode(b64) {
+    const binString = atob(b64);
+    const size = binString.length;
+    const bytes = new Uint8Array(size);
+    for(let i1 = 0; i1 < size; i1++){
+        bytes[i1] = binString.charCodeAt(i1);
+    }
+    return bytes;
+}
+const mod7 = {
+    encode: encode,
+    decode: decode
+};
 const hexTable = new TextEncoder().encode("0123456789abcdef");
 function errInvalidByte(__byte) {
     return new TypeError(`Invalid byte '${String.fromCharCode(__byte)}'`);
@@ -3131,7 +3539,7 @@ function fromHexChar(__byte) {
     if (65 <= __byte && __byte <= 70) return __byte - 65 + 10;
     throw errInvalidByte(__byte);
 }
-function encode(src) {
+function encode1(src) {
     const dst = new Uint8Array(src.length * 2);
     for(let i1 = 0; i1 < dst.length; i1++){
         const v = src[i1];
@@ -3140,7 +3548,7 @@ function encode(src) {
     }
     return dst;
 }
-function decode(src) {
+function decode1(src) {
     const dst = new Uint8Array(src.length / 2);
     for(let i1 = 0; i1 < dst.length; i1++){
         const a = fromHexChar(src[i1 * 2]);
@@ -3381,13 +3789,288 @@ function getSetCookies(headers) {
         ...headers.entries()
     ].filter(([key])=>key === "set-cookie").map(([_, value])=>value).map(parseSetCookie).filter(Boolean);
 }
-const mod7 = {
+const mod8 = {
     getCookies: getCookies,
     setCookie: setCookie,
     deleteCookie: deleteCookie,
     getSetCookies: getSetCookies
 };
 const { hasOwn } = Object;
+function get(obj, key) {
+    if (hasOwn(obj, key)) {
+        return obj[key];
+    }
+}
+function getForce(obj, key) {
+    const v = get(obj, key);
+    assert(v != null);
+    return v;
+}
+function isNumber(x) {
+    if (typeof x === "number") return true;
+    if (/^0x[0-9a-f]+$/i.test(String(x))) return true;
+    return /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(e[-+]?\d+)?$/.test(String(x));
+}
+function hasKey(obj, keys) {
+    let o = obj;
+    keys.slice(0, -1).forEach((key)=>{
+        o = get(o, key) ?? {};
+    });
+    const key = keys[keys.length - 1];
+    return hasOwn(o, key);
+}
+function parse6(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i1)=>i1 } = {}) {
+    const aliases = {};
+    const flags = {
+        bools: {},
+        strings: {},
+        unknownFn: unknown,
+        allBools: false,
+        collect: {},
+        negatable: {}
+    };
+    if (alias !== undefined) {
+        for(const key in alias){
+            const val = getForce(alias, key);
+            if (typeof val === "string") {
+                aliases[key] = [
+                    val
+                ];
+            } else {
+                aliases[key] = val;
+            }
+            for (const alias of getForce(aliases, key)){
+                aliases[alias] = [
+                    key
+                ].concat(aliases[key].filter((y)=>alias !== y));
+            }
+        }
+    }
+    if (__boolean !== undefined) {
+        if (typeof __boolean === "boolean") {
+            flags.allBools = !!__boolean;
+        } else {
+            const booleanArgs = typeof __boolean === "string" ? [
+                __boolean
+            ] : __boolean;
+            for (const key of booleanArgs.filter(Boolean)){
+                flags.bools[key] = true;
+                const alias = get(aliases, key);
+                if (alias) {
+                    for (const al of alias){
+                        flags.bools[al] = true;
+                    }
+                }
+            }
+        }
+    }
+    if (string !== undefined) {
+        const stringArgs = typeof string === "string" ? [
+            string
+        ] : string;
+        for (const key of stringArgs.filter(Boolean)){
+            flags.strings[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.strings[al] = true;
+                }
+            }
+        }
+    }
+    if (collect !== undefined) {
+        const collectArgs = typeof collect === "string" ? [
+            collect
+        ] : collect;
+        for (const key of collectArgs.filter(Boolean)){
+            flags.collect[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.collect[al] = true;
+                }
+            }
+        }
+    }
+    if (negatable !== undefined) {
+        const negatableArgs = typeof negatable === "string" ? [
+            negatable
+        ] : negatable;
+        for (const key of negatableArgs.filter(Boolean)){
+            flags.negatable[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.negatable[al] = true;
+                }
+            }
+        }
+    }
+    const argv = {
+        _: []
+    };
+    function argDefined(key, arg) {
+        return flags.allBools && /^--[^=]+$/.test(arg) || get(flags.bools, key) || !!get(flags.strings, key) || !!get(aliases, key);
+    }
+    function setKey(obj, name, value, collect = true) {
+        let o = obj;
+        const keys = name.split(".");
+        keys.slice(0, -1).forEach(function(key) {
+            if (get(o, key) === undefined) {
+                o[key] = {};
+            }
+            o = get(o, key);
+        });
+        const key = keys[keys.length - 1];
+        const collectable = collect && !!get(flags.collect, name);
+        if (!collectable) {
+            o[key] = value;
+        } else if (get(o, key) === undefined) {
+            o[key] = [
+                value
+            ];
+        } else if (Array.isArray(get(o, key))) {
+            o[key].push(value);
+        } else {
+            o[key] = [
+                get(o, key),
+                value
+            ];
+        }
+    }
+    function setArg(key, val, arg = undefined, collect) {
+        if (arg && flags.unknownFn && !argDefined(key, arg)) {
+            if (flags.unknownFn(arg, key, val) === false) return;
+        }
+        const value = !get(flags.strings, key) && isNumber(val) ? Number(val) : val;
+        setKey(argv, key, value, collect);
+        const alias = get(aliases, key);
+        if (alias) {
+            for (const x of alias){
+                setKey(argv, x, value, collect);
+            }
+        }
+    }
+    function aliasIsBoolean(key) {
+        return getForce(aliases, key).some((x)=>typeof get(flags.bools, x) === "boolean");
+    }
+    let notFlags = [];
+    if (args.includes("--")) {
+        notFlags = args.slice(args.indexOf("--") + 1);
+        args = args.slice(0, args.indexOf("--"));
+    }
+    for(let i1 = 0; i1 < args.length; i1++){
+        const arg = args[i1];
+        if (/^--.+=/.test(arg)) {
+            const m = arg.match(/^--([^=]+)=(.*)$/s);
+            assert(m != null);
+            const [, key, value] = m;
+            if (flags.bools[key]) {
+                const booleanValue = value !== "false";
+                setArg(key, booleanValue, arg);
+            } else {
+                setArg(key, value, arg);
+            }
+        } else if (/^--no-.+/.test(arg) && get(flags.negatable, arg.replace(/^--no-/, ""))) {
+            const m = arg.match(/^--no-(.+)/);
+            assert(m != null);
+            setArg(m[1], false, arg, false);
+        } else if (/^--.+/.test(arg)) {
+            const m = arg.match(/^--(.+)/);
+            assert(m != null);
+            const [, key] = m;
+            const next = args[i1 + 1];
+            if (next !== undefined && !/^-/.test(next) && !get(flags.bools, key) && !flags.allBools && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
+                setArg(key, next, arg);
+                i1++;
+            } else if (/^(true|false)$/.test(next)) {
+                setArg(key, next === "true", arg);
+                i1++;
+            } else {
+                setArg(key, get(flags.strings, key) ? "" : true, arg);
+            }
+        } else if (/^-[^-]+/.test(arg)) {
+            const letters = arg.slice(1, -1).split("");
+            let broken = false;
+            for(let j = 0; j < letters.length; j++){
+                const next = arg.slice(j + 2);
+                if (next === "-") {
+                    setArg(letters[j], next, arg);
+                    continue;
+                }
+                if (/[A-Za-z]/.test(letters[j]) && /=/.test(next)) {
+                    setArg(letters[j], next.split(/=(.+)/)[1], arg);
+                    broken = true;
+                    break;
+                }
+                if (/[A-Za-z]/.test(letters[j]) && /-?\d+(\.\d*)?(e-?\d+)?$/.test(next)) {
+                    setArg(letters[j], next, arg);
+                    broken = true;
+                    break;
+                }
+                if (letters[j + 1] && letters[j + 1].match(/\W/)) {
+                    setArg(letters[j], arg.slice(j + 2), arg);
+                    broken = true;
+                    break;
+                } else {
+                    setArg(letters[j], get(flags.strings, letters[j]) ? "" : true, arg);
+                }
+            }
+            const [key] = arg.slice(-1);
+            if (!broken && key !== "-") {
+                if (args[i1 + 1] && !/^(-|--)[^-]/.test(args[i1 + 1]) && !get(flags.bools, key) && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
+                    setArg(key, args[i1 + 1], arg);
+                    i1++;
+                } else if (args[i1 + 1] && /^(true|false)$/.test(args[i1 + 1])) {
+                    setArg(key, args[i1 + 1] === "true", arg);
+                    i1++;
+                } else {
+                    setArg(key, get(flags.strings, key) ? "" : true, arg);
+                }
+            }
+        } else {
+            if (!flags.unknownFn || flags.unknownFn(arg) !== false) {
+                argv._.push(flags.strings["_"] ?? !isNumber(arg) ? arg : Number(arg));
+            }
+            if (stopEarly) {
+                argv._.push(...args.slice(i1 + 1));
+                break;
+            }
+        }
+    }
+    for (const [key, value] of Object.entries(defaults)){
+        if (!hasKey(argv, key.split("."))) {
+            setKey(argv, key, value);
+            if (aliases[key]) {
+                for (const x of aliases[key]){
+                    setKey(argv, x, value);
+                }
+            }
+        }
+    }
+    for (const key of Object.keys(flags.bools)){
+        if (!hasKey(argv, key.split("."))) {
+            const value = get(flags.collect, key) ? [] : false;
+            setKey(argv, key, value, false);
+        }
+    }
+    for (const key of Object.keys(flags.strings)){
+        if (!hasKey(argv, key.split(".")) && get(flags.collect, key)) {
+            setKey(argv, key, [], false);
+        }
+    }
+    if (doubleDash) {
+        argv["--"] = [];
+        for (const key of notFlags){
+            argv["--"].push(key);
+        }
+    } else {
+        for (const key of notFlags){
+            argv._.push(key);
+        }
+    }
+    return argv;
+}
 function filterValues(record, predicate) {
     const ret = {};
     const entries = Object.entries(record);
@@ -3404,7 +4087,7 @@ function withoutAll(array, values) {
 }
 const RE_KeyValue = /^\s*(?:export\s+)?(?<key>[a-zA-Z_]+[a-zA-Z0-9_]*?)\s*=[\ \t]*('\n?(?<notInterpolated>(.|\n)*?)\n?'|"\n?(?<interpolated>(.|\n)*?)\n?"|(?<unquoted>[^\n#]*)) *#*.*$/gm;
 const RE_ExpandValue = /(\${(?<inBrackets>.+?)(\:-(?<inBracketsDefault>.+))?}|(?<!\\)\$(?<notInBrackets>\w+)(\:-(?<notInBracketsDefault>.+))?)/g;
-function parse6(rawDotenv, restrictEnvAccessTo = []) {
+function parse7(rawDotenv, restrictEnvAccessTo = []) {
     const env = {};
     let match;
     const keysForExpandCheck = [];
@@ -3448,7 +4131,7 @@ async function load({ envPath = ".env", examplePath = ".env.example", defaultsPa
 }
 async function parseFile(filepath, restrictEnvAccessTo = []) {
     try {
-        return parse6(await Deno.readTextFile(filepath), restrictEnvAccessTo);
+        return parse7(await Deno.readTextFile(filepath), restrictEnvAccessTo);
     } catch (e) {
         if (e instanceof Deno.errors.NotFound) return {};
         throw e;
@@ -3575,7 +4258,7 @@ cachedTextDecoder.decode();
 function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
 }
-function parse7(html) {
+function parse8(html) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         var ptr0 = passStringToWasm0(html, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3644,7 +4327,7 @@ async function init(input) {
     init.__wbindgen_wasm_module = module1;
     return wasm;
 }
-let parse8 = (_html)=>{
+let parse9 = (_html)=>{
     console.error("Error: deno-dom: No parser registered");
     Deno.exit(1);
 };
@@ -3652,12 +4335,12 @@ let parseFrag = (_html)=>{
     console.error("Error: deno-dom: No parser registered");
     Deno.exit(1);
 };
-const originalParse = parse8;
+const originalParse = parse9;
 function register(func, fragFunc) {
-    if (parse8 !== originalParse) {
+    if (parse9 !== originalParse) {
         return;
     }
-    parse8 = func;
+    parse9 = func;
     parseFrag = fragFunc;
 }
 const __default = {
@@ -7696,7 +8379,7 @@ class DOMImplementation {
     }
 }
 function nodesFromString(html) {
-    const parsed = JSON.parse(parse8(html));
+    const parsed = JSON.parse(parse9(html));
     const node = nodeFromArray(parsed, null);
     return node;
 }
@@ -8085,8 +8768,8 @@ Object.defineProperty(Array, "isArray", {
     configurable: true
 });
 await init();
-register(parse7, parse_frag);
-const mod8 = await async function() {
+register(parse8, parse_frag);
+const mod9 = await async function() {
     return {
         nodesFromString,
         denoDomDisableQuerySelectorCodeGeneration: disableCodeGeneration,
@@ -8097,10 +8780,6 @@ const mod8 = await async function() {
         Attr: Attr,
         NodeList: NodeListPublic,
         HTMLCollection: HTMLCollectionPublic,
-        HTMLTemplateElement,
-        DocumentFragment: DocumentFragment1,
-        DOMTokenList,
-        NamedNodeMap,
         NodeType,
         nodesAndTextNodes,
         Text,
@@ -8108,134 +8787,300 @@ const mod8 = await async function() {
         DOMParser,
         DOMImplementation,
         DocumentType,
-        Document: Document1
+        Document: Document1,
+        HTMLTemplateElement,
+        DocumentFragment: DocumentFragment1,
+        DOMTokenList,
+        NamedNodeMap
     };
 }();
-class FileSystemProvider {
-    config;
-    constructor(config){
-        this.config = config;
-    }
-    async getFile(path, repo) {
-        path = `${this.config.root}/${repo}/${path.split('?')[0]}`;
-        try {
-            const result1 = await Deno.readFile(path);
-            return {
-                name: path.split('/').pop(),
-                content: result1
-            };
-        } catch (e) {
-            error(e.message);
-            return null;
-        }
-    }
-    async getConfigFile(path) {
-        path = `${this.config.root}/${this.config.repo}/${path.split('?')[0]}`;
-        try {
-            const result1 = await Deno.readFile(path);
-            const content = (new TextDecoder).decode(result1);
-            return content;
-        } catch (e) {
-            error(e.message);
-            return null;
-        }
-    }
-    get name() {
-        return this.config.name;
+let currentProjectName;
+function handleRequest(ctx) {
+    const domain = mod10.domains[ctx.request.url.hostname];
+    if (domain && domain.ready === false) {
+        return new Response('Oops.  Your application is initializing. Please wait, then try your request again.', {
+            status: 503,
+            headers: {
+                'content-type': 'text/plain'
+            }
+        });
     }
 }
-function decode1(b64) {
-    const binString = atob(b64);
-    const size = binString.length;
-    const bytes = new Uint8Array(size);
-    for(let i1 = 0; i1 < size; i1++){
-        bytes[i1] = binString.charCodeAt(i1);
-    }
-    return bytes;
-}
-class GitHubProvider {
-    config;
-    constructor(config){
-        this.config = config;
-    }
-    async getFile(path, repo) {
-        let url;
-        try {
-            if (this.config.auth) {
-                url = `https://api.github.com/repos/${this.config.root}/${repo}/contents/${path}`;
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `token ${this.config.auth}`
-                    }
-                });
-                const result1 = await response.json();
-                if (result1.sha) {
-                    const content = decode1(result1.content);
-                    result1.content = content;
-                    return result1;
-                } else warning(`${url} - ${result1.message}`);
-            } else {
-                const parts = path.split('?');
-                const ref = parts[1] ? parts[1].split('=')[1] : 'main';
-                if (parts[1]) path = parts[0];
-                url = `https://raw.githubusercontent.com/${this.config.root}/${repo}/${ref}/${path}`;
-                const response = await fetch(url, {
-                    method: 'GET'
-                });
-                const result1 = await response.text();
-                return {
-                    name: path.split('/').pop(),
-                    content: new TextEncoder().encode(result1)
-                };
+async function handleRequest1(ctx) {
+    const domain = mod10.domains[ctx.request.url.hostname];
+    if (!domain) {
+        return new Response(html, {
+            status: 200,
+            headers: {
+                'content-type': 'text/html'
             }
-        } catch (e) {
-            console.log(e);
-        }
-        return null;
+        });
     }
-    async getConfigFile(path) {
-        try {
-            let repo = this.config.repo;
-            let ref = 'main';
-            const parts = repo.split(':');
-            if (parts.length === 2) {
-                repo = parts[0];
-                ref = parts[1];
-            }
-            if (this.config.auth) {
-                const url = `https://api.github.com/repos/${this.config.root}/${repo}/contents/${path}?ref=${ref}`;
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `token ${this.config.auth}`
-                    }
-                });
-                const result1 = await response.json();
-                if (result1.sha) {
-                    const content = (new TextDecoder).decode(decode1(result1.content));
-                    return content;
-                } else warning(`${url} - ${result1.message}`);
+    if (!domain.ready) {
+        mod10.domains[ctx.request.url.hostname] = domain;
+        domain.currentCacheDTS = Date.now();
+        domain.packageItemCache = {};
+        domain.aliasMappings = {};
+        for(const prop in domain.appConfig.extensions){
+            const contextExtension = domain.appConfig.extensions[prop];
+            let module1;
+            if (prop === 'cache' && contextExtension.uri === 'jsphere://Cache') module1 = mod5;
+            else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') module1 = mod6;
+            else if (contextExtension.uri.startsWith('/')) {
+                try {
+                    module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${contextExtension.uri}?eTag=${ctx.request.url.hostname}:${domain.currentCacheDTS}`);
+                } catch (e) {
+                    warning(`Failed to load extension: ` + contextExtension.uri);
+                    error('Error: ' + e.message);
+                    return new Response('Oops. Something went wrong. Please check server log for more details.', {
+                        status: 500
+                    });
+                }
             } else {
-                const url = `https://raw.githubusercontent.com/${this.config.root}/${repo}/${ref}/${path}`;
-                const response = await fetch(url, {
-                    method: 'GET'
-                });
-                if (response.ok) {
-                    const result1 = await response.text();
-                    return result1;
+                try {
+                    module1 = await import(contextExtension.uri);
+                } catch (e) {
+                    warning(`Failed to load extension: ` + contextExtension.uri);
+                    error('Error: ' + e.message);
+                    return new Response('Oops. Something went wrong. Please check server log for more details.', {
+                        status: 500
+                    });
                 }
             }
-        } catch (e) {
-            console.log(e);
+            ctx[prop] = contextExtension.instance = await module1.getInstance({
+                extension: prop,
+                domain: ctx.request.url.hostname,
+                settings: mod10.getSettings(contextExtension.settings || {}),
+                appConfig: {
+                    featureFlags: domain.appConfig.featureFlags,
+                    settings: mod10.getSettings(domain.appConfig.settings || {})
+                }
+            });
         }
-        return null;
-    }
-    get name() {
-        return this.config.name;
+        const cache = domain.appConfig.extensions['cache'].instance;
+        const currentCacheDTS = await cache.get(`${ctx.request.url.hostname}::currentCacheDTS`);
+        if (currentCacheDTS === null) await cache.set(`${ctx.request.url.hostname}::currentCacheDTS`, domain.currentCacheDTS);
+        else domain.currentCacheDTS = currentCacheDTS;
+        ctx.domain = {
+            hostname: ctx.request.url.hostname,
+            appId: domain.appId,
+            cacheDTS: domain.currentCacheDTS
+        };
+        ctx.settings = domain.appConfig.settings;
+        domain.ready = true;
     }
 }
-const handlers1 = [];
+async function handleRequest2(ctx) {
+    const url = new URL(ctx.request.url);
+    const auth = ctx.request.headers.get('Authorization');
+    const token = Deno.env.get('AUTHORIZATION_TOKEN');
+    const accessAllowed = auth && token ? auth === `token ${token}` : false;
+    if (url.pathname.startsWith('/@cmd/')) {
+        const cmd = url.pathname.split('/@cmd/')[1];
+        if (!cmd) return;
+        if (cmd == 'healthcheck') {
+            return new Response('OK', {
+                status: 200
+            });
+        }
+        if (accessAllowed || url.hostname == 'localhost') {
+            if (cmd == 'console') {
+                const response = await fetch('https://raw.githubusercontent.com/GreenAntTech/console/refs/heads/main/client/components/pages/console/console.html');
+                if (response.ok) return new Response(response.body, {
+                    status: 200
+                });
+                else return new Response(response.statusText, {
+                    status: response.status
+                });
+            } else if (cmd == 'createproject' && ctx.request.method === 'POST') {
+                const props = {
+                    projectName: url.searchParams.get('project_name')
+                };
+                const resp = await createProject(props);
+                return new Response(resp.statusText, {
+                    status: resp.status
+                });
+            } else if (cmd == 'retrieveproject' && ctx.request.method === 'GET') {
+                const props = {
+                    projectName: url.searchParams.get('project_name')
+                };
+                const resp = await retrieveProject(props);
+                return new Response(JSON.stringify(resp.data), {
+                    status: resp.status,
+                    headers: {
+                        "content-type": "application/json"
+                    }
+                });
+            } else if (cmd == 'updateproject' && ctx.request.method === 'PUT') {
+                const props = {
+                    projectName: url.searchParams.get('project_name'),
+                    project: ctx.request.data
+                };
+                const resp = await updateProject(props);
+                return new Response(resp.statusText, {
+                    status: resp.status
+                });
+            } else if (cmd == 'deleteproject' && ctx.request.method === 'DELETE') {
+                const props = {
+                    projectName: url.searchParams.get('project_name')
+                };
+                const resp = await deleteProject(props);
+                return new Response(resp.statusText, {
+                    status: resp.status
+                });
+            } else if (cmd == 'buildproject' && ctx.request.method === 'POST') {
+                const props = {
+                    projectName: url.searchParams.get('project_name'),
+                    project: ctx.request.data
+                };
+                await createDockerImage(props);
+                return new Response('Project Image Created.', {
+                    status: 200
+                });
+            } else if (cmd == 'loadproject' && ctx.request.method === 'GET') {
+                const projectName = url.searchParams.get('project_name');
+                await mod10.init(projectName);
+                return new Response('Project loaded.', {
+                    status: 200
+                });
+            } else if (cmd == 'reloadproject' && ctx.request.method === 'GET') {
+                const projectName = mod10.currentProjectName;
+                await mod10.init(projectName);
+                return new Response('Project reloaded.', {
+                    status: 200
+                });
+            } else if (cmd == 'resetdomain' && ctx.request.method === 'GET') {
+                const domain = url.searchParams.get('domain');
+                delete mod10.domains[domain];
+                return new Response('Domain application was reset.', {
+                    status: 200
+                });
+            } else {
+                return new Response('Command Not Found.', {
+                    status: 404
+                });
+            }
+        }
+    }
+}
+async function handleRequest3(ctx) {
+    if (ctx.request.url.hostname == '127.0.0.1' && ctx.request.method == 'GET' && ctx.request.headers.get('user-agent')?.startsWith('Deno')) {
+        try {
+            const eTag = ctx.request.params.eTag;
+            if (!eTag) return new Response('Not Found [Missing eTag]', {
+                status: 404
+            });
+            const domain = eTag.split(':')[0];
+            const item = await mod10.getPackageItem(domain, ctx.request.url.pathname);
+            if (item) {
+                const content = parseContent(item.content, eTag);
+                return new Response(content, {
+                    status: 200,
+                    headers: {
+                        'content-type': item.contentType || ''
+                    }
+                });
+            } else {
+                return new Response('Not Found', {
+                    status: 404
+                });
+            }
+        } catch (e) {
+            return new Response(e.message, {
+                status: 500
+            });
+        }
+    }
+}
+function handleRequest4(ctx) {
+    const domain = mod10.domains[ctx.request.url.hostname];
+    const extension = extname2(ctx.request.url.pathname);
+    if (domain.appConfig.routes && !lookup(extension)) {
+        const route = matchRoute(ctx.request.url.pathname, domain.appConfig.routes);
+        if (route.path) {
+            ctx.request.routePath = route.path;
+            Object.assign(ctx.request.params, route.params);
+        }
+    }
+}
+async function handleRequest5(ctx) {
+    const folder = ctx.request.routePath.split('/')[2];
+    if ((folder == 'client' || folder == 'shared' || folder == 'tests') && ctx.request.method == 'GET') {
+        try {
+            const item = await mod10.getPackageItem(ctx.request.url.hostname, ctx.request.routePath);
+            if (item) {
+                let eTag = ctx.request.headers.get('if-none-match');
+                if (eTag && eTag.startsWith('W/')) eTag = eTag.substring(2);
+                if (eTag == item.eTag) {
+                    return new Response(null, {
+                        status: 304
+                    });
+                } else {
+                    return new Response(item.content, {
+                        status: 200,
+                        headers: {
+                            'eTag': item.eTag,
+                            'content-type': item.contentType
+                        }
+                    });
+                }
+            } else {
+                return new Response('Not Found', {
+                    status: 404
+                });
+            }
+        } catch (e) {
+            return new Response(e.message, {
+                status: 500
+            });
+        }
+    }
+}
+async function handleRequest6(ctx) {
+    const domain = mod10.domains[ctx.request.url.hostname];
+    const folder = ctx.request.routePath.startsWith('/') ? ctx.request.routePath.split('/')[2] : ctx.request.routePath.split('/')[1];
+    if (folder == 'server') {
+        try {
+            let pathname = ctx.request.routePath;
+            if (!pathname.endsWith('.ts') && !pathname.endsWith('.js')) pathname += '.ts';
+            const slash = pathname.startsWith('/');
+            let module1;
+            try {
+                module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${slash ? '' : '/'}${pathname}?eTag=${ctx.request.url.hostname}:${domain.currentCacheDTS}`);
+            } catch (e) {
+                mod4.error(e);
+                return new Response('API Endpoint Failed Dependency', {
+                    status: 424
+                });
+            }
+            const func = module1[`on${ctx.request.method}`];
+            if (func) {
+                try {
+                    const response = await func(ctx);
+                    return response || new Response(null, {
+                        status: 204
+                    });
+                } catch (e) {
+                    mod4.error(e);
+                    return new Response('API Endpoint Internal Server Error', {
+                        status: 500
+                    });
+                }
+            } else return new Response('API Endpoint Method Not Allowed', {
+                status: 405
+            });
+        } catch (e) {
+            mod4.error(e);
+            return new Response('Internal Server Error', {
+                status: 404
+            });
+        }
+    } else {
+        return new Response('Not Found.', {
+            status: 404
+        });
+    }
+}
 class Utils {
     constructor(){}
     createId = ()=>{
@@ -8243,16 +9088,16 @@ class Utils {
     };
     createHash = async (value)=>{
         const cryptoData = new TextEncoder().encode(value);
-        const hash = new TextDecoder().decode(encode(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
+        const hash = new TextDecoder().decode(encode1(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
         return hash;
     };
     compareWithHash = async (value, hash)=>{
         const cryptoData = new TextEncoder().encode(value);
-        const valueHash = new TextDecoder().decode(encode(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
+        const valueHash = new TextDecoder().decode(encode1(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
         return valueHash === hash;
     };
     decrypt = async (data)=>{
-        const keyData = decode(new TextEncoder().encode(Deno.env.get('CRYPTO_PRIVATE_KEY')));
+        const keyData = decode1(new TextEncoder().encode(Deno.env.get('CRYPTO_PRIVATE_KEY')));
         const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
             name: "RSA-OAEP",
             hash: "SHA-512"
@@ -8261,13 +9106,13 @@ class Utils {
         ]);
         const decBuffer = await crypto.subtle.decrypt({
             name: "RSA-OAEP"
-        }, privateKey, decode(new TextEncoder().encode(data)));
+        }, privateKey, decode1(new TextEncoder().encode(data)));
         const decData = new Uint8Array(decBuffer);
         const decString = new TextDecoder().decode(decData);
         return decString;
     };
     encrypt = async (data)=>{
-        const keyData = decode(new TextEncoder().encode(Deno.env.get('CRYPTO_PUBLIC_KEY')));
+        const keyData = decode1(new TextEncoder().encode(Deno.env.get('CRYPTO_PUBLIC_KEY')));
         const publicKey = await crypto.subtle.importKey('spki', keyData, {
             name: "RSA-OAEP",
             hash: "SHA-512"
@@ -8278,442 +9123,80 @@ class Utils {
             name: "RSA-OAEP"
         }, publicKey, new TextEncoder().encode(data));
         const encData = new Uint8Array(encBuffer);
-        const encString = new TextDecoder().decode(encode(encData));
+        const encString = new TextDecoder().decode(encode1(encData));
         return encString;
     };
 }
-async function handleRequest(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    if (url.pathname == '/~/healthcheck' && request.method == 'GET') {
-        return new Response('OK', {
-            status: 200
+let domains = {};
+async function init1(projectName) {
+    if (projectName) {
+        const envPath = projectName ? `${Deno.cwd()}/${projectName}/.env` : '';
+        const env = await load({
+            envPath
         });
-    } else if (mod9.isDomainInitialized(domainHostname) === false) {
-        response = new Response('Oops.  Your application is initializing. Please wait, then try your request again.', {
-            status: 503,
-            headers: {
-                'content-type': 'text/plain'
-            }
-        });
-    } else if (mod9.isDomainInitialized(domainHostname) === true) {
-        const domain = mod9.getDomain(domainHostname);
-        const cache = domain.contextExtensions['cache'].instance;
-        const currentCacheDTS = await cache.get(`${domainHostname}::currentCacheDTS`);
-        if (currentCacheDTS > domain.currentCacheDTS) {
-            mod9.initializeDomain(domainHostname, false);
-            const file = await mod9.getProjectHost().getConfigFile('app.json');
-            if (file === null) throw new Error('Domain Application Not Registered');
-            const appConfig = JSON.parse(file);
-            if (!appConfig.host) appConfig.host = {};
-            if (!appConfig.packages) appConfig.packages = {};
-            if (!appConfig.routeMappings) appConfig.routeMappings = [];
-            if (!appConfig.featureFlags) appConfig.featureFlags = [];
-            if (!appConfig.settings) appConfig.settings = {};
-            const appProvider = mod9.getHostProvider({
-                name: appConfig.host.name,
-                root: appConfig.host.name == 'FileSystem' ? Deno.cwd().replaceAll('\\', '/') : appConfig.host.root,
-                auth: appConfig.host.auth.encrypted ? await new Utils().decrypt(appConfig.host.auth.value) : appConfig.host.auth.value
-            });
-            if (appProvider) {
-                domain.appProvider = appProvider;
-                domain.appConfig = appConfig;
-                domain.currentCacheDTS = currentCacheDTS, domain.packageItemCache = {};
-                let module1;
-                const contextExtension = domain.contextExtensions['feature'];
-                if (contextExtension.uri === 'jsphere://Feature') {
-                    module1 = mod5;
-                } else if (contextExtension.uri.startsWith('/')) {
-                    module1 = await import(`http://127.0.0.1:${url.port}${contextExtension.uri}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
-                } else {
-                    module1 = await import(contextExtension.uri);
-                }
-                contextExtension.instance = module1.getInstance({
-                    extension: 'feature',
-                    domain: domainHostname,
-                    settings: await mod9.getSettings(contextExtension.settings || {}),
-                    appConfig: {
-                        featureFlags: domain.appConfig.featureFlags,
-                        settings: domain.appConfig.settings
-                    }
-                });
-            } else throw new Error(`Repo provider '${appConfig.host.name}' is not a registered provider.`);
-            mod9.initializeDomain(domainHostname, true);
-        }
+        for(const key in env)Deno.env.set(key, env[key]);
+        mod4.info(`Project Environment File: ${envPath}`);
+        initializeProject(projectName);
+        currentProjectName = projectName;
+    } else {
+        mod4.warning('No project is currently being served. Could not find an environment file to load.');
     }
-    return response;
-}
-async function handleRequest1(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const isInit = mod9.isDomainInitialized(domainHostname);
-    if (!url.pathname.startsWith('/~/') && domainHostname != '127.0.0.1' && !isInit) {
-        mod9.initializeDomain(domainHostname, false);
-        try {
-            let file = await mod9.getProjectHost().getConfigFile(`.domains/${domainHostname}.json`);
-            if (file === null) {
-                const domainParts = domainHostname.split('.');
-                domainParts.shift();
-                file = await mod9.getProjectHost().getConfigFile(`.domains/${domainParts.join('.')}.json`);
-                if (file === null) throw new Error('Domain Not Registered');
-            }
-            const domainConfig = JSON.parse(file);
-            file = await mod9.getProjectHost().getConfigFile('app.json');
-            if (file === null) throw new Error('Domain Application Not Registered');
-            const appConfig = JSON.parse(file);
-            if (!appConfig.host) appConfig.host = {};
-            if (!appConfig.host.name) throw `The application's host configuration "name" property has not been set in the file app.json`;
-            if (!(appConfig.host.name == 'FileSystem') && !appConfig.host.root) throw `The application's host configuration "root" property has not been set in the file app.json`;
-            if (!appConfig.host.auth) appConfig.host.auth = {};
-            if (!appConfig.packages) appConfig.packages = {};
-            if (!appConfig.routeMappings) appConfig.routeMappings = [];
-            if (!appConfig.featureFlags) appConfig.featureFlags = [];
-            if (!appConfig.settings) appConfig.settings = {};
-            const appProvider = mod9.getHostProvider({
-                name: appConfig.host.name,
-                root: appConfig.host.name == 'FileSystem' ? Deno.cwd().replaceAll('\\', '/') : appConfig.host.root,
-                auth: appConfig.host.auth.encrypted ? await new Utils().decrypt(appConfig.host.auth.value) : appConfig.host.auth.value
-            });
-            if (appProvider) {
-                mod9.setDomain(domainHostname, {
-                    initialized: true,
-                    appConfigFile: domainConfig.appConfigFile,
-                    settings: domainConfig.settings || {},
-                    contextExtensions: Object.assign({
-                        cache: {
-                            uri: 'jsphere://Cache',
-                            settings: {}
-                        },
-                        feature: {
-                            uri: 'jsphere://Feature',
-                            settings: {}
-                        }
-                    }, domainConfig.contextExtensions),
-                    state: {},
-                    appConfig,
-                    appProvider,
-                    currentCacheDTS: Date.now(),
-                    packageItemCache: {}
-                });
-                const domain = mod9.getDomain(domainHostname);
-                for(const prop in domain.contextExtensions){
-                    const contextExtension = domain.contextExtensions[prop];
-                    let module1;
-                    if (prop === 'cache' && contextExtension.uri === 'jsphere://Cache') module1 = mod4;
-                    else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') {
-                        module1 = mod5;
-                    } else if (contextExtension.uri.startsWith('/')) {
-                        module1 = await import(`http://127.0.0.1:${url.port}${contextExtension.uri}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
-                    } else {
-                        module1 = await import(contextExtension.uri);
-                    }
-                    contextExtension.instance = await module1.getInstance({
-                        extension: prop,
-                        domain: domainHostname,
-                        settings: await mod9.getSettings(contextExtension.settings || {}),
-                        appConfig: {
-                            featureFlags: domain.appConfig.featureFlags,
-                            settings: domain.appConfig.settings
-                        }
-                    });
-                }
-                const cache = domain.contextExtensions['cache'].instance;
-                const currentCacheDTS = await cache.get(`${domainHostname}::currentCacheDTS`);
-                if (currentCacheDTS === null) await cache.set(`${domainHostname}::currentCacheDTS`, domain.currentCacheDTS);
-                else domain.currentCacheDTS = currentCacheDTS;
-            } else throw new Error(`Repo provider '${appConfig.host.name}' is not a registered provider.`);
-            mod9.initializeDomain(domainHostname, true);
-        } catch (e) {
-            mod9.initializeDomain(domainHostname, undefined);
-            error(`DomainInitHandler[${domainHostname}]: ${e.message}`);
-            response = new Response(`${e.message}`, {
-                status: 500
-            });
-        }
-    }
-    return response;
-}
-async function handleRequest2(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const domain = mod9.getDomain(domainHostname);
-    const auth = request.HTTPRequest.headers.get('Authorization');
-    const token = Deno.env.get('AUTHORIZATION_TOKEN');
-    const accessAllowed = auth && token ? auth === `token ${token}` : false;
-    if (url.pathname.startsWith('/~/')) {
-        if (accessAllowed) {
-            if (url.pathname == '/~/resetdomain' && request.method === 'POST') {
-                if (domain) mod9.resetDomain(domainHostname, domain);
-                response = new Response('Domain application was reset.', {
-                    status: 200
-                });
-            } else {
-                response = new Response('Not Found.', {
-                    status: 404
-                });
-            }
-        } else {
-            response = new Response('Forbidden', {
-                status: 401
-            });
-        }
-    }
-    return response;
-}
-async function handleRequest3(request) {
-    let response = false;
-    const url = new URL(request.url);
-    if (url.hostname == '127.0.0.1' && request.method == 'GET' && request.HTTPRequest.headers.get('user-agent')?.startsWith('Deno')) {
-        try {
-            const eTag = url.searchParams.get('eTag');
-            if (!eTag) return new Response('Not Found [Missing eTag]', {
-                status: 404
-            });
-            const domain = eTag.split(':')[0];
-            const item = await mod9.getPackageItem(domain, request.routePath);
-            if (item) {
-                const content = parseContent(item.content, eTag);
-                response = new Response(content, {
-                    status: 200,
-                    headers: {
-                        'content-type': item.contentType || ''
-                    }
-                });
-            } else {
-                response = new Response('Not Found', {
-                    status: 404
-                });
-            }
-        } catch (e) {
-            response = new Response(e.message, {
-                status: 500
-            });
-        }
-    }
-    return response;
-}
-async function handleRequest4(request) {
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const domain = mod9.getDomain(domainHostname);
-    const extension = extname2(request.routePath);
-    if (domain.appConfig.routeMappings && !lookup(extension)) {
-        for (const entry of domain.appConfig.routeMappings){
-            const pattern = new URLPattern({
-                pathname: entry.route
-            });
-            if (pattern.test(url.href)) {
-                let path = (entry.path.startsWith('/') ? '' : '/') + entry.path;
-                const folder = path.split('/')[2];
-                const groups = pattern.exec(url.href)?.pathname.groups;
-                if (folder == 'server') request.routeParams = groups || {};
-                if (groups) path = path.replaceAll('*', groups['0']);
-                request.routePath = path;
-                break;
-            }
-        }
-    }
-    return false;
-}
-async function handleRequest5(request) {
-    let response = false;
-    const httpRequest = request.HTTPRequest;
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const folder = request.routePath.split('/')[2];
-    if ((folder == 'client' || folder == 'shared') && request.method == 'GET') {
-        try {
-            const item = await mod9.getPackageItem(domainHostname, request.routePath);
-            if (item) {
-                let eTag = httpRequest.headers.get('if-none-match');
-                if (eTag && eTag.startsWith('W/')) eTag = eTag.substring(2);
-                if (eTag == item.eTag) {
-                    response = new Response(null, {
-                        status: 304,
-                        headers: item.headers
-                    });
-                } else {
-                    const headers = Object.assign({
-                        'eTag': item.eTag,
-                        'content-type': item.contentType
-                    }, item.headers);
-                    response = new Response(item.content, {
-                        status: 200,
-                        headers
-                    });
-                }
-            } else {
-                response = new Response('Not Found', {
-                    status: 404
-                });
-            }
-        } catch (e) {
-            response = new Response(e.message, {
-                status: 500
-            });
-        }
-    }
-    return response;
-}
-async function handleRequest6(request) {
-    let response = false;
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const domain = mod9.getDomain(domainHostname);
-    const folder = request.routePath.split('/')[2];
-    if (folder == 'server') {
-        let module1;
-        try {
-            let routePath = request.routePath;
-            if (!routePath.endsWith('.ts') && !routePath.endsWith('.js')) routePath += '.js';
-            module1 = await import(`http://127.0.0.1:${url.port}${routePath}?eTag=${domainHostname}:${domain.currentCacheDTS}`);
-        } catch (e) {
-            console.log(e);
-            if (e.message.startsWith('Module not found')) {
-                return response = new Response('Either the requested resource or one of its dependencies was not found.', {
-                    status: 404
-                });
-            }
-        }
-        const func = module1[`on${request.method}`];
-        if (func) {
-            const serverContext = await getServerContext(request.HTTPRequest, request.routeParams);
-            response = await func(serverContext);
-            if (!response) {
-                response = new Response(null, {
-                    status: 204
-                });
-            }
-        } else {
-            response = new Response('Method Not Allowed', {
-                status: 405
-            });
-        }
-    }
-    return response;
 }
 async function handleRequest7(request) {
-    let response = false;
-    const httpRequest = request.HTTPRequest;
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const folder = request.routePath.split('/')[2];
-    if (folder == 'tests' && request.method == 'GET') {
-        try {
-            const item = await mod9.getPackageItem(domainHostname, request.routePath);
-            if (item) {
-                let eTag = httpRequest.headers.get('if-none-match');
-                if (eTag && eTag.startsWith('W/')) eTag = eTag.substring(2);
-                if (eTag == item.eTag) {
-                    response = new Response(null, {
-                        status: 304
-                    });
-                } else {
-                    const headers = Object.assign({
-                        'eTag': item.eTag,
-                        'content-type': item.contentType
-                    }, item.headers);
-                    response = new Response(item.content, {
-                        status: 200,
-                        headers
-                    });
+    let response;
+    const directives = [];
+    const serverContext = await getServerContext(request);
+    if (serverContext.request.url.hostname != '127.0.0.1') {
+        if (!response) response = mod11.handleRequest(serverContext);
+        if (!response) response = await mod13.handleRequest(serverContext);
+        if (!response) response = await mod12.handleRequest(serverContext);
+        if (!response) {
+            const domain = domains[serverContext.request.url.hostname];
+            for (const path of domain.appConfig.directives){
+                const slash = path.startsWith('/');
+                const module1 = await import(`http://127.0.0.1:${serverContext.request.url.port}${slash ? '' : '/'}${path}?eTag=${serverContext.request.url.hostname}:${domain.currentCacheDTS}`);
+                if (module1.onRequest) {
+                    response = await module1.onRequest(serverContext);
+                    break;
                 }
-            } else {
-                response = new Response('Not Found', {
-                    status: 404
-                });
+                directives.push(module1);
             }
-        } catch (e) {
-            response = new Response(e.message, {
-                status: 500
-            });
         }
-    }
-    return response;
-}
-const domains = {};
-const aliasMappings = {};
-let host;
-async function init1() {
-    setProjectHost();
-    setRequestHandlers();
-}
-function getHostProvider(config) {
-    switch(config.name){
-        case 'FileSystem':
-            return new FileSystemProvider(config);
-        case 'GitHub':
-            return new GitHubProvider(config);
-        default:
-            return null;
-    }
-}
-function getProjectHost() {
-    return host;
-}
-function getDomain(domainHostname) {
-    return domains[domainHostname];
-}
-function setDomain(domainHostname, domain) {
-    domains[domainHostname] = domain;
-}
-async function resetDomain(domainHostname, domain) {
-    const cache = domain.contextExtensions['cache'].instance;
-    await cache.set(`${domainHostname}::currentCacheDTS`, Date.now());
-}
-function isDomainInitialized(domainHostname) {
-    if (domains[domainHostname]) return domains[domainHostname].initialized;
-}
-function initializeDomain(domainHostname, value) {
-    if (domains[domainHostname]) domains[domainHostname].initialized = value;
-}
-async function handleRequest8(request) {
-    let response = false;
-    let handlerIndex = 0;
-    if (handlers1.length > 0) {
-        const url = new URL(request.url);
-        const jsRequest = {
-            HTTPRequest: request,
-            method: request.method,
-            url: request.url,
-            routePath: url.pathname,
-            routeParams: {}
-        };
-        while((response = await handlers1[handlerIndex].handleRequest(jsRequest)) === false){
-            if (++handlerIndex == handlers1.length) break;
+        if (!response) response = mod15.handleRequest(serverContext);
+        if (!response) response = await mod16.handleRequest(serverContext);
+        if (!response) response = await mod17.handleRequest(serverContext);
+        while(directives.length > 0){
+            const module1 = directives.pop();
+            if (module1.onResponse) response = await module1.onResponse(serverContext, response);
         }
+    } else {
+        response = await mod14.handleRequest(serverContext);
     }
-    if (response === false) return new Response('Request Handler Not Found.', {
-        status: 404
-    });
-    else {
-        const url = new URL(request.url);
-        const domainHostname = url.hostname;
-        const domain = domains[domainHostname];
+    if (response) {
+        const domain = domains[serverContext.request.url.hostname];
         if (domain && response.status == 200) {
             if (domain.appConfig.featureFlags.length > 0) {
-                response.headers.append('set-cookie', `featureFlags=${domain.appConfig.featureFlags.join(',')};domain=${domainHostname};path=/`);
+                response.headers.append('set-cookie', `featureFlags=${domain.appConfig.featureFlags.join(',')};domain=${serverContext.request.url.hostname};path=/`);
             }
         }
         return response;
-    }
+    } else return new Response('Request Handler Not Found.', {
+        status: 404
+    });
 }
 async function getPackageItem(domainHostname, path) {
     const domain = domains[domainHostname];
     const item = domain.packageItemCache[path];
     if (item) return item;
-    let packageKey = path.split('/')[1];
-    if (aliasMappings[packageKey]) {
-        path = path.replace(packageKey, aliasMappings[packageKey]);
-        packageKey = aliasMappings[packageKey];
+    let packageKey = path.startsWith('/') ? path.split('/')[1] : path.split('/')[0];
+    if (domain.aliasMappings[packageKey]) {
+        path = path.replace(packageKey, domain.aliasMappings[packageKey]);
+        packageKey = domain.aliasMappings[packageKey];
     } else {
         for(const key in domain.appConfig.packages){
             if (domain.appConfig.packages[key].alias == packageKey) {
                 path = path.replace(packageKey, key);
-                aliasMappings[packageKey] = key;
+                domain.aliasMappings[packageKey] = key;
                 packageKey = key;
                 break;
             }
@@ -8721,193 +9204,226 @@ async function getPackageItem(domainHostname, path) {
     }
     if (!domain.appConfig.packages[packageKey]) return null;
     const ref = domain.appConfig.packages[packageKey].tag || 'main';
-    const useLocalRepo = domain.appConfig.packages[packageKey].useLocalRepo;
-    let file;
-    if (useLocalRepo === true) {
-        file = await host.getFile(path.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
-    } else {
-        file = await domain.appProvider.getFile(path.substring(packageKey.length + 2) + (ref ? `?ref=${ref}` : ''), packageKey);
+    const slash = path.startsWith('/');
+    let file = await getFile(domain.projectName + '/' + domain.application + (slash ? '' : '/') + path);
+    if (file === null) {
+        const accountName = domain.appConfig.host.accountName;
+        let authToken = domain.appConfig.host.authToken;
+        if (authToken && authToken.startsWith('@ENV:')) authToken = Deno.env.get(authToken.substring(5));
+        file = await getFileFromRepo(path + (ref ? `?ref=${ref}` : ''), accountName, authToken);
     }
     if (file !== null) {
+        file = file;
         const extension = extname2(file.name);
         const contentType = (extension == '.ts' ? 'application/typescript' : lookup(extension) || 'text/plain') + '; charset=utf-8';
         const cryptoData = new TextEncoder().encode(file.content);
-        const eTag = file.sha || new TextDecoder().decode(encode(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
+        const eTag = file.sha || new TextDecoder().decode(encode1(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
         const packageItem = {
             contentType,
             content: file.content,
             eTag
         };
-        for(const entry in domain.appConfig.packages[packageKey].packageItemConfig){
-            if (path.startsWith(`/${packageKey}${entry}`)) {
-                Object.assign(packageItem, domain.appConfig.packages[packageKey].packageItemConfig[entry]);
-            }
-        }
         domain.packageItemCache[path] = packageItem;
         return packageItem;
     } else {
         return null;
     }
 }
-async function getSettings(settings) {
-    const utils = new Utils();
-    const decryptedSettings = {};
+function getSettings(settings) {
     for(const setting in settings){
-        if (settings[setting].value) {
-            if (settings[setting].encrypted && settings[setting].encrypted === true) {
-                const value = settings[setting].value;
-                decryptedSettings[setting] = await utils.decrypt(value);
-            } else {
-                decryptedSettings[setting] = settings[setting].value;
+        if (typeof settings[setting] != 'string') continue;
+        if (settings[setting].startsWith('@ENV:')) settings[setting] = Deno.env.get(settings[setting].substring(5));
+    }
+    return settings;
+}
+async function initializeProject(projectName) {
+    const path = `.${projectName}/.domains.json`;
+    let file = await getFile(projectName + '/' + path, true);
+    if (file === null) {
+        const accountName = Deno.env.get('REMOTE_PROVIDER_ACCOUNT');
+        const authToken = Deno.env.get('REMOTE_PROVIDER_AUTH_TOKEN');
+        const repoFile = await getFileFromRepo(path, accountName, authToken);
+        if (repoFile === null) {
+            mod4.warning('No project is currently being served. Could not find the project\'s domains configuration file.');
+            mod4.warning('File Not Found: ' + path);
+            return;
+        }
+        file = new TextDecoder().decode(repoFile.content);
+    }
+    try {
+        domains = JSON.parse(file);
+    } catch (e) {
+        mod4.warning('No project is currently being served. There was a problem parsing the project\'s .domains.json file.');
+        mod4.warning('Parsing Error: ' + e.message);
+        return;
+    }
+    for(const key in domains){
+        if (typeof domains[key] == 'object' && domains[key].application) {
+            const appName = domains[key].application;
+            const path = `.${projectName}/${appName}.json`;
+            file = await getFile(projectName + '/' + path, true);
+            if (file === null) {
+                const accountName = Deno.env.get('REMOTE_PROVIDER_ACCOUNT');
+                const authToken = Deno.env.get('REMOTE_PROVIDER_AUTH_TOKEN');
+                const repoFile = await getFileFromRepo(path, accountName, authToken);
+                if (repoFile === null) {
+                    mod4.warning(`Could not find the application configuration file for the domain '${key}.`);
+                    mod4.warning('File Not Found: ' + path);
+                    continue;
+                }
+                file = new TextDecoder().decode(repoFile.content);
             }
-        } else {
-            decryptedSettings[setting] = settings[setting];
+            try {
+                domains[key].appConfig = JSON.parse(file);
+            } catch (e) {
+                mod4.warning(`There was a problem parsing the '${key}' domain's .${appName}.json file.`);
+                mod4.warning('Parsing Error: ' + e.message);
+                continue;
+            }
+            domains[key].projectName = projectName;
+            if (!domains[key].appConfig.packages) domains[key].appConfig.packages = {};
+            if (!domains[key].appConfig.routes) domains[key].appConfig.routes = [];
+            if (!domains[key].appConfig.directives) domains[key].appConfig.directives = [];
+            if (!domains[key].appConfig.extensions) domains[key].appConfig.extensions = {};
+            if (!domains[key].appConfig.extensions.cache) domains[key].appConfig.extensions.cache = {
+                uri: 'jsphere://Cache',
+                settings: {}
+            };
+            if (!domains[key].appConfig.extensions.feature) domains[key].appConfig.extensions.feature = {
+                uri: 'jsphere://Feature',
+                settings: {}
+            };
+            if (!domains[key].appConfig.settings) domains[key].appConfig.settings = {};
+            if (!domains[key].appConfig.featureFlags) domains[key].appConfig.featureFlags = [];
         }
     }
-    return decryptedSettings;
 }
-const mod9 = {
+const mod10 = {
+    currentProjectName: currentProjectName,
+    domains: domains,
     init: init1,
-    getHostProvider: getHostProvider,
-    getProjectHost: getProjectHost,
-    getDomain: getDomain,
-    setDomain: setDomain,
-    resetDomain: resetDomain,
-    isDomainInitialized: isDomainInitialized,
-    initializeDomain: initializeDomain,
-    handleRequest: handleRequest8,
+    handleRequest: handleRequest7,
     getPackageItem: getPackageItem,
     getSettings: getSettings
 };
-const mod10 = {
+const mod11 = {
     handleRequest: handleRequest
 };
-const mod11 = {
+const mod12 = {
     handleRequest: handleRequest1
 };
-const mod12 = {
+const mod13 = {
     handleRequest: handleRequest2
 };
-const mod13 = {
+const mod14 = {
     handleRequest: handleRequest3
 };
-const mod14 = {
+const mod15 = {
     handleRequest: handleRequest4
 };
-const mod15 = {
+const mod16 = {
     handleRequest: handleRequest5
 };
-const mod16 = {
+const mod17 = {
     handleRequest: handleRequest6
 };
-const mod17 = {
-    handleRequest: handleRequest7
-};
-function setProjectHost() {
-    let envHostName = '', envHostRoot = '', envHostAuth = '', envServerConfig = '';
-    const config = Deno.env.get('CONFIG');
-    if (config == 'LOCAL_CONFIG') {
-        envHostName = 'FileSystem';
-        envHostRoot = Deno.cwd();
-        envServerConfig = Deno.env.get('LOCAL_CONFIG');
-        if (!envServerConfig || !envHostRoot) {
-            error('Local host is not properly configured. Please check that your environment variables are set correctly.');
-            Deno.exit(0);
-        }
-    } else if (config == 'REMOTE_CONFIG') {
-        envHostName = Deno.env.get('REMOTE_HOST');
-        envHostRoot = Deno.env.get('REMOTE_ROOT');
-        envHostAuth = Deno.env.get('REMOTE_AUTH');
-        envServerConfig = Deno.env.get('REMOTE_CONFIG');
-        if (!envHostName || !envHostRoot || !envServerConfig) {
-            error('Remote host is not properly configured. Please check that your environment variables are set correctly.');
-            Deno.exit(0);
-        }
-    } else {
-        error('Could not determine a host configuration. Please check that your environment variables are set correctly.');
-        Deno.exit(0);
+async function getFile(path, text = false) {
+    try {
+        const slash = path.startsWith('/');
+        const result1 = await Deno.readFile(Deno.cwd() + (slash ? '' : '/') + path);
+        return text ? (new TextDecoder).decode(result1) : {
+            name: path.split('/').pop(),
+            content: result1
+        };
+    } catch (_e) {
+        return null;
     }
-    host = getHostProvider({
-        name: envHostName,
-        root: envHostRoot,
-        auth: envHostAuth,
-        repo: envServerConfig
-    });
-    if (host == null) {
-        warning(`Unsupported host '${envHostName}'. Defaulting to FileSystem.`);
-        Deno.exit(0);
-    }
-    info(`Host Name: ${envHostName}`);
-    info(`Host Root: ${envHostRoot}`);
 }
-function setRequestHandlers() {
-    handlers1.push(mod10);
-    handlers1.push(mod11);
-    handlers1.push(mod12);
-    handlers1.push(mod13);
-    handlers1.push(mod14);
-    handlers1.push(mod15);
-    handlers1.push(mod16);
-    handlers1.push(mod17);
-}
-function parseContent(content, eTag) {
-    const textEncoder = new TextEncoder();
-    const textDecoder = new TextDecoder();
-    let parsedContent = textDecoder.decode(content);
-    const found = parsedContent.match(/((import[ ]+)|(from[ ]+))(\(|"|')(?<path>[a-zA-Z0-9\/.\-_]+)("|'|\))/gi);
-    if (found) {
-        for (const entry of found){
-            let temp;
-            if (entry.endsWith(`.ts"`)) temp = entry.replace(`.ts"`, `.ts?eTag=${eTag}"`);
-            else if (entry.endsWith(`.ts'`)) temp = entry.replace(`.ts'`, `.ts?eTag=${eTag}'`);
-            else if (entry.endsWith(`.js"`)) temp = entry.replace(`.js"`, `.js?eTag=${eTag}"`);
-            else if (entry.endsWith(`.js'`)) temp = entry.replace(`.js'`, `.js?eTag=${eTag}'`);
-            else if (entry.endsWith(`)`)) temp = entry.replace(`)`, ` + '?eTag=${eTag}')`);
-            if (temp) parsedContent = parsedContent.replace(entry, temp);
+async function getFileFromRepo(path, accountName, authToken) {
+    let url;
+    let repo;
+    let ref = 'main';
+    try {
+        const slash = path.startsWith('/');
+        const arrPath = path.split('/');
+        if (slash) arrPath.shift();
+        repo = arrPath.shift();
+        path = arrPath.join('/');
+        const parts = path.split('?');
+        path = parts[0];
+        if (parts[1]) ref = parts[1].split('=')[1];
+        if (authToken) {
+            url = `https://api.github.com/repos/${accountName}/${repo}/contents/${path}?ref=${ref}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `token ${authToken}`
+                }
+            });
+            if (response.ok) {
+                const result1 = await response.json();
+                if (result1.sha) {
+                    const content = mod7.decode(result1.content);
+                    result1.content = content;
+                    return result1;
+                } else mod4.warning(`${url} - ${result1.message}`);
+            }
+        } else {
+            url = `https://raw.githubusercontent.com/${accountName}/${repo}/${ref}/${path}`;
+            const response = await fetch(url, {
+                method: 'GET'
+            });
+            if (response.ok) {
+                const result1 = await response.text();
+                return {
+                    name: path.split('/').pop(),
+                    content: new TextEncoder().encode(result1)
+                };
+            }
         }
+    } catch (e) {
+        mod4.warning(`A problem occured while trying to receive a resource from the GitHub account '${accountName}'.`);
+        mod4.error('Error: ' + e.message);
     }
-    return textEncoder.encode(parsedContent);
+    return null;
 }
-async function getServerContext(request, routeParams) {
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const domain = mod9.getDomain(domainHostname);
+async function getServerContext(request) {
+    const requestCtx = await getRequestContext(request);
+    const domain = domains[requestCtx.url.hostname];
     const serverContext = {
-        domain: await getDomainContext(request),
-        request: await getRequestContext(request, routeParams),
-        response: getResponseContext(request),
-        settings: Object.assign(domain.appConfig.settings || {}, domain.settings),
+        request: requestCtx,
+        response: new ResponseContext(),
         utils: new Utils(),
-        parser: new mod8.DOMParser(),
+        parser: new mod9.DOMParser(),
         getPackageItem: async (path)=>{
-            const packageItem = await mod9.getPackageItem(domainHostname, path);
+            const packageItem = await getPackageItem(requestCtx.url.hostname, path);
             return packageItem;
         },
         user: {}
     };
-    for(const prop in domain.contextExtensions){
-        serverContext[prop] = domain.contextExtensions[prop].instance;
+    if (domain) {
+        serverContext.domain = {
+            hostname: requestCtx.url.hostname,
+            appId: domain.appId,
+            cacheDTS: domain.currentCacheDTS
+        };
+        for(const prop in domain.appConfig.extensions){
+            serverContext[prop] = domain.appConfig.extensions[prop].instance;
+        }
+        serverContext.settings = domain.appConfig?.settings;
     }
     return serverContext;
 }
-async function getDomainContext(request) {
-    const url = new URL(request.url);
-    const domainHostname = url.hostname;
-    const domain = mod9.getDomain(domainHostname);
-    const domainContext = {
-        hostname: domainHostname,
-        cacheDTS: domain.currentCacheDTS
-    };
-    return domainContext;
-}
-async function getRequestContext(request, routeParams) {
+async function getRequestContext(request) {
     const url = new URL(request.url);
     const contentType = request.headers.get('content-type');
     const requestContext = {
         url,
+        method: request.method,
+        routePath: url.pathname,
         headers: request.headers,
-        cookies: mod7.getCookies(request.headers),
-        params: routeParams || {},
+        cookies: mod8.getCookies(request.headers),
+        params: {},
         data: {},
         files: []
     };
@@ -8936,10 +9452,7 @@ async function getRequestContext(request, routeParams) {
     }
     return requestContext;
 }
-function getResponseContext(request) {
-    return new ResponseObject();
-}
-class ResponseObject {
+class ResponseContext {
     constructor(){}
     redirect = (url, status)=>{
         return Response.redirect(url, status);
@@ -8972,19 +9485,135 @@ class ResponseObject {
         });
     };
 }
-(async function() {
-    const envPath = `${Deno.cwd()}/.env`;
-    const env = await load({
-        envPath
-    });
-    mod6.info(`Environment (${envPath}):`, env);
-    for(const key in env){
-        if (!Deno.env.get(key)) Deno.env.set(key, env[key]);
+const html = `
+<html>
+    <body style="height:100%; width:100%; background-color:#ffffff; overflow: hidden;">
+        <div style="text-align: center; margin-top: 10%;">
+            <div style="font-family:monospace; font-size:2rem; font-weight:bold; margin-bottom:2rem;">Powered By JSphere</div>
+            <div id="datetime" style="font-family:monospace; color:#686868; font-weight:bold;">Oops. This domain isn't currently hosting any content.</div>
+        </div>
+    </body>
+</html>
+`;
+function parseContent(content, eTag) {
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+    let parsedContent = textDecoder.decode(content);
+    const found = parsedContent.match(/((import[ ]+)|(from[ ]+))(\(|"|')(?<path>[a-zA-Z0-9\/.\-_]+)("|'|\))/gi);
+    if (found) {
+        for (const entry of found){
+            let temp;
+            if (entry.endsWith(`.ts"`)) temp = entry.replace(`.ts"`, `.ts?eTag=${eTag}"`);
+            else if (entry.endsWith(`.ts'`)) temp = entry.replace(`.ts'`, `.ts?eTag=${eTag}'`);
+            else if (entry.endsWith(`.js"`)) temp = entry.replace(`.js"`, `.js?eTag=${eTag}"`);
+            else if (entry.endsWith(`.js'`)) temp = entry.replace(`.js'`, `.js?eTag=${eTag}'`);
+            else if (entry.endsWith(`)`)) temp = entry.replace(`)`, ` + '?eTag=${eTag}')`);
+            if (temp) parsedContent = parsedContent.replace(entry, temp);
+        }
     }
-    await mod9.init();
-    const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
-    mod6.info(`JSphere Application Server is running.`);
-    serve(mod9.handleRequest, {
-        port: serverPort
-    });
-})();
+    return textEncoder.encode(parsedContent);
+}
+function matchRoute(routeStr, routeObjects) {
+    const normalizedRouteStr = routeStr.replace(/^\/+|\/+$/g, '');
+    const routeSegments = normalizedRouteStr.split('/');
+    for (const routeObj of routeObjects){
+        const normalizedRoutePattern = routeObj.route.replace(/^\/+|\/+$/g, '');
+        if (normalizedRoutePattern === '**' || normalizedRoutePattern === '*') {
+            const resultPath = routeObj.path.replace(/\*/g, normalizedRouteStr);
+            return {
+                path: resultPath,
+                params: {
+                    wildcard: normalizedRouteStr
+                }
+            };
+        }
+        if (normalizedRoutePattern.includes('*') || normalizedRoutePattern.includes(':')) {
+            const patternSegments = normalizedRoutePattern.split('/');
+            const params = {};
+            let isMatch = true;
+            const wildcardValues = [];
+            if (patternSegments.length !== routeSegments.length && !patternSegments.some((seg)=>seg === '*')) {
+                continue;
+            }
+            let patternIndex = 0;
+            let routeIndex = 0;
+            while(patternIndex < patternSegments.length && routeIndex < routeSegments.length){
+                const patternSegment = patternSegments[patternIndex];
+                const routeSegment = routeSegments[routeIndex];
+                if (patternSegment.startsWith(':')) {
+                    const paramName = patternSegment.substring(1);
+                    params[paramName] = routeSegment;
+                    patternIndex++;
+                    routeIndex++;
+                } else if (patternSegment === '*') {
+                    if (patternIndex === patternSegments.length - 1) {
+                        const remainingPath = routeSegments.slice(routeIndex).join('/');
+                        wildcardValues.push(remainingPath);
+                        routeIndex = routeSegments.length;
+                        patternIndex++;
+                    } else {
+                        const nextPatternSegment = patternSegments[patternIndex + 1];
+                        const consumedSegments = [];
+                        if (nextPatternSegment.startsWith(':')) {
+                            consumedSegments.push(routeSegment);
+                            routeIndex++;
+                        } else {
+                            let nextSegmentFound = false;
+                            while(routeIndex < routeSegments.length){
+                                if (routeSegments[routeIndex] === nextPatternSegment) {
+                                    nextSegmentFound = true;
+                                    break;
+                                }
+                                consumedSegments.push(routeSegments[routeIndex]);
+                                routeIndex++;
+                            }
+                            if (!nextSegmentFound && nextPatternSegment !== '*') {
+                                isMatch = false;
+                                break;
+                            }
+                        }
+                        wildcardValues.push(consumedSegments.join('/'));
+                        patternIndex++;
+                    }
+                } else if (patternSegment === routeSegment) {
+                    patternIndex++;
+                    routeIndex++;
+                } else {
+                    isMatch = false;
+                    break;
+                }
+            }
+            if (patternIndex < patternSegments.length || routeIndex < routeSegments.length) {
+                isMatch = false;
+            }
+            if (isMatch) {
+                let resultPath = routeObj.path;
+                for (const wildcardValue of wildcardValues){
+                    resultPath = resultPath.replace(/\*/, wildcardValue);
+                }
+                return {
+                    path: resultPath,
+                    params
+                };
+            }
+            continue;
+        }
+        if (normalizedRoutePattern === normalizedRouteStr) {
+            return {
+                path: routeObj.path,
+                params: {}
+            };
+        }
+    }
+    return {
+        path: null,
+        params: {}
+    };
+}
+const cmdArgs = parse6(Deno.args);
+await mod10.init(cmdArgs._[0]);
+const serverPort = parseInt(Deno.env.get('server_http_port') || '80');
+mod4.info(`JSphere Application Server has started.`);
+serve(mod10.handleRequest, {
+    port: serverPort
+});
