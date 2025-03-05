@@ -8796,7 +8796,7 @@ const mod9 = await async function() {
 }();
 let currentProjectName;
 function handleRequest(ctx) {
-    const domain = mod10.domains[ctx.request.url.hostname];
+    const domain = mod10.getDomain(ctx.request.url.hostname);
     if (domain && domain.ready === false) {
         return new Response('Oops.  Your application is initializing. Please wait, then try your request again.', {
             status: 503,
@@ -8807,7 +8807,7 @@ function handleRequest(ctx) {
     }
 }
 async function handleRequest1(ctx) {
-    const domain = mod10.domains[ctx.request.url.hostname];
+    const domain = mod10.getDomain(ctx.request.url.hostname);
     if (!domain) {
         return new Response(html, {
             status: 200,
@@ -8817,7 +8817,7 @@ async function handleRequest1(ctx) {
         });
     }
     if (!domain.ready) {
-        mod10.domains[ctx.request.url.hostname] = domain;
+        mod10.setDomain(ctx.request.url.hostname, domain);
         domain.currentCacheDTS = Date.now();
         domain.packageItemCache = {};
         domain.aliasMappings = {};
@@ -8951,7 +8951,7 @@ async function handleRequest2(ctx) {
                 });
             } else if (cmd == 'resetdomain' && ctx.request.method === 'GET') {
                 const domain = url.searchParams.get('domain');
-                delete mod10.domains[domain];
+                mod10.removeDomain(domain);
                 return new Response('Domain application was reset.', {
                     status: 200
                 });
@@ -8993,7 +8993,7 @@ async function handleRequest3(ctx) {
     }
 }
 function handleRequest4(ctx) {
-    const domain = mod10.domains[ctx.request.url.hostname];
+    const domain = mod10.getDomain(ctx.request.url.hostname);
     const extension = extname2(ctx.request.url.pathname);
     if (domain.appConfig.routes && !lookup(extension)) {
         const route = matchRoute(ctx.request.url.pathname, domain.appConfig.routes);
@@ -9037,7 +9037,7 @@ async function handleRequest5(ctx) {
     }
 }
 async function handleRequest6(ctx) {
-    const domain = mod10.domains[ctx.request.url.hostname];
+    const domain = mod10.getDomain(ctx.request.url.hostname);
     const folder = ctx.request.routePath.startsWith('/') ? ctx.request.routePath.split('/')[2] : ctx.request.routePath.split('/')[1];
     if (folder == 'server') {
         try {
@@ -9128,6 +9128,15 @@ class Utils {
     };
 }
 let domains = {};
+function getDomain(domain) {
+    return domains[domain];
+}
+function setDomain(domain, value) {
+    domains[domain] = value;
+}
+function removeDomain(domain) {
+    delete domains[domain];
+}
 async function init1(projectName) {
     if (projectName) {
         const envPath = projectName ? `${Deno.cwd()}/${projectName}/.env` : '';
@@ -9236,6 +9245,37 @@ function getSettings(settings) {
     }
     return settings;
 }
+const mod10 = {
+    currentProjectName: currentProjectName,
+    getDomain: getDomain,
+    setDomain: setDomain,
+    removeDomain: removeDomain,
+    init: init1,
+    handleRequest: handleRequest7,
+    getPackageItem: getPackageItem,
+    getSettings: getSettings
+};
+const mod11 = {
+    handleRequest: handleRequest
+};
+const mod12 = {
+    handleRequest: handleRequest1
+};
+const mod13 = {
+    handleRequest: handleRequest2
+};
+const mod14 = {
+    handleRequest: handleRequest3
+};
+const mod15 = {
+    handleRequest: handleRequest4
+};
+const mod16 = {
+    handleRequest: handleRequest5
+};
+const mod17 = {
+    handleRequest: handleRequest6
+};
 async function initializeProject(projectName) {
     const path = `.${projectName}/.domains.json`;
     let file = await getFile(projectName + '/' + path, true);
@@ -9298,35 +9338,6 @@ async function initializeProject(projectName) {
         }
     }
 }
-const mod10 = {
-    currentProjectName: currentProjectName,
-    domains: domains,
-    init: init1,
-    handleRequest: handleRequest7,
-    getPackageItem: getPackageItem,
-    getSettings: getSettings
-};
-const mod11 = {
-    handleRequest: handleRequest
-};
-const mod12 = {
-    handleRequest: handleRequest1
-};
-const mod13 = {
-    handleRequest: handleRequest2
-};
-const mod14 = {
-    handleRequest: handleRequest3
-};
-const mod15 = {
-    handleRequest: handleRequest4
-};
-const mod16 = {
-    handleRequest: handleRequest5
-};
-const mod17 = {
-    handleRequest: handleRequest6
-};
 async function getFile(path, text = false) {
     try {
         const slash = path.startsWith('/');
