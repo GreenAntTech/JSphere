@@ -941,8 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const CLI_VERSION = 'v1.0.0-preview.1';
-const JSPHERE_VERSION = 'v1.0.0-preview.1';
+const JSPHERE_VERSION = 'v1.0.0-preview.2';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -985,12 +984,14 @@ function helpCmd() {
     info('checkout <project_name>');
     info('checkout <project_name>/<app_name>/<package_name>');
     info('checkout <project_name>/<app_name>/<package_name>:<tag>');
+    info('load <project_name>    // The domain is assumed to be localhost');
     info('load <domain>/<project_name>');
     info('load <domain>:<port_number>/<project_name>');
     info('server --url=<url> --token=<token>');
+    info('reset    // The domain is assumed to be localhost');
     info('reset <domain>');
     info('reset <domain>:<port_number>');
-    info('start [-version=<version>] [--debug=<port_number>] [--reload]');
+    info('start <project_name>[-version=<version>] [--debug=<port_number>] [--reload]');
     info('version');
 }
 async function buildCmd(cmdArgs) {
@@ -1121,6 +1122,7 @@ async function serverCmd(cmdArgs) {
 }
 async function startCmd(cmdArgs) {
     try {
+        const projectName = cmdArgs._[1];
         const version = cmdArgs.version || JSPHERE_VERSION;
         const debugPort = cmdArgs.debug || '9229';
         const command = new Deno.Command(Deno.execPath(), {
@@ -1130,7 +1132,8 @@ async function startCmd(cmdArgs) {
                 '--no-check',
                 cmdArgs.reload ? '--reload' : '',
                 cmdArgs.debug ? `--inspect=0.0.0.0:${debugPort}` : '',
-                `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`
+                `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`,
+                projectName ? projectName : ''
             ],
             stdin: 'piped'
         });
@@ -1142,7 +1145,6 @@ async function startCmd(cmdArgs) {
     }
 }
 function versionCmd() {
-    info('CLI Version: ' + CLI_VERSION);
     info('JSphere Version: ' + JSPHERE_VERSION);
 }
 async function createProject(projectName, type) {
