@@ -3,12 +3,12 @@ JSphere is a lightweight and flexible web application server for Deno.
 
 JSphere decouples your application logic from the application's runtime environment, allowing for highly composable and scalable application architectures.
 
-JSphere Element (element.js) is a lightweight JavaScript library for building composable, message-driven, and easily navigable web interfaces.  JSphere Element web interfaces can be rendered at the client or at the server allowing you flexible options for how hydration will occur at the client.
+JSphere ElementJS (element.js) is a lightweight JavaScript library for building composable and easily navigable web interfaces.  JSphere Element web interfaces can be rendered at the client or at the server allowing you flexible options for how hydration will occur at the client.
 
 ## Getting Started
 
 ### Install Deno
-JSphere requires you to [install](https://deno.com/manual/getting_started/installation) the Deno JavaScript, TypeScript, and WebAssembly runtime. Deno works on macOS, Linux, and Windows. Deno is a single binary executable. It has no external dependencies.
+JSphere requires you to [install](https://docs.deno.com/runtime/getting_started/installation) the Deno JavaScript, TypeScript, and WebAssembly runtime. Deno works on macOS, Linux, and Windows. Deno is a single binary executable. It has no external dependencies.
 
 ### Install the JSphere CLI tool
 The JSphere command line interface tool provides commands for working with JSphere.  To install the CLI tool open a command line console and enter the following:
@@ -23,9 +23,9 @@ To use the CLI tool commands you type:
 ```
 js <command> [arguments]
 ```
-For example, to see a list of available commands type:
+To see a list of available commands type:
 ```
-js help
+js
 ```
 
 ### Create a JSphere Project Directory ###

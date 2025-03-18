@@ -1,10 +1,6 @@
-import { Document } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/interface/document.d.ts";
-import { XMLDocument } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/xml/document.d.ts";
+import { Document } from "https://deno.land/x/deno_dom@v0.1.48/deno-dom-wasm.ts";
 
-export { HTMLElement } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/html/element.d.ts";
-export { HTMLTemplateElement } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/html/template-element.d.ts";
-export { Document } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/interface/document.d.ts";
-export { XMLDocument } from "https://esm.sh/v126/gh/WebReflection/linkedom@v0.14.26/types/esm/xml/document.d.ts";
+export * from "https://deno.land/x/deno_dom@v0.1.48/deno-dom-wasm.ts";
 
 export interface IObject {
     [name:string]: unknown
@@ -122,5 +118,5 @@ export interface IDataStore {
 }
 
 export interface IParser {
-    parseFromString: (markupLanguage: string, mimeType: "text/html" | "image/svg+xml" | "text/xml", globals?: unknown) => Document | XMLDocument
+    parseFromString: (markupLanguage: string, mimeType: "text/html" | "image/svg+xml" | "text/xml", globals?: unknown) => Document
 }

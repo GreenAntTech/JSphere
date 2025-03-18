@@ -1,3 +1,5 @@
+import { Element } from "https://deno.land/x/deno_dom@v0.1.48/deno-dom-wasm.ts";
+
 export const appState$: IObject
 export const feature$: Feature
 export function createComponent$ (name:string, handler:(el:Component) => void) : string
@@ -16,28 +18,6 @@ export interface IObject {
     [name:string]: unknown
 }
 
-export interface IRenderConfig {
-    file?: string;
-    html?: string | void;
-    props?: Record<string, unknown>;
-}
-
-export interface IRequestState {
-    pathname: string;
-    hash?: string;
-    params: Record<string, string>;
-}
-
-export type AppContext = {
-    server: boolean;
-    client: boolean;
-    ctx?: ServerContext|null;
-}
-
-export type RouteHandlers = {
-    [name:string]: (path:string, params:IObject) => Promise<void>
-}
-
 export type FeatureHandlers = {
     [name:string]: () => Promise<void>
 }
@@ -54,7 +34,7 @@ export type ComponentHandlers = {
     [name:string]: (el:Component) => void
 }
 
-export type Component = HTMLElement & {
+export type Component = Element & {
     add$: (props?:IObject) => Promise<Component>
     captions$: (name:string) => (value:string, ...args:Array<string>) => void
     children$: Record<string, Component|Array<Component>>
@@ -110,7 +90,7 @@ type ComponentSetter = {
 }
 
 type PropertiesObject = {
-    [name:string]: ComponentGetter | ComponentMethod | ComponentSetter | ((...args: any[]) => Promise<unknown> | unknown)
+    [name:string]: ComponentGetter | ComponentMethod | ComponentSetter | ((...args: unknown[]) => Promise<unknown> | unknown)
 }
 
 export type GenericComponent = Component & {
@@ -123,34 +103,6 @@ export type Link = Component & {
     href$: string
     value$: string
     onclick$: (event:Event) => void
-}
-
-export type ServerContext = {
-    domain: DomainContext
-    request: RequestContext
-    parser: IParser
-    getPackageItem: (path: string) => Promise<PackageItem | null>
-}
-
-type DomainContext = {
-    hostname: string
-    cacheDTS: number
-}
-
-export type RequestContext = {
-    url: URL
-    params: Record<string, string>
-}
-
-interface IParser {
-    parseFromString: (markupLanguage: string, mimeType: "text/html" | "image/svg+xml" | "text/xml", globals?: unknown) => Document | XMLDocument
-}
-
-type PackageItem = {
-    eTag: string
-    contentType: string
-    content: Uint8Array
-    headers?: Record<string, string>
 }
 
 export type Feature = {
