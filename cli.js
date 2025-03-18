@@ -1082,7 +1082,7 @@ async function checkoutCmd(cmdArgs) {
 async function serverCmd(cmdArgs) {
     try {
         const cmd = cmdArgs._[0];
-        const parts = cmdArgs._[1].split('/');
+        const parts = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
         const url = cmdArgs.url;
         const token = cmdArgs.token;
         let domain = parts[0];
@@ -1125,17 +1125,15 @@ async function startCmd(cmdArgs) {
         const projectName = cmdArgs._[1];
         const version = cmdArgs.version || JSPHERE_VERSION;
         const debugPort = cmdArgs.debug || '9229';
-        const command = new Deno.Command(Deno.execPath(), {
-            args: [
-                'deno',
-                'run',
-                '--allow-all',
-                '--no-check',
-                cmdArgs.reload ? '--reload' : '',
-                cmdArgs.debug ? `--inspect=0.0.0.0:${debugPort}` : '',
-                `https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`,
-                projectName ? projectName : ''
-            ],
+        const args = [];
+        args.push('--allow-all');
+        args.push('--no-check');
+        if (cmdArgs.reload) args.push('--reload');
+        if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${debugPort}`);
+        args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`);
+        if (projectName) args.push(projectName);
+        const command = new Deno.Command('deno', {
+            args,
             stdin: 'piped'
         });
         const child = command.spawn();
