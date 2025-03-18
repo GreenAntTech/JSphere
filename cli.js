@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.2';
+const JSPHERE_VERSION = 'v1.0.0-preview.3';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -1127,6 +1127,7 @@ async function startCmd(cmdArgs) {
         const debugPort = cmdArgs.debug || '9229';
         const command = new Deno.Command(Deno.execPath(), {
             args: [
+                'deno',
                 'run',
                 '--allow-all',
                 '--no-check',
