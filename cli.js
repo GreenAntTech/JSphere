@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.5';
+const JSPHERE_VERSION = 'v1.0.0-preview.6';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -983,16 +983,17 @@ function helpCmd() {
     info('create <project_name>/<app_name>/<package_name>:<alias>');
     info('checkout <project_name>');
     info('checkout <project_name>/<app_name>/<package_name>');
-    info('checkout <project_name>/<app_name>/<package_name>:<tag>');
-    info('load <project_name>    // The domain is assumed to be localhost');
-    info('load <domain>/<project_name>');
-    info('load <domain>:<port_number>/<project_name>');
-    info('server --url=<url> --token=<token>');
-    info('reset    // The domain is assumed to be localhost');
-    info('reset <domain>');
-    info('reset <domain>:<port_number>');
-    info('start <project_name>[-version=<version>] [--debug=<port_number>] [--reload]');
-    info('version');
+    info('load     // reloads the current project hosted on localhost');
+    info('load <project_name>    // reloads the specified project hosted on localhost');
+    info('load <domain>/<project_name>    // reloads the specified project hosted on the specified domain');
+    info('load <domain>:<port_number>/<project_name>    // reloads the specified project hosted on the specified domain and port number');
+    info('reset    // resets localhost');
+    info('reset <domain>    // resets the specified local domain');
+    info('reset <domain>:<port_number>    // resets the specified local domain and port number');
+    info('remote https://<hostname>[:<port_number>]/@cmd/<command>[?param1=value1...] <auth_token>    // sends a command to a remote JSphere server');
+    info('start [-version=<version>] [--debug=<port_number>] [--reload]    // starts the server with a project specified in the .env file');
+    info('start <project_name>[-version=<version>] [--debug=<port_number>] [--reload]    // starts the server with the specified project located in the current workspace');
+    info('version    // displays the current version of JSphere');
 }
 async function buildCmd(cmdArgs) {
     try {
@@ -1071,51 +1072,53 @@ async function checkoutCmd(cmdArgs) {
     const appName = path[1];
     const packageName = path[2];
     let result;
-    if (projectName && !appName && !packageName) {
+    if (!appName && !packageName) {
         result = await checkoutProject(projectName);
     } else if (projectName && appName && packageName) {
         result = await checkoutPackage(projectName, appName, packageName);
     }
-    if (result) info(`Create command completed successfully.`);
-    else info(`Create command failed.`);
+    if (result) info(`Checkout command completed successfully.`);
+    else info(`Checkout command failed.`);
 }
 async function serverCmd(cmdArgs) {
     try {
         const cmd = cmdArgs._[0];
-        const parts = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-        const url = cmdArgs.url;
-        const token = cmdArgs.token;
-        let domain = parts[0] || 'localhost';
-        let projectName = parts[1];
-        if (!domain.startsWith('localhost') && !domain.startsWith('https://')) {
-            domain = 'localhost';
-            projectName = parts[0];
-        }
-        if (cmd === 'reset') {
-            if (!domain) domain = 'localhost';
-            const response = await fetch(`http://${domain}/@cmd/resetdomain`, {
+        if (cmd === 'remote') {
+            const response = await fetch(cmdArgs._[1], {
                 method: 'GET',
                 headers: {
-                    'Authorization': `token ${token}`
+                    'Authorization': `token ${cmdArgs._[2]}`
                 }
             });
             if (!response.ok) error(response.statusText);
-        } else if (cmd === 'load' && domain) {
-            const response = await fetch(`http://${domain}/@cmd/loadproject?projectName=${projectName || ''}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `token ${token}`
-                }
-            });
-            if (!response.ok) error(response.statusText);
-        } else if (cmd === 'remote' && url && token) {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `token ${token}`
-                }
-            });
-            if (!response.ok) error(response.statusText);
+        } else {
+            const parts = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
+            cmdArgs.url;
+            const token = cmdArgs.token;
+            let domain = parts[0] || 'localhost';
+            let projectName = parts[1];
+            if (!domain.startsWith('localhost') && !domain.startsWith('https://')) {
+                domain = 'localhost';
+                projectName = parts[0];
+            }
+            if (cmd === 'reset') {
+                if (!domain) domain = 'localhost';
+                const response = await fetch(`http://${domain}/@cmd/resetdomain`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${token}`
+                    }
+                });
+                if (!response.ok) error(response.statusText);
+            } else if (cmd === 'load' && domain) {
+                const response = await fetch(`http://${domain}/@cmd/loadproject?projectName=${projectName || ''}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${token}`
+                    }
+                });
+                if (!response.ok) error(response.statusText);
+            }
         }
     } catch (e) {
         critical(e.message);
@@ -1267,15 +1270,23 @@ async function createPackage(projectName, appName, packageName, alias) {
     }
 }
 async function checkoutProject(projectName) {
+    let env = {};
+    if (!projectName) {
+        env = await load({
+            envPath: Deno.cwd() + `/.env`
+        });
+        projectName = env.PROJECT_NAME;
+    }
     if (await exists(Deno.cwd() + `/${projectName}`)) {
         error(`A project directory named ${projectName} already exists`);
         return false;
     }
     info('Please provide the following project environment variables:');
-    const projectHost = prompt('PROJECT_HOST:', Deno.env.get('PROJECT_HOST') || 'GitHub');
-    const projectNamespace = prompt('PROJECT_NAMESPACE:', Deno.env.get('PROJECT_NAMESPACE'));
-    const projectTag = prompt('PROJECT_TAG:', Deno.env.get('PROJECT_TAG'));
-    const projectAuthToken = prompt('PROJECT_AUTH_TOKEN:', Deno.env.get('PROJECT_AUTH_TOKEN'));
+    projectName = prompt('PROJECT_NAME:', projectName);
+    const projectHost = prompt('PROJECT_HOST:', env['PROJECT_HOST'] || 'GitHub');
+    const projectNamespace = prompt('PROJECT_NAMESPACE:', env['PROJECT_NAMESPACE']);
+    const projectTag = prompt('PROJECT_TAG:', env['PROJECT_TAG']);
+    const projectAuthToken = prompt('PROJECT_AUTH_TOKEN:', env['PROJECT_AUTH_TOKEN']);
     info(`Creating project directory ${projectName} ...`);
     await Deno.mkdir(Deno.cwd() + `/${projectName}`, {
         recursive: true

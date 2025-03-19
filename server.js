@@ -23546,7 +23546,6 @@ async function handleRequest2(ctx) {
                     });
                 }
             } else if (cmd == 'resetdomain' && ctx.request.method === 'GET') {
-                console.log('resetdomain', url.hostname);
                 try {
                     mod12.resetDomain(url.hostname);
                     return new Response('OK', {
