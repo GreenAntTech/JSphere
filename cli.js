@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.6';
+const JSPHERE_VERSION = 'v1.0.0-preview.7';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -1093,7 +1093,6 @@ async function serverCmd(cmdArgs) {
             if (!response.ok) error(response.statusText);
         } else {
             const parts = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-            cmdArgs.url;
             const token = cmdArgs.token;
             let domain = parts[0] || 'localhost';
             let projectName = parts[1];
@@ -1189,21 +1188,21 @@ async function createProject(projectName, type) {
         });
         await cloneRepo({
             repoName: projectName,
-            path: Deno.cwd() + `/${projectName}/${projectName}/${projectName}`,
+            path: Deno.cwd() + `/${projectName}/app/${projectName}`,
             provider: projectHost,
             namespace: projectNamespace,
             authToken: projectAuthToken
         });
         await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/.domains.json`, (new TextEncoder).encode(getDomainsConfig('app')));
         await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/app.json`, (new TextEncoder).encode(getApplicationConfig(projectName, type)));
-        await Deno.mkdir(Deno.cwd() + `/${projectName}/${projectName}/${projectName}/client`, {
+        await Deno.mkdir(Deno.cwd() + `/${projectName}/app/${projectName}/client`, {
             recursive: true
         });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectName}/${projectName}/client/index.html`, (new TextEncoder).encode(getIndexPageContent()));
-        await Deno.mkdir(Deno.cwd() + `/${projectName}/${projectName}/${projectName}/server`, {
+        await Deno.writeFile(Deno.cwd() + `/${projectName}/app/${projectName}/client/index.html`, (new TextEncoder).encode(getIndexPageContent()));
+        await Deno.mkdir(Deno.cwd() + `/${projectName}/app/${projectName}/server`, {
             recursive: true
         });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectName}/${projectName}/server/datetime.ts`, (new TextEncoder).encode(getAPIEndpointContent()));
+        await Deno.writeFile(Deno.cwd() + `/${projectName}/app/${projectName}/server/datetime.ts`, (new TextEncoder).encode(getAPIEndpointContent()));
         return true;
     } catch (e) {
         error(e.message);
@@ -1240,13 +1239,12 @@ async function createPackage(projectName, appName, packageName, alias) {
         return false;
     }
     const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`)));
-    let repoType;
-    if (!appConfig.type) repoType = 'private';
+    const repoType = appConfig.type || 'private';
     if (repoType !== 'private' && repoType !== 'public') {
         error(`Could not create the remote repo ${packageName}. Please set the app type in the project's app config file named ${appName}.json to 'private' or 'public'.`);
         return false;
     }
-    info(`Creating package ${projectName}/${projectName}/${packageName} ...`);
+    info(`Creating package ${projectName}/${appName}/${packageName} ...`);
     try {
         await createRepo({
             repoName: packageName,
@@ -1255,14 +1253,14 @@ async function createPackage(projectName, appName, packageName, alias) {
         });
         await cloneRepo({
             repoName: packageName,
-            path: Deno.cwd() + `/${projectName}/${projectName}/${packageName}`,
+            path: Deno.cwd() + `/${projectName}/${appName}/${packageName}`,
             provider: env.PROJECT_HOST || '',
             namespace: env.PROJECT_NAMESPACE || '',
             authToken: projectAuthToken
         });
         appConfig.packages[packageName] = {};
         if (alias) appConfig.packages[packageName].alias = alias;
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, (new TextEncoder).encode(JSON.stringify(appConfig)));
+        await Deno.writeFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
         return true;
     } catch (e) {
         error(e.message);
