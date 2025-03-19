@@ -977,7 +977,7 @@ const JSPHERE_VERSION = 'v1.0.0-preview.6';
     }
 })();
 function helpCmd() {
-    info('build <project_name>/<app_name> [-v=<version>] [--no-cache]');
+    info('build <project_name>/<app_name> [--version=<version>] [--no-cache]');
     info('create <project_name> -public');
     info('create <project_name>/<app_name>/<package_name>');
     info('create <project_name>/<app_name>/<package_name>:<alias>');
@@ -1000,7 +1000,7 @@ async function buildCmd(cmdArgs) {
         const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
         const projectName = path[0];
         const appName = path[1];
-        const version = cmdArgs.v || 'latest';
+        const version = cmdArgs.version || 'latest';
         const noCache = typeof cmdArgs['no-cache'] === 'undefined' ? '' : '--no-cache';
         if (projectName && appName) {
             await Deno.writeFile(Deno.cwd() + `/DockerFile`, (new TextEncoder).encode(getDockerFileContent(projectName, appName)));
