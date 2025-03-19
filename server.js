@@ -2815,6 +2815,62 @@ const mod6 = {
     critical: critical,
     setup: setup
 };
+(()=>{
+    const { Deno: Deno1 } = globalThis;
+    if (typeof Deno1?.build?.os === "string") {
+        return Deno1.build.os;
+    }
+    const { navigator } = globalThis;
+    if (navigator?.appVersion?.includes?.("Win")) {
+        return "windows";
+    }
+    return "linux";
+})();
+Deno.build.os === "windows";
+async function exists1(path, options) {
+    try {
+        const stat = await Deno.stat(path);
+        if (options && (options.isReadable || options.isDirectory || options.isFile)) {
+            if (options.isDirectory && options.isFile) {
+                throw new TypeError("ExistsOptions.options.isDirectory and ExistsOptions.options.isFile must not be true together.");
+            }
+            if (options.isDirectory && !stat.isDirectory || options.isFile && !stat.isFile) {
+                return false;
+            }
+            if (options.isReadable) {
+                if (stat.mode === null) {
+                    return true;
+                }
+                if (Deno.uid() === stat.uid) {
+                    return (stat.mode & 0o400) === 0o400;
+                } else if (Deno.gid() === stat.gid) {
+                    return (stat.mode & 0o040) === 0o040;
+                }
+                return (stat.mode & 0o004) === 0o004;
+            }
+        }
+        return true;
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) {
+            return false;
+        }
+        if (error instanceof Deno.errors.PermissionDenied) {
+            if ((await Deno.permissions.query({
+                name: "read",
+                path
+            })).state === "granted") {
+                return !options?.isReadable;
+            }
+        }
+        throw error;
+    }
+}
+Deno.build.os === "windows";
+new Deno.errors.AlreadyExists("dest already exists.");
+Deno.build.os === "windows";
+const LF = "\n";
+const CRLF = "\r\n";
+Deno?.build.os === "windows" ? CRLF : LF;
 function deferred() {
     let methods;
     let state = "pending";
@@ -8665,18 +8721,18 @@ const mod9 = await async function() {
         Attr: Attr,
         NodeList: NodeListPublic,
         HTMLCollection: HTMLCollectionPublic,
+        DOMTokenList,
+        NamedNodeMap,
+        DOMImplementation,
+        DocumentType,
+        Document: Document1,
         HTMLTemplateElement,
         NodeType,
         nodesAndTextNodes,
         Text,
         Comment,
         DOMParser,
-        DocumentFragment: DocumentFragment1,
-        DOMTokenList,
-        NamedNodeMap,
-        DOMImplementation,
-        DocumentType,
-        Document: Document1
+        DocumentFragment: DocumentFragment1
     };
 }();
 const importMeta1 = {
@@ -9336,7 +9392,7 @@ async function cacheToLocalDir(url, decompress) {
     if (localPath == null) {
         return undefined;
     }
-    if (!await exists1(localPath)) {
+    if (!await exists2(localPath)) {
         const fileBytes = decompress(new Uint8Array(await getUrlBytes(url)));
         try {
             await Deno.writeFile(localPath, fileBytes);
@@ -9364,7 +9420,7 @@ async function getInitializedLocalDataDirPath() {
     await ensureDir(dirPath);
     return dirPath;
 }
-async function exists1(filePath) {
+async function exists2(filePath) {
     try {
         await Deno.lstat(filePath);
         return true;
@@ -23480,6 +23536,7 @@ async function handleRequest2(ctx) {
                 const params = ctx.request.params;
                 try {
                     if (params.projectName) await mod12.init(params.projectName);
+                    else if (mod12.currentProjectName) await mod12.init(mod12.currentProjectName);
                     return new Response('OK', {
                         status: 200
                     });
@@ -23699,12 +23756,16 @@ function resetDomain(domain) {
     domains[domain].ready = undefined;
 }
 async function init1(projectName) {
+    let envPath, env = {};
     if (projectName) {
-        const envPath = projectName ? `${Deno.cwd()}/${projectName}/.env` : '';
-        const env = await load({
-            envPath
-        });
-        for(const key in env)Deno.env.set(key, env[key]);
+        if (await exists1(envPath = `${Deno.cwd()}/${projectName}/.env`, {
+            isFile: true
+        })) {
+            env = await load({
+                envPath
+            });
+            for(const key in env)Deno.env.set(key, env[key]);
+        } else envPath = `${Deno.cwd()}/.env`;
         mod6.info(`Project Environment File: ${envPath}`);
         await initializeProject(projectName);
         currentProjectName = projectName;
@@ -24189,8 +24250,13 @@ function matchRoute(routeStr, routeObjects) {
         params: {}
     };
 }
+const env = await load({
+    envPath: Deno.cwd() + '/.env'
+});
+for(const key in env)Deno.env.set(key, env[key]);
 const cmdArgs = parse6(Deno.args);
-await mod12.init(cmdArgs._[0]);
+const projectName = cmdArgs._[0] || Deno.env.get('PROJECT_NAME') || '';
+await mod12.init(projectName);
 const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
 mod6.info(`JSphere Application Server has started.`);
 serve(mod12.handleRequest, {

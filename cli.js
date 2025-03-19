@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.4';
+const JSPHERE_VERSION = 'v1.0.0-preview.5';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -1085,13 +1085,14 @@ async function serverCmd(cmdArgs) {
         const parts = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
         const url = cmdArgs.url;
         const token = cmdArgs.token;
-        let domain = parts[0];
+        let domain = parts[0] || 'localhost';
         let projectName = parts[1];
         if (!domain.startsWith('localhost') && !domain.startsWith('https://')) {
             domain = 'localhost';
             projectName = parts[0];
         }
-        if (cmd === 'reset' && domain) {
+        if (cmd === 'reset') {
+            if (!domain) domain = 'localhost';
             const response = await fetch(`http://${domain}/@cmd/resetdomain`, {
                 method: 'GET',
                 headers: {
@@ -1100,7 +1101,7 @@ async function serverCmd(cmdArgs) {
             });
             if (!response.ok) error(response.statusText);
         } else if (cmd === 'load' && domain) {
-            const response = await fetch(`http://${domain}/@cmd/loadproject?projectName=${projectName}`, {
+            const response = await fetch(`http://${domain}/@cmd/loadproject?projectName=${projectName || ''}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `token ${token}`
@@ -1190,7 +1191,7 @@ async function createProject(projectName, type) {
             namespace: projectNamespace,
             authToken: projectAuthToken
         });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/.domains.json`, (new TextEncoder).encode(getDomainsConfig(projectName)));
+        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/.domains.json`, (new TextEncoder).encode(getDomainsConfig('app')));
         await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/app.json`, (new TextEncoder).encode(getApplicationConfig(projectName, type)));
         await Deno.mkdir(Deno.cwd() + `/${projectName}/${projectName}/${projectName}/client`, {
             recursive: true
@@ -1271,10 +1272,10 @@ async function checkoutProject(projectName) {
         return false;
     }
     info('Please provide the following project environment variables:');
-    const projectHost = prompt('PROJECT_HOST:', 'GitHub');
-    const projectNamespace = prompt('PROJECT_NAMESPACE:');
-    const projectTag = prompt('PROJECT_TAG:');
-    const projectAuthToken = prompt('PROJECT_AUTH_TOKEN:');
+    const projectHost = prompt('PROJECT_HOST:', Deno.env.get('PROJECT_HOST') || 'GitHub');
+    const projectNamespace = prompt('PROJECT_NAMESPACE:', Deno.env.get('PROJECT_NAMESPACE'));
+    const projectTag = prompt('PROJECT_TAG:', Deno.env.get('PROJECT_TAG'));
+    const projectAuthToken = prompt('PROJECT_AUTH_TOKEN:', Deno.env.get('PROJECT_AUTH_TOKEN'));
     info(`Creating project directory ${projectName} ...`);
     await Deno.mkdir(Deno.cwd() + `/${projectName}`, {
         recursive: true
