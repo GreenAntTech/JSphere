@@ -23777,7 +23777,7 @@ async function handleRequest7(request) {
     let response;
     const directives = [];
     const serverContext = await getServerContext(request);
-    if (serverContext.request.url.hostname != '127.0.0.1') {
+    if (serverContext.request.url.hostname != '127.0.0.1' || serverContext.request.url.hostname == '127.0.0.1' && serverContext.request.url.pathname.startsWith('/@cmd/')) {
         if (!response) response = mod13.handleRequest(serverContext);
         if (!response) response = await mod15.handleRequest(serverContext);
         if (!response) response = await mod14.handleRequest(serverContext);
