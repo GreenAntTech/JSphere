@@ -23523,8 +23523,8 @@ async function handleRequest2(ctx) {
     const auth = ctx.request.headers.get('Authorization');
     const token = Deno.env.get('SERVER_AUTH_TOKEN');
     const accessAllowed = auth && token ? auth === `token ${token}` : false;
-    if (url.pathname.startsWith('/@cmd/')) {
-        const cmd = url.pathname.split('/@cmd/')[1];
+    if (url.pathname.startsWith('/~cmd/')) {
+        const cmd = url.pathname.split('/~cmd/')[1];
         if (!cmd) return;
         if (cmd == 'healthcheck') {
             return new Response('OK', {

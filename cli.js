@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.7';
+const JSPHERE_VERSION = 'v1.0.0-preview.8';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -1419,6 +1419,16 @@ async function cloneRepo(props) {
         child.stdin.close();
         await child.status;
         if (tag) {
+            command = new Deno.Command('git', {
+                args: [
+                    'branch',
+                    tag
+                ],
+                stdin: 'piped'
+            });
+            child = command.spawn();
+            child.stdin.close();
+            await child.status;
             command = new Deno.Command('git', {
                 args: [
                     'checkout',
