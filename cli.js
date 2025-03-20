@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.8';
+const JSPHERE_VERSION = 'v1.0.0-preview.10';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -953,6 +953,12 @@ const JSPHERE_VERSION = 'v1.0.0-preview.8';
                 break;
             case 'checkout':
                 await checkoutCmd(cmdArgs);
+                break;
+            case 'copy':
+                await copyCmd(cmdArgs);
+                break;
+            case 'git':
+                await gitCmd(cmdArgs);
                 break;
             case 'remote':
                 await serverCmd(cmdArgs);
@@ -978,12 +984,13 @@ const JSPHERE_VERSION = 'v1.0.0-preview.8';
 })();
 function helpCmd() {
     info('build <project_name>/<app_name> [--version=<version>] [--no-cache]');
-    info('create <project_name> -public');
-    info('create <project_name>/<app_name>/<package_name>');
-    info('create <project_name>/<app_name>/<package_name>:<alias>');
-    info('checkout <project_name>');
-    info('checkout <project_name>/<app_name>/<package_name>');
-    info('load     // reloads the current project hosted on localhost');
+    info('create <project_name> [--public]    // creates a private project unless the --public flag is set');
+    info('create <project_name>/<app_name>/<package_name>    // creates a package in the specified app');
+    info('create <project_name>/<app_name>/<package_name>:<alias>    // creates a package in the specified app with the specified alias');
+    info('checkout <project_name>    // checks out the specified project\'s config repo');
+    info('checkout <project_name>/<app_name>/<package_name>    // checks out the specified package');
+    info('copy <project_name>/<app_name> <new_app_name>    // copies the specified app.json and renames the copied file to app-<new_app_name>.json');
+    info('load    // reloads the current project hosted on localhost');
     info('load <project_name>    // reloads the specified project hosted on localhost');
     info('load <domain>/<project_name>    // reloads the specified project hosted on the specified domain');
     info('load <domain>:<port_number>/<project_name>    // reloads the specified project hosted on the specified domain and port number');
@@ -1080,6 +1087,56 @@ async function checkoutCmd(cmdArgs) {
     if (result) info(`Checkout command completed successfully.`);
     else info(`Checkout command failed.`);
 }
+async function copyCmd(cmdArgs) {
+    const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
+    const projectName = path[0];
+    const appName = path[1];
+    const newName = cmdArgs._[2];
+    if (projectName && appName && newName) {
+        await Deno.copyFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, Deno.cwd() + `/${projectName}/.${projectName}/${newName}.json`);
+    }
+}
+async function gitCmd(cmdArgs) {
+    try {
+        const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
+        const projectName = path[0];
+        const appName = path[1];
+        const packageName = path[2];
+        let repoPath;
+        if (projectName && !appName && !packageName) {
+            if (!projectName.startsWith('.')) repoPath = `${projectName}/.${projectName}`;
+            else repoPath = `${projectName.substring(1)}/${projectName}`;
+        } else if (projectName && appName && packageName) {
+            repoPath = cmdArgs._[1];
+        } else return;
+        if (!await exists(Deno.cwd() + `/${repoPath}/.git`, {
+            isDirectory: true
+        })) return;
+        let exit = false;
+        while(!exit){
+            const response = prompt(`js:${repoPath}:git>`);
+            if (!response) {
+                exit = true;
+                continue;
+            }
+            const args = parseCommand(response);
+            args.unshift(`--git-dir=${Deno.cwd()}/${repoPath}/.git`);
+            args.unshift(`--work-tree=${Deno.cwd()}/${repoPath}`);
+            const command = new Deno.Command('git', {
+                args,
+                stdin: 'piped'
+            });
+            const child = command.spawn();
+            child.stdin.close();
+            await child.status;
+        }
+    } catch (e) {
+        error(e.message);
+    }
+    function parseCommand(input) {
+        return input.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((arg)=>arg.replace(/^"|"$/g, '')) || [];
+    }
+}
 async function serverCmd(cmdArgs) {
     try {
         const cmd = cmdArgs._[0];
@@ -1150,7 +1207,9 @@ function versionCmd() {
     info('JSphere Version: ' + JSPHERE_VERSION);
 }
 async function createProject(projectName, type) {
-    if (await exists(Deno.cwd() + `/${projectName}`)) {
+    if (await exists(Deno.cwd() + `/${projectName}`, {
+        isDirectory: true
+    })) {
         error(`A project directory named ${projectName} already exists`);
         return false;
     }
@@ -1210,7 +1269,9 @@ async function createProject(projectName, type) {
     }
 }
 async function createPackage(projectName, appName, packageName, alias) {
-    if (!await exists(Deno.cwd() + `/${projectName}`)) {
+    if (!await exists(Deno.cwd() + `/${projectName}`, {
+        isDirectory: true
+    })) {
         error(`Could not find a project directory named ${projectName}`);
         return false;
     }
@@ -1220,7 +1281,9 @@ async function createPackage(projectName, appName, packageName, alias) {
         error(`Could not find the project's environment configuration file .env`);
         return false;
     }
-    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}`)) {
+    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}`, {
+        isDirectory: true
+    })) {
         error(`Could not find the project's config directory named .${projectName}`);
         return false;
     }
@@ -1275,7 +1338,9 @@ async function checkoutProject(projectName) {
         });
         projectName = env.PROJECT_NAME;
     }
-    if (await exists(Deno.cwd() + `/${projectName}`)) {
+    if (await exists(Deno.cwd() + `/${projectName}`, {
+        isDirectory: true
+    })) {
         error(`A project directory named ${projectName} already exists`);
         return false;
     }
@@ -1307,7 +1372,9 @@ async function checkoutProject(projectName) {
     }
 }
 async function checkoutPackage(projectName, appName, packageName) {
-    if (!await exists(Deno.cwd() + `/${projectName}`)) {
+    if (!await exists(Deno.cwd() + `/${projectName}`, {
+        isDirectory: true
+    })) {
         error(`Could not find a project directory named ${projectName}`);
         return false;
     }
@@ -1317,7 +1384,9 @@ async function checkoutPackage(projectName, appName, packageName) {
         error(`Could not find the project's environment configuration file .env`);
         return false;
     }
-    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}`)) {
+    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}`, {
+        isDirectory: true
+    })) {
         error(`Could not find the project's config directory named .${projectName}`);
         return false;
     }
@@ -1421,6 +1490,10 @@ async function cloneRepo(props) {
         if (tag) {
             command = new Deno.Command('git', {
                 args: [
+                    '--git-dir',
+                    `${path}/.git`,
+                    '--work-tree',
+                    path,
                     'branch',
                     tag
                 ],
@@ -1431,6 +1504,10 @@ async function cloneRepo(props) {
             await child.status;
             command = new Deno.Command('git', {
                 args: [
+                    '--git-dir',
+                    `${path}/.git`,
+                    '--work-tree',
+                    path,
                     'checkout',
                     tag
                 ],
