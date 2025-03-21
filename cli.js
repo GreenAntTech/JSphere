@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.12';
+const JSPHERE_VERSION = 'v1.0.0-preview.14';
 (async function() {
     try {
         switch(cmdArgs._[0]){
