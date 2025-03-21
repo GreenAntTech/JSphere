@@ -23972,7 +23972,8 @@ async function initializeProject(projectName) {
         const provider = Deno.env.get('PROJECT_HOST') || 'GitHub';
         const namespace = Deno.env.get('PROJECT_NAMESPACE');
         const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
-        const repoFile = await getFileFromRepo(path, provider, namespace, authToken);
+        const ref = Deno.env.get('PROJECT_TAG');
+        const repoFile = await getFileFromRepo(path + (ref ? `?ref=${ref}` : ''), provider, namespace, authToken);
         if (repoFile === null) {
             mod6.warning('No project is currently being served. Could not find the project\'s domains configuration file.');
             mod6.warning('File Not Found: ' + path);
@@ -23996,7 +23997,8 @@ async function initializeProject(projectName) {
                 const provider = Deno.env.get('PROJECT_HOST') || 'GitHub';
                 const namespace = Deno.env.get('PROJECT_NAMESPACE');
                 const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
-                const repoFile = await getFileFromRepo(path, provider, namespace, authToken);
+                const ref = Deno.env.get('PROJECT_TAG');
+                const repoFile = await getFileFromRepo(path + (ref ? `?ref=${ref}` : ''), provider, namespace, authToken);
                 if (repoFile === null) {
                     mod6.warning(`Could not find the application configuration file for the domain '${key}.`);
                     mod6.warning('File Not Found: ' + path);
