@@ -941,7 +941,8 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.16';
+const JSPHERE_VERSION = 'v1.0.0-preview.17';
+const DENO_VERSION = '@DENO_VERSION';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -956,6 +957,9 @@ const JSPHERE_VERSION = 'v1.0.0-preview.16';
                 break;
             case 'copy':
                 await copyCmd(cmdArgs);
+                break;
+            case 'env':
+                await envCmd(cmdArgs);
                 break;
             case 'git':
                 await gitCmd(cmdArgs);
@@ -1095,6 +1099,9 @@ async function copyCmd(cmdArgs) {
     if (projectName && appName && newName) {
         await Deno.copyFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, Deno.cwd() + `/${projectName}/.${projectName}/${newName}.json`);
     }
+}
+async function envCmd(_cmdArgs) {
+    await Deno.writeFile(Deno.cwd() + '/.env', (new TextEncoder).encode(getDefaultEnvContent()));
 }
 async function gitCmd(cmdArgs) {
     try {
@@ -1494,22 +1501,9 @@ async function cloneRepo(props) {
                     `${path}/.git`,
                     '--work-tree',
                     path,
-                    'branch',
-                    tag
-                ],
-                stdin: 'piped'
-            });
-            child = command.spawn();
-            child.stdin.close();
-            await child.status;
-            command = new Deno.Command('git', {
-                args: [
-                    '--git-dir',
-                    `${path}/.git`,
-                    '--work-tree',
-                    path,
-                    'checkout',
-                    tag
+                    'switch',
+                    '--track',
+                    `origin/${tag}`
                 ],
                 stdin: 'piped'
             });
@@ -1520,7 +1514,11 @@ async function cloneRepo(props) {
     }
 }
 function getEnvContent(projectHost, projectNamespace, projectAuthToken) {
-    const content = `PROJECT_HOST=${projectHost}\nPROJECT_NAMESPACE=${projectNamespace}\nPROJECT_AUTH_TOKEN=${projectAuthToken}\nSERVER_HTTP_PORT=80\nSERVER_DEBUG_PORT=9229`;
+    const content = `PROJECT_HOST=${projectHost}\nPROJECT_NAMESPACE=${projectNamespace}\nPROJECT_TAG=\nPROJECT_AUTH_TOKEN=${projectAuthToken}\nSERVER_HTTP_PORT=80\nSERVER_DEBUG_PORT=9229`;
+    return content;
+}
+function getDefaultEnvContent() {
+    const content = `PROJECT_HOST=GitHub\nPROJECT_NAMESPACE=\nPROJECT_NAME=\nPROJECT_TAG=\nPROJECT_AUTH_TOKEN=\nSERVER_HTTP_PORT=80\nSERVER_DEBUG_PORT=9229`;
     return content;
 }
 function getDomainsConfig(appName) {
@@ -1588,15 +1586,15 @@ function getAPIEndpointContent() {
     return content;
 }
 function getDockerFileContent(projectName, appName) {
-    const content = `FROM --platform=linux/amd64 ubuntu
-FROM denoland/deno:ubuntu
+    const content = `FROM --platform=linux/amd64 denoland/deno:${DENO_VERSION}
 WORKDIR /JSphere
+ENV DENO_DIR=/JSphere/.deno_cache
+RUN mkdir -p $DENO_DIR && chmod -R 777 $DENO_DIR
+RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js
 COPY ${projectName}/.${projectName}/${appName}.json /JSphere/${projectName}/.${projectName}/${appName}.json
 COPY ${projectName}/${appName} /JSphere/${projectName}/${appName}
-RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js
 EXPOSE 80
-EXPOSE 9229
-ENTRYPOINT ["deno", "run", "--allow-all", "--inspect=0.0.0.0:9229", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js", "${projectName}"]
+ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js", "${projectName}"]
 `;
     return content;
 }
