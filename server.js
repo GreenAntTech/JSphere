@@ -23874,6 +23874,7 @@ async function getFile(path, text = false) {
     try {
         const slash = path.startsWith('/');
         const result1 = await Deno.readFile(Deno.cwd() + (slash ? '' : '/') + path);
+        mod6.info('Local resource: ' + path);
         return text ? (new TextDecoder).decode(result1) : {
             name: path.split('/').pop(),
             content: result1
@@ -23897,7 +23898,7 @@ async function getFileFromRepo(path, _provider, namespace, authToken) {
         if (parts[1]) ref = parts[1].split('=')[1];
         if (authToken) {
             url = `https://api.github.com/repos/${namespace}/${repo}/contents/${path}?ref=${ref}`;
-            console.log('Package Item: ' + url);
+            mod6.info('Remote resource: ' + url);
             const response = await fetch(url, {
                 method: 'GET',
                 headers: {
@@ -23911,6 +23912,8 @@ async function getFileFromRepo(path, _provider, namespace, authToken) {
                     result1.content = content;
                     return result1;
                 } else mod6.warning(`${url} - ${result1.message}`);
+            } else {
+                mod6.warning(`${url} - ${response.statusText}`);
             }
         } else {
             url = `https://raw.githubusercontent.com/${namespace}/${repo}/${ref}/${path}`;
