@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.24';
+const JSPHERE_VERSION = 'v1.0.0-preview.25';
 const DENO_VERSION = '@DENO_VERSION';
 (async function() {
     try {
@@ -966,6 +966,9 @@ const DENO_VERSION = '@DENO_VERSION';
                 break;
             case 'git':
                 await gitCmd(cmdArgs);
+                break;
+            case 'install':
+                await installCmd(cmdArgs);
                 break;
             case 'remote':
                 await serverCmd(cmdArgs);
@@ -999,6 +1002,8 @@ function helpCmd() {
     info('copy <project_name>/<app_name> <new_app_name>    // copies the specified app.json and renames the copied file to app-<new_app_name>.json');
     info('dockerfile    // creates a dockerfile for generating a default JSphere image');
     info('env    // creates a .env file with default variables');
+    info('git <project_name>/<app_name>/<package_name>   // enter git mode for the specified package');
+    info('install element <project_name>/<app_name>/<package_name>    // install elementJS to the specified package');
     info('load    // reloads the current project hosted on localhost');
     info('load <project_name>    // reloads the specified project hosted on localhost');
     info('load <domain>/<project_name>    // reloads the specified project hosted on the specified domain');
@@ -1150,6 +1155,33 @@ async function gitCmd(cmdArgs) {
     }
     function parseCommand(input) {
         return input.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((arg)=>arg.replace(/^"|"$/g, '')) || [];
+    }
+}
+async function installCmd(cmdArgs) {
+    if (cmdArgs._[1] === 'element') {
+        const path = cmdArgs._[2] ? cmdArgs._[2].split('/') : [];
+        const projectName = path[0];
+        const appName = path[1];
+        const packageName = path[2];
+        if (projectName && appName && packageName && await exists(Deno.cwd() + `/${cmdArgs._[2]}`, {
+            isDirectory: true
+        })) {
+            let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/element.min.js`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/element.min.js`, (new TextEncoder).encode(file));
+            }
+            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/urlpattern.min.js`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
+            }
+            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/element.d.ts`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/element.d.ts`, (new TextEncoder).encode(file));
+            }
+        }
     }
 }
 async function serverCmd(cmdArgs) {
