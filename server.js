@@ -23773,7 +23773,6 @@ async function init1(projectName) {
     }
 }
 async function handleRequest7(request) {
-    console.log('JSphere Request: ', request.url);
     let response;
     const directives = [];
     const serverContext = await getServerContext(request);
@@ -23839,7 +23838,7 @@ async function getPackageItem(domainHostname, path) {
         }
     }
     if (!domain.appConfig.packages[packageKey]) return null;
-    const ref = domain.appConfig.packages[packageKey].tag || 'main';
+    const ref = domain.appConfig.packages[packageKey].reference || 'main';
     let file = await getFile(domain.projectName + '/' + domain.application + path);
     if (file === null) {
         const provider = Deno.env.get('PROJECT_HOST') || 'GitHub';
@@ -23975,8 +23974,8 @@ async function initializeProject(projectName) {
         const provider = Deno.env.get('PROJECT_HOST') || 'GitHub';
         const namespace = Deno.env.get('PROJECT_NAMESPACE');
         const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
-        const ref = Deno.env.get('PROJECT_TAG');
-        const repoFile = await getFileFromRepo(path + (ref ? `?ref=${ref}` : ''), provider, namespace, authToken);
+        const reference = Deno.env.get('PROJECT_REFERENCE');
+        const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), provider, namespace, authToken);
         if (repoFile === null) {
             mod6.warning('No project is currently being served. Could not find the project\'s domains configuration file.');
             mod6.warning('File Not Found: ' + path);
@@ -24000,8 +23999,8 @@ async function initializeProject(projectName) {
                 const provider = Deno.env.get('PROJECT_HOST') || 'GitHub';
                 const namespace = Deno.env.get('PROJECT_NAMESPACE');
                 const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
-                const ref = Deno.env.get('PROJECT_TAG');
-                const repoFile = await getFileFromRepo(path + (ref ? `?ref=${ref}` : ''), provider, namespace, authToken);
+                const reference = Deno.env.get('PROJECT_REFERENCE');
+                const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), provider, namespace, authToken);
                 if (repoFile === null) {
                     mod6.warning(`Could not find the application configuration file for the domain '${key}.`);
                     mod6.warning('File Not Found: ' + path);
@@ -24075,7 +24074,9 @@ async function getRequestContext(request) {
         data: {},
         files: []
     };
+    url.params = {};
     url.searchParams.forEach((value, key)=>{
+        url.params[key] = value;
         requestContext.params[key] = value;
     });
     if (contentType?.startsWith('application/json')) {
