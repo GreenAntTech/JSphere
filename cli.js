@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.30';
+const JSPHERE_VERSION = 'v1.0.0-preview.31';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1237,7 +1237,7 @@ async function startCmd(cmdArgs) {
         args.push('--no-check');
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${debugPort}`);
-        args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.min.js`);
+        args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`);
         if (projectName) args.push(projectName);
         const command = new Deno.Command('deno', {
             args,
@@ -1639,7 +1639,7 @@ ENV DENO_DIR=/JSphere/.deno_cache
 RUN mkdir -p $DENO_DIR && chmod -R 777 $DENO_DIR
 
 # Cache dependencies **before switching user**
-RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.min.js
+RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js
 
 # Copy project config and project app directory
 COPY ${projectName}/.${projectName}/${appName}.json /JSphere/${projectName}/.${projectName}/${appName}.json
@@ -1652,7 +1652,7 @@ COPY ${projectName}/${appName} /JSphere/${projectName}/${appName}
 EXPOSE 80
 
 # Start the Deno application
-ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.min.js"]
+ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js"]
 `;
     return content;
 }
@@ -1670,7 +1670,7 @@ ENV DENO_DIR=/JSphere/.deno_cache
 RUN mkdir -p $DENO_DIR && chmod -R 777 $DENO_DIR
 
 # Cache dependencies **before switching user**
-RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.min.js
+RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js
 
 # Prefer not to run as root (switching user **after** caching)
 # USER deno
@@ -1679,7 +1679,7 @@ RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_
 EXPOSE 80
 
 # Start the Deno application
-ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.min.js"]
+ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js"]
 `;
     return content;
 }
