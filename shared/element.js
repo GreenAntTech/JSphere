@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.31');
+console.log('elementJS:', 'v1.0.0-preview.32');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -60,7 +60,7 @@ function processEvent(event) {
         }
         if (registeredMessages[subject]) {
             listenerFound = true;
-            registeredMessages[subject](data);
+            registeredMessages[subject](data, appContext.ctx);
         }
         const children = document.documentElement.querySelectorAll(`[el-listening]`);
         for (const childElement of children){
@@ -600,7 +600,7 @@ function initElementAsComponent(el) {
             emitMessage$: {
                 value: async (subject, data)=>{
                     if (registeredMessages[subject]) {
-                        const response = await registeredMessages[subject](data || {});
+                        const response = await registeredMessages[subject](data || {}, appContext.ctx);
                         if (isValidMessage(response)) {
                             await el.onMessageReceived$(response.subject, response.data);
                         }
@@ -643,7 +643,7 @@ function initElementAsComponent(el) {
             },
             onMessageReceived$: {
                 value: async (subject, data)=>{
-                    if (messageListeners[subject]) await messageListeners[subject](data);
+                    if (messageListeners[subject]) await messageListeners[subject](data, appContext.ctx);
                 }
             },
             parent$: {
