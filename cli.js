@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.32';
+const JSPHERE_VERSION = 'v1.0.0-preview.33';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1166,10 +1166,10 @@ async function installCmd(cmdArgs) {
         if (projectName && appName && packageName && await exists(Deno.cwd() + `/${cmdArgs._[2]}`, {
             isDirectory: true
         })) {
-            let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/element.min.js`);
+            let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/element.js`);
             if (response.ok) {
                 const file = await response.text();
-                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/element.min.js`, (new TextEncoder).encode(file));
+                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/element.js`, (new TextEncoder).encode(file));
             }
             response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/urlpattern.min.js`);
             if (response.ok) {
