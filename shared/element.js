@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.36');
+console.log('elementJS:', 'v1.0.0-preview.37');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -106,7 +106,7 @@ globalThis.addEventListener('popstate', async ()=>{
         }
     }
 }, false);
-const appState = reactive({}, {
+const appState = observe({}, {
     persist: true,
     key: 'appState'
 });
@@ -194,38 +194,60 @@ function useCaptions(name) {
         return caption;
     };
 }
-function reactive(state, config) {
+function observe(objectToObserve, config) {
     const proxyCache = new WeakMap();
     const listeners = new Set();
-    function makeReactive(obj) {
+    function makeObservable(obj) {
         if (!obj || typeof obj !== "object") return obj;
-        if (proxyCache.has(obj)) {
-            return proxyCache.get(obj);
-        }
+        if (proxyCache.has(obj)) return proxyCache.get(obj);
         const proxy = new Proxy(obj, {
             get (target, key, receiver) {
+                if (key === '__objectToObserve__') return objectToObserve;
                 const value = Reflect.get(target, key, receiver);
-                if (typeof value === "object" && value !== null) {
-                    return makeReactive(value);
+                if (Array.isArray(target) && [
+                    "push",
+                    "pop",
+                    "shift",
+                    "unshift",
+                    "splice"
+                ].includes(key)) {
+                    return function(...args) {
+                        const result = target[key](...args);
+                        if ([
+                            "push",
+                            "unshift"
+                        ].includes(key)) {
+                            for(let i = 0; i < args.length; i++){
+                                target[target.length - 1 - i] = makeObservable(args[i]);
+                            }
+                        } else if (key === "splice") {
+                            for(let i = 2; i < args.length; i++){
+                                args[i] = makeObservable(args[i]);
+                            }
+                        }
+                        listeners.forEach((listener)=>listener(proxy, 'mutated', undefined));
+                        return result;
+                    };
                 }
-                return value;
+                return typeof value === "object" && value !== null ? makeObservable(value) : value;
             },
             set (target, key, value, receiver) {
-                if (typeof value === "object" && value !== null) {
-                    value = makeReactive(value);
-                }
+                const keyParts = key.split(':');
+                const muteListeners = keyParts[1] === 'muteListeners';
+                key = keyParts[0];
+                if (typeof value === "object" && value !== null) value = makeObservable(value);
                 const result = Reflect.set(target, key, value, receiver);
-                listeners.forEach((listener)=>listener(target, key, value));
+                if (muteListeners) listeners.forEach((listener)=>listener(target, key, value));
                 return result;
             }
         });
         proxyCache.set(obj, proxy);
         return proxy;
     }
-    const proxy = makeReactive(state);
+    const proxy = makeObservable(objectToObserve);
     function watch(fn) {
         listeners.add(fn);
-        fn(state, '', undefined);
+        fn(objectToObserve, '', undefined);
     }
     function computed(fn) {
         let cachedValue;
@@ -280,12 +302,12 @@ function reactive(state, config) {
         });
     }
     function persistState() {
-        localStorage.setItem(config.key, JSON.stringify(state));
+        localStorage.setItem(config.key, JSON.stringify(objectToObserve));
     }
     function loadState() {
         const savedState = JSON.parse(localStorage.getItem(config.key) || '{}');
         if (savedState) {
-            Object.assign(state, savedState);
+            Object.assign(objectToObserve, savedState);
         }
     }
     if (config && config.persist && config.key) {
@@ -294,7 +316,6 @@ function reactive(state, config) {
     }
     return {
         state: proxy,
-        proxy,
         watch,
         computed,
         watchEffect
@@ -372,6 +393,7 @@ function initElementAsComponent(el) {
     const stateObject = {};
     let childComponents = {};
     let parent;
+    let boundValue;
     let hydrateOnCallback = ()=>{};
     if (!el.init$) {
         Object.defineProperties(el, {
@@ -540,6 +562,22 @@ function initElementAsComponent(el) {
                 get: ()=>{
                     const index = el.getAttribute('el-index');
                     return index ? Number(index) : null;
+                }
+            },
+            bind$: {
+                value: (obj, key)=>{
+                    boundValue = {
+                        obj,
+                        key
+                    };
+                    boundValue.obj.__objectToObserve__.watchEffect((target)=>boundValue.obj === target, (_target, _key, value)=>{
+                        if (el.onGetBoundValue$) el.onGetBoundValue$(value);
+                    });
+                }
+            },
+            onSetBoundValue$: {
+                value: (value)=>{
+                    boundValue.obj[boundValue.key + ':value'] = value;
                 }
             },
             children$: {
@@ -1043,4 +1081,4 @@ createComponent('link', (el)=>{
         }
     });
 });
-export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, useCaptions as useCaptions$, navigateTo as navigateTo$, reactive as reactive$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
