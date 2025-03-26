@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.34');
+console.log('elementJS:', 'v1.0.0-preview.35');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -330,6 +330,7 @@ function reactive(state, config) {
         watch(persistState);
     }
     return {
+        state: proxy,
         proxy,
         watch,
         computed,
