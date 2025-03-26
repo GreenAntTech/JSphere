@@ -337,8 +337,8 @@ function reactive(state, config) {
     };
 }
 function runAt(props) {
-    if (appContext.server && props.server) props.server();
-    else if (appContext.client && props.client) props.client();
+    if (appContext.server && props.server) return props.server();
+    else if (appContext.client && props.client) return props.client();
 }
 async function renderDocument(config, ctx) {
     try {
