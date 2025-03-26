@@ -195,74 +195,37 @@ function useCaptions(name) {
     };
 }
 function reactive(state, config) {
+    const proxyCache = new WeakMap();
     const listeners = new Set();
     function makeReactive(obj) {
-        return new Proxy(obj, {
+        if (!obj || typeof obj !== "object") return obj;
+        if (proxyCache.has(obj)) {
+            return proxyCache.get(obj);
+        }
+        const proxy = new Proxy(obj, {
+            get (target, key, receiver) {
+                const value = Reflect.get(target, key, receiver);
+                if (typeof value === "object" && value !== null) {
+                    return makeReactive(value);
+                }
+                return value;
+            },
             set (target, key, value, receiver) {
-                if (typeof value === 'object' && value !== null) {
+                if (typeof value === "object" && value !== null) {
                     value = makeReactive(value);
                 }
                 const result = Reflect.set(target, key, value, receiver);
-                listeners.forEach((listener)=>listener());
+                listeners.forEach((listener)=>listener(target, key, value));
                 return result;
-            },
-            get (target, key, receiver) {
-                if (Array.isArray(target[key])) {
-                    return new Proxy(target[key], {
-                        set (arrTarget, arrKey, arrValue) {
-                            arrTarget[arrKey] = arrValue;
-                            listeners.forEach((listener)=>listener());
-                            return true;
-                        },
-                        get (target, prop, receiver) {
-                            if (prop === "push") {
-                                return function(value) {
-                                    target.push(value);
-                                    listeners.forEach((listener)=>listener());
-                                };
-                            }
-                            if (prop === "pop") {
-                                return function() {
-                                    const value = target.pop();
-                                    listeners.forEach((listener)=>listener());
-                                    return value;
-                                };
-                            }
-                            if (prop === "shift") {
-                                return function() {
-                                    const value = target.shift();
-                                    listeners.forEach((listener)=>listener());
-                                    return value;
-                                };
-                            }
-                            if (prop === "unshift") {
-                                return function(value) {
-                                    target.unshift(value);
-                                    listeners.forEach((listener)=>listener());
-                                    return value;
-                                };
-                            }
-                            if (prop === "splice") {
-                                return function(...values) {
-                                    target.splice(values[0], values[1], values[3]);
-                                    listeners.forEach((listener)=>listener());
-                                };
-                            }
-                            return Reflect.get(target, prop, receiver);
-                        }
-                    });
-                }
-                if (typeof target[key] === 'object' && target[key] !== null) {
-                    return makeReactive(target[key]);
-                }
-                return Reflect.get(target, key, receiver);
             }
         });
+        proxyCache.set(obj, proxy);
+        return proxy;
     }
     const proxy = makeReactive(state);
     function watch(fn) {
         listeners.add(fn);
-        fn();
+        fn(state, '', undefined);
     }
     function computed(fn) {
         let cachedValue;
@@ -283,23 +246,23 @@ function reactive(state, config) {
     }
     function debounce(fn, delay) {
         let timeout;
-        return function() {
+        return function(target, key, value) {
             clearTimeout(timeout);
-            timeout = setTimeout(()=>fn(), delay);
+            timeout = setTimeout(()=>fn(target, key, value), delay);
         };
     }
     function throttle(fn, limit) {
         let lastFn;
         let lastRan;
-        return (...args)=>{
+        return (target, key, value)=>{
             if (!lastRan) {
-                fn(...args);
+                fn(target, key, value);
                 lastRan = Date.now();
             } else {
                 clearTimeout(lastFn);
                 lastFn = setTimeout(()=>{
                     if (Date.now() - lastRan >= limit) {
-                        fn(...args);
+                        fn(target, key, value);
                         lastRan = Date.now();
                     }
                 }, limit - (Date.now() - lastRan));
@@ -310,9 +273,9 @@ function reactive(state, config) {
         let effect = fn;
         if (debounceTime) effect = debounce(fn, debounceTime);
         if (throttleTime) effect = throttle(fn, throttleTime);
-        watch(()=>{
-            if (condition()) {
-                effect();
+        watch((target, key, value)=>{
+            if (condition(target, key, value)) {
+                effect(target, key, value);
             }
         });
     }
