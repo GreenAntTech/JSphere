@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.38');
+console.log('elementJS:', 'v1.0.0-preview.39');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -322,8 +322,8 @@ function observe(objectToObserve, config) {
     return [
         proxy,
         watch,
-        computed,
-        watchEffect
+        watchEffect,
+        computed
     ];
 }
 function runAt(props) {
