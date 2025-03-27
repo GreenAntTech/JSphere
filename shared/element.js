@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.37');
+console.log('elementJS:', 'v1.0.0-preview.38');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -197,12 +197,18 @@ function useCaptions(name) {
 function observe(objectToObserve, config) {
     const proxyCache = new WeakMap();
     const listeners = new Set();
-    function makeObservable(obj) {
+    function makeObservable(obj, isRoot) {
         if (!obj || typeof obj !== "object") return obj;
         if (proxyCache.has(obj)) return proxyCache.get(obj);
+        const __root__ = {
+            watch,
+            watchEffect,
+            computed
+        };
         const proxy = new Proxy(obj, {
             get (target, key, receiver) {
-                if (key === '__objectToObserve__') return objectToObserve;
+                if (isRoot) __root__.proxy = proxy;
+                if (key === '__root__') return __root__;
                 const value = Reflect.get(target, key, receiver);
                 if (Array.isArray(target) && [
                     "push",
@@ -232,19 +238,18 @@ function observe(objectToObserve, config) {
                 return typeof value === "object" && value !== null ? makeObservable(value) : value;
             },
             set (target, key, value, receiver) {
-                const keyParts = key.split(':');
-                const muteListeners = keyParts[1] === 'muteListeners';
-                key = keyParts[0];
+                const [key2, muteListeners] = key.split(':');
+                key = key2;
                 if (typeof value === "object" && value !== null) value = makeObservable(value);
                 const result = Reflect.set(target, key, value, receiver);
-                if (muteListeners) listeners.forEach((listener)=>listener(target, key, value));
+                if (muteListeners !== 'muteListeners') listeners.forEach((listener)=>listener(target, key, value));
                 return result;
             }
         });
         proxyCache.set(obj, proxy);
         return proxy;
     }
-    const proxy = makeObservable(objectToObserve);
+    const proxy = makeObservable(objectToObserve, true);
     function watch(fn) {
         listeners.add(fn);
         fn(objectToObserve, '', undefined);
@@ -314,12 +319,12 @@ function observe(objectToObserve, config) {
         loadState();
         watch(persistState);
     }
-    return {
-        state: proxy,
+    return [
+        proxy,
         watch,
         computed,
         watchEffect
-    };
+    ];
 }
 function runAt(props) {
     if (appContext.server && props.server) return props.server();
@@ -565,19 +570,28 @@ function initElementAsComponent(el) {
                 }
             },
             bind$: {
-                value: (obj, key)=>{
-                    boundValue = {
-                        obj,
-                        key
-                    };
-                    boundValue.obj.__objectToObserve__.watchEffect((target)=>boundValue.obj === target, (_target, _key, value)=>{
-                        if (el.onGetBoundValue$) el.onGetBoundValue$(value);
+                value: (value)=>{
+                    const [observable] = boundValue = value;
+                    observable.__root__.watchEffect((target)=>{
+                        observable === target;
+                    }, ()=>{
+                        if (el.onSetBoundValue$) el.onSetBoundValue$(el.boundValue$);
                     });
                 }
             },
-            onSetBoundValue$: {
-                value: (value)=>{
-                    boundValue.obj[boundValue.key + ':value'] = value;
+            boundValue$: {
+                set: (value)=>{
+                    if (boundValue) {
+                        const [observable, property] = boundValue;
+                        observable[property + ':muteListeners'] = value;
+                    }
+                },
+                get: ()=>{
+                    if (boundValue) {
+                        const [observable, property] = boundValue;
+                        return observable[property];
+                    }
+                    return undefined;
                 }
             },
             children$: {
