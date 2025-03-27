@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.40');
+console.log('elementJS:', 'v1.0.0-preview.41');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -219,7 +219,7 @@ function observe(objectToObserve, config) {
                     'replace'
                 ].includes(key)) {
                     return function(...args) {
-                        const result = target[key](...args);
+                        const result = key === 'replace' ? target[args[0]] = args[1] : target[key](...args);
                         if ([
                             'push',
                             'unshift'
