@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.41');
+console.log('elementJS:', 'v1.0.0-preview.42');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -231,8 +231,6 @@ function observe(objectToObserve, config) {
                             for(let i = 2; i < args.length; i++){
                                 args[i] = makeObservable(args[i]);
                             }
-                        } else if (key === 'replace') {
-                            target[args[0]] = makeObservable(args[1]);
                         }
                         listeners.forEach((listener)=>listener(proxy, 'mutated', undefined));
                         return result;
