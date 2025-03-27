@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.39');
+console.log('elementJS:', 'v1.0.0-preview.40');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -198,7 +198,7 @@ function observe(objectToObserve, config) {
     const proxyCache = new WeakMap();
     const listeners = new Set();
     function makeObservable(obj, isRoot) {
-        if (!obj || typeof obj !== "object") return obj;
+        if (!obj || typeof obj !== 'object') return obj;
         if (proxyCache.has(obj)) return proxyCache.get(obj);
         const __root__ = {
             watch,
@@ -211,36 +211,39 @@ function observe(objectToObserve, config) {
                 if (key === '__root__') return __root__;
                 const value = Reflect.get(target, key, receiver);
                 if (Array.isArray(target) && [
-                    "push",
-                    "pop",
-                    "shift",
-                    "unshift",
-                    "splice"
+                    'push',
+                    'pop',
+                    'shift',
+                    'unshift',
+                    'splice',
+                    'replace'
                 ].includes(key)) {
                     return function(...args) {
                         const result = target[key](...args);
                         if ([
-                            "push",
-                            "unshift"
+                            'push',
+                            'unshift'
                         ].includes(key)) {
                             for(let i = 0; i < args.length; i++){
                                 target[target.length - 1 - i] = makeObservable(args[i]);
                             }
-                        } else if (key === "splice") {
+                        } else if (key === 'splice') {
                             for(let i = 2; i < args.length; i++){
                                 args[i] = makeObservable(args[i]);
                             }
+                        } else if (key === 'replace') {
+                            target[args[0]] = makeObservable(args[1]);
                         }
                         listeners.forEach((listener)=>listener(proxy, 'mutated', undefined));
                         return result;
                     };
                 }
-                return typeof value === "object" && value !== null ? makeObservable(value) : value;
+                return typeof value === 'object' && value !== null ? makeObservable(value) : value;
             },
             set (target, key, value, receiver) {
                 const [key2, muteListeners] = key.split(':');
                 key = key2;
-                if (typeof value === "object" && value !== null) value = makeObservable(value);
+                if (typeof value === 'object' && value !== null) value = makeObservable(value);
                 const result = Reflect.set(target, key, value, receiver);
                 if (muteListeners !== 'muteListeners') listeners.forEach((listener)=>listener(target, key, value));
                 return result;
