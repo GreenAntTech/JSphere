@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.42');
+console.log('elementJS:', 'v1.0.0-preview.43');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -209,6 +209,7 @@ function observe(objectToObserve, config) {
             get (target, key, receiver) {
                 if (isRoot) __root__.proxy = proxy;
                 if (key === '__root__') return __root__;
+                if (key === '__target__') return target;
                 const value = Reflect.get(target, key, receiver);
                 if (Array.isArray(target) && [
                     'push',
@@ -219,7 +220,14 @@ function observe(objectToObserve, config) {
                     'replace'
                 ].includes(key)) {
                     return function(...args) {
-                        const result = key === 'replace' ? target[args[0]] = args[1] : target[key](...args);
+                        let result;
+                        if (key === 'replace' && args[1].__target__) {
+                            result = target[args[0]] = args[1].__target__;
+                        } else if (key === 'replace') {
+                            result = target[args[0]] = args[1];
+                        } else {
+                            result = target[key](...args);
+                        }
                         if ([
                             'push',
                             'unshift'
@@ -231,6 +239,8 @@ function observe(objectToObserve, config) {
                             for(let i = 2; i < args.length; i++){
                                 args[i] = makeObservable(args[i]);
                             }
+                        } else if (key === 'replace') {
+                            args[1] = makeObservable(args[1]);
                         }
                         listeners.forEach((listener)=>listener(proxy, 'mutated', undefined));
                         return result;
