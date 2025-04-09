@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.43');
+console.log('elementJS:', 'v1.0.0-preview.44');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -209,8 +209,7 @@ function observe(objectToObserve, config) {
             get (target, key, receiver) {
                 if (isRoot) __root__.proxy = proxy;
                 if (key === '__root__') return __root__;
-                if (key === '__target__') return target;
-                const value = Reflect.get(target, key, receiver);
+                if (key === '__proxy__') return true;
                 if (Array.isArray(target) && [
                     'push',
                     'pop',
@@ -221,37 +220,22 @@ function observe(objectToObserve, config) {
                 ].includes(key)) {
                     return function(...args) {
                         let result;
-                        if (key === 'replace' && args[1].__target__) {
-                            result = target[args[0]] = args[1].__target__;
-                        } else if (key === 'replace') {
-                            result = target[args[0]] = args[1];
+                        if (key === 'replace') {
+                            result = target[args[0]];
+                            target[args[0]] = args[1];
                         } else {
                             result = target[key](...args);
-                        }
-                        if ([
-                            'push',
-                            'unshift'
-                        ].includes(key)) {
-                            for(let i = 0; i < args.length; i++){
-                                target[target.length - 1 - i] = makeObservable(args[i]);
-                            }
-                        } else if (key === 'splice') {
-                            for(let i = 2; i < args.length; i++){
-                                args[i] = makeObservable(args[i]);
-                            }
-                        } else if (key === 'replace') {
-                            args[1] = makeObservable(args[1]);
                         }
                         listeners.forEach((listener)=>listener(proxy, 'mutated', undefined));
                         return result;
                     };
                 }
-                return typeof value === 'object' && value !== null ? makeObservable(value) : value;
+                const value = Reflect.get(target, key, receiver);
+                return value.__proxy__ ? value : makeObservable(value);
             },
             set (target, key, value, receiver) {
                 const [key2, muteListeners] = key.split(':');
                 key = key2;
-                if (typeof value === 'object' && value !== null) value = makeObservable(value);
                 const result = Reflect.set(target, key, value, receiver);
                 if (muteListeners !== 'muteListeners') listeners.forEach((listener)=>listener(target, key, value));
                 return result;
@@ -877,7 +861,7 @@ function setExtendedURL(url) {
     const searchParams = {};
     if (url.searchParams) url.searchParams.forEach((value, key)=>searchParams[key] = value);
     else new URLSearchParams(url.search).forEach((value, key)=>searchParams[key] = value);
-    extendedURL.hash = url.hash, extendedURL.host = url.host, extendedURL.hostname = url.hostname, extendedURL.href = url.href, extendedURL.origin = url.origin, extendedURL.port = url.port, extendedURL.protocol = url.protocol, extendedURL.search = url.search, extendedURL.searchParams = searchParams;
+    extendedURL.hash = url.hash, extendedURL.host = url.host, extendedURL.hostname = url.hostname, extendedURL.href = url.href, extendedURL.origin = url.origin, extendedURL.pathname = url.pathname, extendedURL.port = url.port, extendedURL.protocol = url.protocol, extendedURL.search = url.search, extendedURL.searchParams = searchParams;
 }
 async function getDependencies(el) {
     const dependencies = [];
