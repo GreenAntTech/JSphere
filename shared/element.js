@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.44');
+console.log('elementJS:', 'v1.0.0-preview.45');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -231,7 +231,7 @@ function observe(objectToObserve, config) {
                     };
                 }
                 const value = Reflect.get(target, key, receiver);
-                return value.__proxy__ ? value : makeObservable(value);
+                return value && value.__proxy__ ? value : makeObservable(value);
             },
             set (target, key, value, receiver) {
                 const [key2, muteListeners] = key.split(':');
