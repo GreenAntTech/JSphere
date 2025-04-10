@@ -24169,7 +24169,6 @@ function matchRoute(routeStr, routeObjects) {
         const normalizedRoutePattern = routeObj.route.replace(/^\/+|\/+$/g, '');
         if (normalizedRoutePattern === '**' || normalizedRoutePattern === '*') {
             const resultPath = routeObj.path.replace(/\*/g, normalizedRouteStr);
-            console.log('0. resultPath', resultPath);
             return {
                 path: resultPath,
                 params: {
@@ -24238,16 +24237,9 @@ function matchRoute(routeStr, routeObjects) {
             }
             if (isMatch) {
                 let resultPath = routeObj.path;
-                console.log('1. resultPath', resultPath);
                 for (const wildcardValue of wildcardValues){
                     resultPath = resultPath.replace(/\*/, wildcardValue);
-                    console.log('2. resultPath', resultPath);
                 }
-                console.log('3. resultPath', resultPath);
-                console.log({
-                    path: resultPath,
-                    params
-                });
                 return {
                     path: resultPath,
                     params
@@ -24256,7 +24248,6 @@ function matchRoute(routeStr, routeObjects) {
             continue;
         }
         if (normalizedRoutePattern === normalizedRouteStr) {
-            console.log('4. resultPath', routeObj.path);
             return {
                 path: routeObj.path,
                 params: {}
