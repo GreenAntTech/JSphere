@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.46');
+console.log('elementJS:', 'v1.0.0-preview.47');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -83,7 +83,7 @@ function isValidMessage(data) {
 }
 globalThis.addEventListener('message', processEvent, false);
 globalThis.addEventListener('popstate', async ()=>{
-    const href = globalThis.location.href;
+    setExtendedURL(globalThis.location);
     for(const routePath in registeredRoutes){
         const route = {
             path: routePath,
@@ -92,16 +92,8 @@ globalThis.addEventListener('popstate', async ()=>{
         const pattern = new globalThis.URLPattern({
             pathname: route.path
         });
-        if (pattern.test(href)) {
-            const params = pattern.exec(href).pathname.groups;
-            let path = '';
-            if (params[0]) {
-                path = params[0];
-                delete params[0];
-            }
-            const searchParams = new URLSearchParams(globalThis.location.search);
-            for (const [key, value] of searchParams.entries())params[key] = value;
-            await route.handler(path, params);
+        if (pattern.test(extendedURL.href)) {
+            await route.handler();
             break;
         }
     }
@@ -350,9 +342,6 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-id', 'document');
             if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
             initElementAsComponent(el);
-            const params = {};
-            const searchParams = new URLSearchParams(globalThis.location.search);
-            for (const [key, value] of searchParams.entries())params[key] = value;
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
             await el.init$(config.props);
