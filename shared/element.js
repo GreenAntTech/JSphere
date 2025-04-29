@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.48');
+console.log('elementJS:', 'v1.0.0-preview.49');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -569,7 +569,7 @@ function initElementAsComponent(el) {
                 set: (value)=>{
                     if (boundValue) {
                         const [observable, property] = boundValue;
-                        observable[property + ':muteListeners'] = value;
+                        if (observable[property] !== value) observable[property] = value;
                     }
                 },
                 get: ()=>{
