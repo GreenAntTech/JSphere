@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.51');
+console.log('elementJS:', 'v1.0.0-preview.52');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -560,7 +560,7 @@ function initElementAsComponent(el) {
                     observable.__root__.watchEffect((target)=>{
                         observable === target;
                     }, ()=>{
-                        if (el.value$) el.value$ = el.boundValue$;
+                        if (el.hasOwnProperty('value$')) el.value$ = el.boundValue$;
                     });
                 }
             },
