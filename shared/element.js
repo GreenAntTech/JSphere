@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.49');
+console.log('elementJS:', 'v1.0.0-preview.50');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -558,6 +558,7 @@ function initElementAsComponent(el) {
                     if (!Array.isArray(value) || value.length !== 2) return;
                     const [observable, property] = boundValue = value;
                     if (typeof observable[property] === 'undefined') el.boundValue$ = el.value$;
+                    else el.value$ = el.boundValue$;
                     observable.__root__.watchEffect((target)=>{
                         observable === target;
                     }, ()=>{
