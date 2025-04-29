@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.47');
+console.log('elementJS:', 'v1.0.0-preview.48');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -556,11 +556,12 @@ function initElementAsComponent(el) {
             bind$: {
                 set: (value)=>{
                     if (!Array.isArray(value) || value.length !== 2) return;
-                    const [observable] = boundValue = value;
+                    const [observable, property] = boundValue = value;
+                    if (typeof observable[property] === 'undefined') el.boundValue$ = el.value$;
                     observable.__root__.watchEffect((target)=>{
                         observable === target;
                     }, ()=>{
-                        if (el.onSetBoundValue$) el.onSetBoundValue$(el.boundValue$);
+                        if (el.value$) el.value$ = el.boundValue$;
                     });
                 }
             },
