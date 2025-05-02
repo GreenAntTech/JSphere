@@ -941,7 +941,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.52';
+const JSPHERE_VERSION = 'v1.0.0-preview.53';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1299,7 +1299,7 @@ async function createProject(projectName, type) {
             namespace: projectNamespace,
             authToken: projectAuthToken
         });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/.domains.json`, (new TextEncoder).encode(getDomainsConfig('app')));
+        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/domains.json`, (new TextEncoder).encode(getDomainsConfig('app')));
         await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/app.json`, (new TextEncoder).encode(getApplicationConfig(projectName, type)));
         await Deno.mkdir(Deno.cwd() + `/${projectName}/app/${projectName}/client`, {
             recursive: true

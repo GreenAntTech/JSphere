@@ -23882,11 +23882,12 @@ async function getFile(path, text = false) {
         return null;
     }
 }
-async function getFileFromRepo(path, _provider, namespace, authToken) {
+async function getFileFromRepo(path, provider, namespace, authToken) {
     let url;
     let repo;
     let ref = 'main';
     try {
+        debugger;
         const slash = path.startsWith('/');
         const arrPath = path.split('/');
         if (slash) arrPath.shift();
@@ -23895,27 +23896,61 @@ async function getFileFromRepo(path, _provider, namespace, authToken) {
         const parts = path.split('?');
         path = parts[0];
         if (parts[1]) ref = parts[1].split('=')[1];
-        if (authToken) {
-            url = `https://api.github.com/repos/${namespace}/${repo}/contents/${path}?ref=${ref}`;
-            mod6.info('Remote resource: ' + url);
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `token ${authToken}`
+        if (provider === 'GitHub') {
+            if (authToken) {
+                url = `https://api.github.com/repos/${namespace}/${repo}/contents/${path}?ref=${ref}`;
+                console.log('Package Item: ' + url);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${authToken}`
+                    }
+                });
+                if (response.ok) {
+                    const result1 = await response.json();
+                    if (result1.sha) {
+                        const content = mod7.decode(result1.content);
+                        result1.content = content;
+                        return result1;
+                    } else mod6.warning(`${url} - ${result1.message}`);
+                } else {
+                    mod6.warning(`${url} - ${response.statusText}`);
                 }
+            } else {
+                url = `https://raw.githubusercontent.com/${namespace}/${repo}/${ref}/${path}`;
+                console.log('Package Item: ' + url);
+                const response = await fetch(url, {
+                    method: 'GET'
+                });
+                if (response.ok) {
+                    const result1 = await response.text();
+                    return {
+                        name: path.split('/').pop(),
+                        content: new TextEncoder().encode(result1)
+                    };
+                }
+            }
+        } else if (provider === 'ProjectServer') {
+            if (repo.startsWith('.')) {
+                const arrNamespace = namespace.split('/');
+                arrNamespace.pop();
+                url = `https://${arrNamespace.join('/')}/${repo}/${path}`;
+            } else {
+                url = `https://${namespace}/${repo}/${path}`;
+            }
+            console.log('Package Item: ' + url);
+            const response = await fetch(url, {
+                method: 'GET'
             });
             if (response.ok) {
-                const result1 = await response.json();
-                if (result1.sha) {
-                    const content = mod7.decode(result1.content);
-                    result1.content = content;
-                    return result1;
-                } else mod6.warning(`${url} - ${result1.message}`);
-            } else {
-                mod6.warning(`${url} - ${response.statusText}`);
+                const result1 = await response.text();
+                return {
+                    name: path.split('/').pop(),
+                    content: new TextEncoder().encode(result1)
+                };
             }
-        } else {
-            url = `https://raw.githubusercontent.com/${namespace}/${repo}/${ref}/${path}`;
+        } else if (provider === 'FileServer') {
+            url = `https://${namespace}/${repo}/${path}`;
             console.log('Package Item: ' + url);
             const response = await fetch(url, {
                 method: 'GET'
@@ -23968,7 +24003,7 @@ const mod19 = {
     handleRequest: handleRequest6
 };
 async function initializeProject(projectName) {
-    const path = `.${projectName}/.domains.json`;
+    const path = `.${projectName}/domains.json`;
     let file = await getFile(projectName + '/' + path, true);
     if (file === null) {
         const provider = Deno.env.get('PROJECT_HOST') || 'GitHub';
@@ -23986,7 +24021,7 @@ async function initializeProject(projectName) {
     try {
         domains = JSON.parse(file);
     } catch (e) {
-        mod6.warning('No project is currently being served. There was a problem parsing the project\'s .domains.json file.');
+        mod6.warning('No project is currently being served. There was a problem parsing the project\'s domains.json file.');
         mod6.warning('Parsing Error: ' + e.message);
         return false;
     }

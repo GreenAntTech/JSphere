@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.52');
+console.log('elementJS:', 'v1.0.0-preview.53');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -333,7 +333,7 @@ async function renderDocument(config, ctx) {
                 if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$));
             }
             el.setAttribute('el-server-rendered', 'true');
-            return el.outerHTML;
+            return el;
         } else {
             const el = document.documentElement;
             el.setAttribute('el-is', 'document');
