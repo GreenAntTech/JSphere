@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.55');
+console.log('elementJS:', 'v1.0.0-preview.56');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -709,10 +709,11 @@ function initElementAsComponent(el) {
     }
     function onStyle(props) {
         const style = el.style$(props);
-        if (!style) return;
-        const tag = document.createElement('style');
+        if (!style || el.ownerDocument.getElementById(el.is$)) return;
+        const tag = el.ownerDocument.createElement('style');
         tag.setAttribute('id', el.is$);
         tag.textContent = style;
+        el.ownerDocument.head.append(tag);
     }
     async function onTemplate(props) {
         let content;
