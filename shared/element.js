@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.54');
+console.log('elementJS:', 'v1.0.0-preview.55');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -709,6 +709,7 @@ function initElementAsComponent(el) {
     }
     function onStyle(props) {
         const style = el.style$(props);
+        if (!style) return;
         const tag = document.createElement('style');
         tag.setAttribute('id', el.is$);
         tag.textContent = style;
@@ -836,6 +837,7 @@ function addPropsFromAttributes(el, props) {
     return props;
 }
 function addMissingLifecycleMethods(el) {
+    if (typeof el.style$ == 'undefined') el.style$ = ()=>{};
     if (typeof el.template$ == 'undefined') el.template$ = ()=>{};
     if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
     if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
