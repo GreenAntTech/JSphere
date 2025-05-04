@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.53');
+console.log('elementJS:', 'v1.0.0-preview.54');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -406,6 +406,7 @@ function initElementAsComponent(el) {
                         addMissingLifecycleMethods(el);
                         if (el.use$) await loadDependencies(el.use$());
                         await onInit(props);
+                        await onStyle(props);
                         await onTemplate(props);
                         await onRender(props);
                         return el.children$;
@@ -431,6 +432,7 @@ function initElementAsComponent(el) {
                         addMissingLifecycleMethods(el);
                         if (el.use$) await loadDependencies(el.use$());
                         await onInit(props);
+                        await onStyle(props);
                         await onTemplate(props);
                         await onRender(props);
                         if (el.is$ == 'document') {
@@ -472,6 +474,7 @@ function initElementAsComponent(el) {
                             addMissingLifecycleMethods(el);
                             if (el.use$) await loadDependencies(el.use$());
                             await onInit(props);
+                            await onStyle(props);
                             await onTemplate(props);
                             await onRender(props);
                             await onHydrate(props);
@@ -481,9 +484,11 @@ function initElementAsComponent(el) {
                             addMissingLifecycleMethods(el);
                             if (el.use$) await loadDependencies(el.use$());
                             await onInit(props);
+                            await onStyle(props);
                             await onTemplate(props);
                             await onRender(props);
                         } else if (el.componentState$ === 1) {
+                            await onStyle(props);
                             await onTemplate(props);
                             await onRender(props);
                         } else if (el.componentState$ === 2 || el.componentState$ === 3) {
@@ -701,6 +706,12 @@ function initElementAsComponent(el) {
     async function onInit(props) {
         await el.onInit$(props);
         el.componentState$ = 1;
+    }
+    function onStyle(props) {
+        const style = el.style$(props);
+        const tag = document.createElement('style');
+        tag.setAttribute('id', el.is$);
+        tag.textContent = style;
     }
     async function onTemplate(props) {
         let content;

@@ -23457,6 +23457,7 @@ function handleRequest(ctx) {
 async function handleRequest1(ctx) {
     const domain = mod12.getDomain(ctx.request.url.hostname);
     if (!domain) {
+        console.log(`Please check that your project's domain.json contains the domain: ${domain}`);
         return new Response(html, {
             status: 200,
             headers: {
