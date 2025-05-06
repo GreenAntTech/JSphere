@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.56');
+console.log('elementJS:', 'v1.0.0-preview.57');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -114,7 +114,7 @@ const registeredServerDependencies = {};
 const registeredDeviceMessages = {};
 const registeredMessages = {};
 const registeredRoutes = {};
-const templateCache = new Map();
+const resourceCache = new Map();
 let intersectionObserver;
 (async function() {
     if (!globalThis.URLPattern) await import('./urlpattern.min.js');
@@ -707,13 +707,54 @@ function initElementAsComponent(el) {
         await el.onInit$(props);
         el.componentState$ = 1;
     }
-    function onStyle(props) {
-        const style = el.style$(props);
-        if (!style || el.ownerDocument.getElementById(el.is$)) return;
-        const tag = el.ownerDocument.createElement('style');
-        tag.setAttribute('id', el.is$);
-        tag.textContent = style;
-        el.ownerDocument.head.append(tag);
+    async function onStyle(props) {
+        const theme = el.getAttribute('el-theme') || '';
+        const themeId = el.is$ + theme ? '_' + theme : '';
+        el.define$({
+            theme$: {
+                get: ()=>{
+                    return theme;
+                }
+            }
+        });
+        let css = el.style$(props);
+        if (!css) return;
+        if (css.endsWith('.css')) {
+            const path = css;
+            let content;
+            if (path.endsWith('.theme.css')) {
+                if (appContext.server) {
+                    if (resourceCache.has(path)) {
+                        content = resourceCache.get(path);
+                        console.log(`Loaded CSS theme from cache: ${path}`);
+                    } else {
+                        content = await getResource(path) || '';
+                        if (content !== undefined) resourceCache.set(path, content);
+                    }
+                } else {
+                    content = await getResource(path) || '';
+                }
+                content = content.replaceAll('[component]', `[el-theme='${themeId}']`);
+                el.setAttribute('el-theme', themeId);
+                if (el.ownerDocument.getElementById(themeId)) return;
+                const tag = el.ownerDocument.createElement('style');
+                tag.setAttribute('id', themeId);
+                tag.textContent = content;
+                el.ownerDocument.head.append(tag);
+            } else {
+                if (el.ownerDocument.head.querySelector(`[href='${path}']`)) return;
+                const tag = el.ownerDocument.createElement('style');
+                tag.setAttribute('href', path);
+                el.ownerDocument.head.append(tag);
+            }
+        } else {
+            if (el.ownerDocument.getElementById(themeId)) return;
+            css = css.replaceAll('[component]', `[el-theme='${themeId}']`);
+            const tag = el.ownerDocument.createElement('style');
+            tag.setAttribute('id', themeId);
+            tag.textContent = css;
+            el.ownerDocument.head.append(tag);
+        }
     }
     async function onTemplate(props) {
         let content;
@@ -721,12 +762,12 @@ function initElementAsComponent(el) {
         if (template && template.startsWith('/')) {
             const url = template;
             if (appContext.server) {
-                if (templateCache.has(url)) {
-                    content = templateCache.get(url);
+                if (resourceCache.has(url)) {
+                    content = resourceCache.get(url);
                     console.log(`Loaded template from cache: ${url}`);
                 } else {
                     content = await getResource(url) || '';
-                    if (content !== undefined) templateCache.set(url, content);
+                    if (content !== undefined) resourceCache.set(url, content);
                 }
                 el.innerHTML = sanitize(content);
             } else {
