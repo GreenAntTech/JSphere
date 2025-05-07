@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.57');
+console.log('elementJS:', 'v1.0.0-preview.58');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -743,12 +743,14 @@ function initElementAsComponent(el) {
                 el.ownerDocument.head.append(tag);
             } else {
                 if (el.ownerDocument.head.querySelector(`[href='${path}']`)) return;
-                const tag = el.ownerDocument.createElement('style');
+                const tag = el.ownerDocument.createElement('link');
+                tag.setAttribute('rel', 'stylesheet');
                 tag.setAttribute('href', path);
                 el.ownerDocument.head.append(tag);
             }
         } else {
-            if (el.ownerDocument.getElementById(themeId)) return;
+            el.setAttribute('el-theme', themeId);
+            if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
             css = css.replaceAll('[component]', `[el-theme='${themeId}']`);
             const tag = el.ownerDocument.createElement('style');
             tag.setAttribute('id', themeId);
