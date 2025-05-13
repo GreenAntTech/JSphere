@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.58');
+console.log('elementJS:', 'v1.0.0-preview.59');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -710,7 +710,7 @@ function initElementAsComponent(el) {
     async function onStyle(props) {
         const theme = el.getAttribute('el-theme') || '';
         const themeId = el.is$ + theme ? '_' + theme : '';
-        el.define$({
+        if (!el.hasOwnProperty('theme$')) el.define$({
             theme$: {
                 get: ()=>{
                     return theme;
