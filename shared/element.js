@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.59');
+console.log('elementJS:', 'v1.0.0-preview.60');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -708,15 +708,16 @@ function initElementAsComponent(el) {
         el.componentState$ = 1;
     }
     async function onStyle(props) {
+        if (el.hasOwnProperty('theme$')) return;
         const theme = el.getAttribute('el-theme') || '';
-        const themeId = el.is$ + theme ? '_' + theme : '';
-        if (!el.hasOwnProperty('theme$')) el.define$({
+        el.define$({
             theme$: {
                 get: ()=>{
                     return theme;
                 }
             }
         });
+        const themeId = el.is$ + (theme ? '_' + theme : '');
         let css = el.style$(props);
         if (!css) return;
         if (css.endsWith('.css')) {
