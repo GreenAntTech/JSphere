@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.61');
+console.log('elementJS:', 'v1.0.0-preview.62');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -64,7 +64,7 @@ function processEvent(event) {
         }
         const children = document.documentElement.querySelectorAll(`[el-listening]`);
         for (const childElement of children){
-            if (childElement.listensFor$(subject)) {
+            if (childElement.is$ && childElement.listensFor$(subject)) {
                 listenerFound = true;
                 setTimeout(async ()=>{
                     await childElement.onMessageReceived$(subject, data);
