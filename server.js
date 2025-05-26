@@ -23888,7 +23888,6 @@ async function getFileFromRepo(path, provider, namespace, authToken) {
     let repo;
     let ref = 'main';
     try {
-        debugger;
         const slash = path.startsWith('/');
         const arrPath = path.split('/');
         if (slash) arrPath.shift();

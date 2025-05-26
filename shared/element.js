@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.60');
+console.log('elementJS:', 'v1.0.0-preview.61');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -326,7 +326,7 @@ async function renderDocument(config, ctx) {
             const el = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
-            initElementAsComponent(el);
+            initElementAsComponent(el, new Object());
             await el.init$(config.props);
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
@@ -339,7 +339,7 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
-            initElementAsComponent(el);
+            initElementAsComponent(el, new Object());
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
             await el.init$(config.props);
@@ -374,7 +374,7 @@ async function getDocumentElement(config) {
     }
     return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
 }
-function initElementAsComponent(el) {
+function initElementAsComponent(el, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
     const stateObject = {};
@@ -529,7 +529,7 @@ function initElementAsComponent(el) {
                     for (const childElement of children){
                         if (!childElement.getAttribute('el-id')) childElement.setAttribute('el-id', `component${idCount++}`);
                         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
-                        initElementAsComponent(childElement);
+                        initElementAsComponent(childElement, pageState);
                         childElement.parent$ = el;
                         const elId = childElement.id$;
                         if (childElement.is$ != 'component' && childElement.componentState$ !== 2) childElement.componentState$ = 0;
@@ -861,7 +861,7 @@ function initElementAsComponent(el) {
     }
     const type = el.getAttribute('el-is') || 'component';
     if (type == 'component') el.setAttribute('el-is', 'component');
-    if (registeredComponents[type]) registeredComponents[type](el);
+    if (registeredComponents[type]) registeredComponents[type](el, pageState);
     else console.warn(`The component type '${type}' is not registered.`);
 }
 function getServerState(el) {
@@ -988,7 +988,7 @@ async function loadDependencies(dependencies) {
         throw e;
     }
 }
-createComponent('document', (el)=>{
+createComponent('document', (el, _pageState)=>{
     el.define$({
         onRender$: async (props)=>{
             for(const id in el.children$){
@@ -1006,7 +1006,7 @@ createComponent('document', (el)=>{
         }
     });
 });
-createComponent('list', (el)=>{
+createComponent('list', (el, pageState)=>{
     const tagNameMap = {
         ul: 'li',
         ol: 'li',
@@ -1059,7 +1059,7 @@ createComponent('list', (el)=>{
             await loadDependencies([
                 type
             ]);
-            initElementAsComponent(component);
+            initElementAsComponent(component, pageState);
             component.parent$ = el;
             component.componentState$ = 0;
             if (!el.children$.items) el.children$.items = [];
@@ -1070,7 +1070,7 @@ createComponent('list', (el)=>{
         }
     });
 });
-createComponent('component', (el)=>{
+createComponent('component', (el, _pageState)=>{
     el.define$({
         text$: {
             set: (value)=>{
@@ -1082,7 +1082,7 @@ createComponent('component', (el)=>{
         }
     });
 });
-createComponent('link', (el)=>{
+createComponent('link', (el, _pageState)=>{
     let _onclick;
     el.define$({
         onRender$: (props)=>{
