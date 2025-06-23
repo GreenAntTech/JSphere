@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.62');
+console.log('elementJS:', 'v1.0.0-preview.63');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -955,7 +955,7 @@ async function getResource(path) {
 async function importModule(url) {
     try {
         if (appContext.server) {
-            const module = await import(url + `?eTag=${appContext.ctx.domain.hostname}:${appContext.ctx.domain.cacheDTS}`);
+            const module = await import(url + `?eTag=${appContext.ctx.cacheDTS}`);
             return module;
         } else {
             const module = await import(url);

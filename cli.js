@@ -489,125 +489,6 @@ function setup(config) {
     }
 }
 setup(DEFAULT_CONFIG);
-function filterValues(record, predicate) {
-    const ret = {};
-    const entries = Object.entries(record);
-    for (const [key, value] of entries){
-        if (predicate(value)) {
-            ret[key] = value;
-        }
-    }
-    return ret;
-}
-function withoutAll(array, values) {
-    const toExclude = new Set(values);
-    return array.filter((it)=>!toExclude.has(it));
-}
-const RE_KeyValue = /^\s*(?:export\s+)?(?<key>[a-zA-Z_]+[a-zA-Z0-9_]*?)\s*=[\ \t]*('\n?(?<notInterpolated>(.|\n)*?)\n?'|"\n?(?<interpolated>(.|\n)*?)\n?"|(?<unquoted>[^\n#]*)) *#*.*$/gm;
-const RE_ExpandValue = /(\${(?<inBrackets>.+?)(\:-(?<inBracketsDefault>.+))?}|(?<!\\)\$(?<notInBrackets>\w+)(\:-(?<notInBracketsDefault>.+))?)/g;
-function parse(rawDotenv, restrictEnvAccessTo = []) {
-    const env = {};
-    let match;
-    const keysForExpandCheck = [];
-    while((match = RE_KeyValue.exec(rawDotenv)) != null){
-        const { key, interpolated, notInterpolated, unquoted } = match?.groups;
-        if (unquoted) {
-            keysForExpandCheck.push(key);
-        }
-        env[key] = typeof notInterpolated === "string" ? notInterpolated : typeof interpolated === "string" ? expandCharacters(interpolated) : unquoted.trim();
-    }
-    const variablesMap = {
-        ...env,
-        ...readEnv(restrictEnvAccessTo)
-    };
-    keysForExpandCheck.forEach((key)=>{
-        env[key] = expand(env[key], variablesMap);
-    });
-    return env;
-}
-async function load({ envPath = ".env", examplePath = ".env.example", defaultsPath = ".env.defaults", export: _export = false, allowEmptyValues = false, restrictEnvAccessTo = [] } = {}) {
-    const conf = await parseFile(envPath, restrictEnvAccessTo);
-    if (defaultsPath) {
-        const confDefaults = await parseFile(defaultsPath, restrictEnvAccessTo);
-        for(const key in confDefaults){
-            if (!(key in conf)) {
-                conf[key] = confDefaults[key];
-            }
-        }
-    }
-    if (examplePath) {
-        const confExample = await parseFile(examplePath, restrictEnvAccessTo);
-        assertSafe(conf, confExample, allowEmptyValues, restrictEnvAccessTo);
-    }
-    if (_export) {
-        for(const key in conf){
-            if (Deno.env.get(key) !== undefined) continue;
-            Deno.env.set(key, conf[key]);
-        }
-    }
-    return conf;
-}
-async function parseFile(filepath, restrictEnvAccessTo = []) {
-    try {
-        return parse(await Deno.readTextFile(filepath), restrictEnvAccessTo);
-    } catch (e) {
-        if (e instanceof Deno.errors.NotFound) return {};
-        throw e;
-    }
-}
-function expandCharacters(str) {
-    const charactersMap = {
-        "\\n": "\n",
-        "\\r": "\r",
-        "\\t": "\t"
-    };
-    return str.replace(/\\([nrt])/g, ($1)=>charactersMap[$1]);
-}
-function assertSafe(conf, confExample, allowEmptyValues, restrictEnvAccessTo = []) {
-    const currentEnv = readEnv(restrictEnvAccessTo);
-    const confWithEnv = Object.assign({}, currentEnv, conf);
-    const missing = withoutAll(Object.keys(confExample), Object.keys(allowEmptyValues ? confWithEnv : filterValues(confWithEnv, Boolean)));
-    if (missing.length > 0) {
-        const errorMessages = [
-            `The following variables were defined in the example file but are not present in the environment:\n  ${missing.join(", ")}`,
-            `Make sure to add them to your env file.`,
-            !allowEmptyValues && `If you expect any of these variables to be empty, you can set the allowEmptyValues option to true.`
-        ];
-        throw new MissingEnvVarsError(errorMessages.filter(Boolean).join("\n\n"), missing);
-    }
-}
-function readEnv(restrictEnvAccessTo) {
-    if (restrictEnvAccessTo && Array.isArray(restrictEnvAccessTo) && restrictEnvAccessTo.length > 0) {
-        return restrictEnvAccessTo.reduce((accessedEnvVars, envVarName)=>{
-            if (Deno.env.get(envVarName)) {
-                accessedEnvVars[envVarName] = Deno.env.get(envVarName);
-            }
-            return accessedEnvVars;
-        }, {});
-    }
-    return Deno.env.toObject();
-}
-class MissingEnvVarsError extends Error {
-    missing;
-    constructor(message, missing){
-        super(message);
-        this.name = "MissingEnvVarsError";
-        this.missing = missing;
-        Object.setPrototypeOf(this, new.target.prototype);
-    }
-}
-function expand(str, variablesMap) {
-    if (RE_ExpandValue.test(str)) {
-        return expand(str.replace(RE_ExpandValue, function(...params) {
-            const { inBrackets, inBracketsDefault, notInBrackets, notInBracketsDefault } = params[params.length - 1];
-            const expandValue = inBrackets || notInBrackets;
-            const defaultValue = inBracketsDefault || notInBracketsDefault;
-            return variablesMap[expandValue] || expand(defaultValue, variablesMap);
-        }), variablesMap);
-    } else {
-        return str;
-    }
-}
 const { hasOwn } = Object;
 function get(obj, key) {
     if (hasOwn(obj, key)) {
@@ -632,7 +513,7 @@ function hasKey(obj, keys) {
     const key = keys[keys.length - 1];
     return hasOwn(o, key);
 }
-function parse1(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i)=>i } = {}) {
+function parse(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i)=>i } = {}) {
     const aliases = {};
     const flags = {
         bools: {},
@@ -940,50 +821,31 @@ Deno.build.os === "windows";
 const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
-const cmdArgs = parse1(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.62';
-const DENO_VERSION = '2.2.4';
+const cmdArgs = parse(Deno.args);
+const JSPHERE_VERSION = 'v1.0.0-preview.63';
 (async function() {
     try {
         switch(cmdArgs._[0]){
-            case 'build':
-                await buildCmd(cmdArgs);
+            case 'version':
+                versionCmd();
                 break;
-            case 'create':
-                await createCmd(cmdArgs);
-                break;
-            case 'checkout':
-                await checkoutCmd(cmdArgs);
-                break;
-            case 'copy':
-                await copyCmd(cmdArgs);
-                break;
-            case 'dockerfile':
-                await dockerfileCmd(cmdArgs);
-                break;
-            case 'env':
-                await envCmd(cmdArgs);
-                break;
-            case 'git':
-                await gitCmd(cmdArgs);
-                break;
-            case 'install':
-                await installCmd(cmdArgs);
-                break;
-            case 'remote':
-                await serverCmd(cmdArgs);
-                break;
-            case 'reset':
-                await serverCmd(cmdArgs);
-                break;
-            case 'load':
-                await serverCmd(cmdArgs);
+            case 'install-element':
+                await installElementCmd();
                 break;
             case 'start':
                 startCmd(cmdArgs);
                 break;
-            case 'version':
-                versionCmd();
+            case 'load':
+                await loadCmd(cmdArgs);
+                break;
+            case 'create-project':
+                await createProjectCmd(cmdArgs);
+                break;
+            case 'create-package':
+                await createPackageCmd(cmdArgs);
+                break;
+            case 'checkout':
+                await checkoutCmd(cmdArgs);
                 break;
             default:
                 helpCmd();
@@ -993,252 +855,26 @@ const DENO_VERSION = '2.2.4';
     }
 })();
 function helpCmd() {
-    info('build <project_name>/<app_name> [--version=<version>] [--no-cache]    // builds a docker image of the specified project and app');
-    info('create <project_name> [--public]    // creates a private project unless the --public flag is set');
-    info('create <project_name>/<app_name>/<package_name>    // creates a package in the specified app');
-    info('create <project_name>/<app_name>/<package_name>:<alias>    // creates a package in the specified app with the specified alias');
-    info('checkout <project_name>    // checks out the specified project\'s config repo');
-    info('checkout <project_name>/<app_name>/<package_name>    // checks out the specified package');
-    info('copy <project_name>/<app_name> <new_app_name>    // copies the specified app.json and renames the copied file to app-<new_app_name>.json');
-    info('dockerfile    // creates a dockerfile for generating a default JSphere image');
-    info('env    // creates a .env file with default variables');
-    info('git <project_name>/<app_name>/<package_name>   // enter git mode for the specified package');
-    info('install element <project_name>/<app_name>/<package_name>    // install elementJS to the specified package');
-    info('load    // reloads the current project hosted on localhost');
-    info('load <project_name>    // reloads the specified project hosted on localhost');
-    info('load <domain>/<project_name>    // reloads the specified project hosted on the specified domain');
-    info('load <domain>:<port_number>/<project_name>    // reloads the specified project hosted on the specified domain and port number');
-    info('reset    // resets localhost');
-    info('reset <domain>    // resets the specified local domain');
-    info('reset <domain>:<port_number>    // resets the specified local domain and port number');
-    info('remote https://<hostname>[:<port_number>]/@cmd/<command>[?param1=value1...] <auth_token>    // sends a command to a remote JSphere server');
-    info('start [-version=<version>] [--debug=<port_number>] [--reload]    // starts the server with a project specified in the .env file');
-    info('start <project_name>[-version=<version>] [--debug=<port_number>] [--reload]    // starts the server with the specified project located in the current workspace');
-    info('version    // displays the current version of JSphere');
+    info('checkout <package_name>');
+    info('create-package <package_name>');
+    info('create-project <project_name>');
+    info('install element');
+    info('load <project_config_name>');
+    info('start [--debug=<port_number>] [--reload]');
+    info('version');
 }
-async function buildCmd(cmdArgs) {
-    try {
-        const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-        const projectName = path[0];
-        const appName = path[1];
-        const version = cmdArgs.version || 'latest';
-        const noCache = typeof cmdArgs['no-cache'] === 'undefined' ? '' : '--no-cache';
-        if (projectName && appName) {
-            await Deno.writeFile(Deno.cwd() + `/DockerFile`, (new TextEncoder).encode(getBuildDockerFileContent(projectName, appName)));
-            info(`docker build ${noCache} --pull --rm -f DockerFile -t ${projectName.toLowerCase()}:${version} .`);
-            let command;
-            if (noCache) {
-                command = new Deno.Command('docker', {
-                    args: [
-                        'build',
-                        '--pull',
-                        '--rm',
-                        '-f',
-                        'DockerFile',
-                        '-t',
-                        `${projectName.toLowerCase()}:${version}`,
-                        '.'
-                    ],
-                    stdin: 'piped'
-                });
-            } else {
-                command = new Deno.Command('docker', {
-                    args: [
-                        'build',
-                        '--no-cache',
-                        '--pull',
-                        '--rm',
-                        '-f',
-                        'DockerFile',
-                        '-t',
-                        `${projectName.toLowerCase()}:${version}`,
-                        '.'
-                    ],
-                    stdin: 'piped'
-                });
-            }
-            const child = command.spawn();
-            child.stdin.close();
-            await child.status;
-            await Deno.remove(Deno.cwd() + `/DockerFile`);
-        }
-    } catch (e) {
-        error(e.message);
-    }
-}
-async function createCmd(cmdArgs) {
-    const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-    const projectName = path[0];
-    const appName = path[1];
-    let packageName = path[2];
-    let alias;
-    if (packageName) {
-        const packageParts = packageName.split(':');
-        packageName = packageParts[0];
-        alias = packageParts[1];
-    }
-    const type = cmdArgs.public ? 'public' : 'private';
-    let result;
-    if (projectName && !appName && !packageName) {
-        result = await createProject(projectName, type);
-    } else if (projectName && appName && packageName) {
-        result = await createPackage(projectName, appName, packageName, alias);
-    }
-    if (result) info(`Create command completed successfully.`);
-    else info(`Create command failed.`);
-}
-async function checkoutCmd(cmdArgs) {
-    const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-    const projectName = path[0];
-    const appName = path[1];
-    const packageName = path[2];
-    let result;
-    if (!appName && !packageName) {
-        result = await checkoutProject(projectName);
-    } else if (projectName && appName && packageName) {
-        result = await checkoutPackage(projectName, appName, packageName);
-    }
-    if (result) info(`Checkout command completed successfully.`);
-    else info(`Checkout command failed.`);
-}
-async function copyCmd(cmdArgs) {
-    const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-    const projectName = path[0];
-    const appName = path[1];
-    const newName = cmdArgs._[2];
-    if (projectName && appName && newName) {
-        await Deno.copyFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, Deno.cwd() + `/${projectName}/.${projectName}/${newName}.json`);
-    }
-}
-async function dockerfileCmd(_cmdArgs) {
-    await Deno.writeFile(Deno.cwd() + '/Dockerfile', (new TextEncoder).encode(getDockerFileContent()));
-}
-async function envCmd(_cmdArgs) {
-    await Deno.writeFile(Deno.cwd() + '/.env', (new TextEncoder).encode(getDefaultEnvContent()));
-}
-async function gitCmd(cmdArgs) {
-    try {
-        const path = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-        const projectName = path[0];
-        const appName = path[1];
-        const packageName = path[2];
-        let repoPath;
-        if (projectName && !appName && !packageName) {
-            if (!projectName.startsWith('.')) repoPath = `${projectName}/.${projectName}`;
-            else repoPath = `${projectName.substring(1)}/${projectName}`;
-        } else if (projectName && appName && packageName) {
-            repoPath = cmdArgs._[1];
-        } else return;
-        if (!await exists(Deno.cwd() + `/${repoPath}/.git`, {
-            isDirectory: true
-        })) return;
-        let exit = false;
-        while(!exit){
-            const response = prompt(`js:${repoPath}:git>`);
-            if (!response) {
-                exit = true;
-                continue;
-            }
-            const args = parseCommand(response);
-            args.unshift(`--git-dir=${Deno.cwd()}/${repoPath}/.git`);
-            args.unshift(`--work-tree=${Deno.cwd()}/${repoPath}`);
-            const command = new Deno.Command('git', {
-                args,
-                stdin: 'piped'
-            });
-            const child = command.spawn();
-            child.stdin.close();
-            await child.status;
-        }
-    } catch (e) {
-        error(e.message);
-    }
-    function parseCommand(input) {
-        return input.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((arg)=>arg.replace(/^"|"$/g, '')) || [];
-    }
-}
-async function installCmd(cmdArgs) {
-    if (cmdArgs._[1] === 'element') {
-        const path = cmdArgs._[2] ? cmdArgs._[2].split('/') : [];
-        const projectName = path[0];
-        const appName = path[1];
-        const packageName = path[2];
-        if (projectName && appName && packageName && await exists(Deno.cwd() + `/${cmdArgs._[2]}`, {
-            isDirectory: true
-        })) {
-            let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/element.js`);
-            if (response.ok) {
-                const file = await response.text();
-                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/element.js`, (new TextEncoder).encode(file));
-            }
-            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/urlpattern.min.js`);
-            if (response.ok) {
-                const file = await response.text();
-                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
-            }
-            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/shared/element.d.ts`);
-            if (response.ok) {
-                const file = await response.text();
-                await Deno.writeFile(Deno.cwd() + `/${cmdArgs._[2]}/shared/element.d.ts`, (new TextEncoder).encode(file));
-            }
-        }
-    }
-}
-async function serverCmd(cmdArgs) {
-    try {
-        const cmd = cmdArgs._[0];
-        if (cmd === 'remote') {
-            const response = await fetch(cmdArgs._[1], {
-                method: 'GET',
-                headers: {
-                    'Authorization': `token ${cmdArgs._[2]}`
-                }
-            });
-            if (!response.ok) error(response.statusText);
-        } else {
-            const parts = cmdArgs._[1] ? cmdArgs._[1].split('/') : [];
-            const token = cmdArgs.token;
-            let domain = parts[0] || 'localhost';
-            let projectName = parts[1];
-            if (!domain.startsWith('localhost') && !domain.startsWith('https://')) {
-                domain = 'localhost';
-                projectName = parts[0];
-            }
-            if (cmd === 'reset') {
-                if (!domain) domain = 'localhost';
-                const response = await fetch(`http://${domain}/@cmd/resetdomain`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `token ${token}`
-                    }
-                });
-                if (!response.ok) error(response.statusText);
-            } else if (cmd === 'load' && domain) {
-                const response = await fetch(`http://${domain}/@cmd/loadproject?projectName=${projectName || ''}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `token ${token}`
-                    }
-                });
-                if (!response.ok) error(response.statusText);
-            }
-        }
-    } catch (e) {
-        critical(e.message);
-    }
+function versionCmd() {
+    info('JSphere Version: ' + JSPHERE_VERSION);
 }
 async function startCmd(cmdArgs) {
     try {
-        const projectName = cmdArgs._[1];
-        const version = cmdArgs.version || JSPHERE_VERSION;
         const debugPort = cmdArgs.debug || '9229';
         const args = [];
         args.push('--allow-all');
         args.push('--no-check');
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${debugPort}`);
-        args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${version}/server.js`);
-        if (projectName) args.push(projectName);
+        args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
         const command = new Deno.Command('deno', {
             args,
             stdin: 'piped'
@@ -1250,437 +886,80 @@ async function startCmd(cmdArgs) {
         error(e.message);
     }
 }
-function versionCmd() {
-    info('JSphere Version: ' + JSPHERE_VERSION);
-}
-async function createProject(projectName, type) {
-    if (await exists(Deno.cwd() + `/${projectName}`, {
-        isDirectory: true
-    })) {
-        error(`A project directory named ${projectName} already exists`);
-        return false;
-    }
-    info('Please provide the following project environment variables:');
-    const projectHost = prompt('PROJECT_HOST:', 'GitHub');
-    const projectNamespace = prompt('PROJECT_NAMESPACE:');
-    const projectAuthToken = prompt('PROJECT_AUTH_TOKEN:');
-    info(`Creating project directory ${projectName} ...`);
-    await Deno.mkdir(Deno.cwd() + `/${projectName}`, {
-        recursive: true
-    });
-    await Deno.writeFile(Deno.cwd() + `/${projectName}/.env`, (new TextEncoder).encode(getEnvContent(projectHost, projectNamespace, projectAuthToken)));
-    if (!projectAuthToken) {
-        error(`Could not create the remote repo .${projectName}. The environment variable PROJECT_AUTH_TOKEN did not provide a value.`);
-        return false;
-    }
-    try {
-        const projectConfigName = '.' + projectName;
-        await createRepo({
-            repoName: projectConfigName,
-            authToken: projectAuthToken,
-            repoType: type
-        });
-        await cloneRepo({
-            repoName: projectConfigName,
-            path: Deno.cwd() + `/${projectName}/${projectConfigName}`,
-            host: projectHost,
-            namespace: projectNamespace,
-            authToken: projectAuthToken
-        });
-        await createRepo({
-            repoName: projectName,
-            authToken: projectAuthToken,
-            repoType: type
-        });
-        await cloneRepo({
-            repoName: projectName,
-            path: Deno.cwd() + `/${projectName}/app/${projectName}`,
-            provider: projectHost,
-            namespace: projectNamespace,
-            authToken: projectAuthToken
-        });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/domains.json`, (new TextEncoder).encode(getDomainsConfig('app')));
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/${projectConfigName}/app.json`, (new TextEncoder).encode(getApplicationConfig(projectName, type)));
-        await Deno.mkdir(Deno.cwd() + `/${projectName}/app/${projectName}/client`, {
-            recursive: true
-        });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/app/${projectName}/client/index.html`, (new TextEncoder).encode(getIndexPageContent()));
-        await Deno.mkdir(Deno.cwd() + `/${projectName}/app/${projectName}/server`, {
-            recursive: true
-        });
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/app/${projectName}/server/datetime.ts`, (new TextEncoder).encode(getAPIEndpointContent()));
-        return true;
-    } catch (e) {
-        error(e.message);
-        return false;
-    }
-}
-async function createPackage(projectName, appName, packageName, alias) {
-    if (!await exists(Deno.cwd() + `/${projectName}`, {
-        isDirectory: true
-    })) {
-        error(`Could not find a project directory named ${projectName}`);
-        return false;
-    }
-    if (!await exists(Deno.cwd() + `/${projectName}/.env`, {
+async function loadCmd(cmdArgs) {
+    const configName = cmdArgs._[1];
+    let config = {};
+    if (await exists(`${Deno.cwd()}/jsphere.json`, {
         isFile: true
     })) {
-        error(`Could not find the project's environment configuration file .env`);
-        return false;
-    }
-    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}`, {
-        isDirectory: true
-    })) {
-        error(`Could not find the project's config directory named .${projectName}`);
-        return false;
-    }
-    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, {
-        isFile: true
-    })) {
-        error(`Could not find the project's app config file named ${appName}.json`);
-        return false;
-    }
-    const env = await load({
-        envPath: Deno.cwd() + `/${projectName}/.env`
-    });
-    const projectAuthToken = env.PROJECT_AUTH_TOKEN;
-    if (!projectAuthToken) {
-        error(`Could not create the remote repo ${packageName}. The environment variable PROJECT_AUTH_TOKEN did not provide a value.`);
-        return false;
-    }
-    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`)));
-    const repoType = appConfig.type || 'private';
-    if (repoType !== 'private' && repoType !== 'public') {
-        error(`Could not create the remote repo ${packageName}. Please set the app type in the project's app config file named ${appName}.json to 'private' or 'public'.`);
-        return false;
-    }
-    info(`Creating package ${projectName}/${appName}/${packageName} ...`);
-    try {
-        await createRepo({
-            repoName: packageName,
-            authToken: projectAuthToken,
-            repoType
-        });
-        await cloneRepo({
-            repoName: packageName,
-            path: Deno.cwd() + `/${projectName}/${appName}/${packageName}`,
-            provider: env.PROJECT_HOST || '',
-            namespace: env.PROJECT_NAMESPACE || '',
-            authToken: projectAuthToken
-        });
-        appConfig.packages[packageName] = {};
-        if (alias) appConfig.packages[packageName].alias = alias;
-        await Deno.writeFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
-        return true;
-    } catch (e) {
-        error(e.message);
-        return false;
-    }
-}
-async function checkoutProject(projectName) {
-    let env = {};
-    if (!projectName) {
-        env = await load({
-            envPath: Deno.cwd() + `/.env`
-        });
-        projectName = env.PROJECT_NAME;
-    }
-    if (await exists(Deno.cwd() + `/${projectName}`, {
-        isDirectory: true
-    })) {
-        error(`A project directory named ${projectName} already exists`);
-        return false;
-    }
-    info('Please provide the following project environment variables:');
-    projectName = prompt('PROJECT_NAME:', projectName);
-    const projectHost = prompt('PROJECT_HOST:', env['PROJECT_HOST'] || 'GitHub');
-    const projectNamespace = prompt('PROJECT_NAMESPACE:', env['PROJECT_NAMESPACE']);
-    const projectReference = prompt('PROJECT_REFERENCE:', env['PROJECT_REFERENCE']);
-    const projectAuthToken = prompt('PROJECT_AUTH_TOKEN:', env['PROJECT_AUTH_TOKEN']);
-    info(`Creating project directory ${projectName} ...`);
-    await Deno.mkdir(Deno.cwd() + `/${projectName}`, {
-        recursive: true
-    });
-    await Deno.writeFile(Deno.cwd() + `/${projectName}/.env`, (new TextEncoder).encode(getEnvContent(projectHost, projectNamespace, projectAuthToken)));
-    const projectConfigName = '.' + projectName;
-    try {
-        await cloneRepo({
-            repoName: projectConfigName,
-            reference: projectReference,
-            path: Deno.cwd() + `/${projectName}/${projectConfigName}`,
-            host: projectHost,
-            namespace: projectNamespace,
-            authToken: projectAuthToken
-        });
-        return true;
-    } catch (e) {
-        error(e.message);
-        return false;
-    }
-}
-async function checkoutPackage(projectName, appName, packageName) {
-    if (!await exists(Deno.cwd() + `/${projectName}`, {
-        isDirectory: true
-    })) {
-        error(`Could not find a project directory named ${projectName}`);
-        return false;
-    }
-    if (!await exists(Deno.cwd() + `/${projectName}/.env`, {
-        isFile: true
-    })) {
-        error(`Could not find the project's environment configuration file .env`);
-        return false;
-    }
-    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}`, {
-        isDirectory: true
-    })) {
-        error(`Could not find the project's config directory named .${projectName}`);
-        return false;
-    }
-    if (!await exists(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`, {
-        isFile: true
-    })) {
-        error(`Could not find the project's app config file named ${appName}.json`);
-        return false;
-    }
-    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${projectName}/.${projectName}/${appName}.json`)));
-    if (packageName !== '*' && (!appConfig.packages || !appConfig.packages[packageName])) {
-        error(`Could not find the package ${packageName} in the project's app config file named ${appName}.json`);
-        return false;
-    }
-    const env = await load({
-        envPath: Deno.cwd() + `/${projectName}/.env`
-    });
-    if (appConfig.type === 'private' && !env.PROJECT_AUTH_TOKEN) {
-        error(`Could not checkout the remote repo .${packageName}. The environment variable PROJECT_AUTH_TOKEN did not provide a value.`);
-        return false;
-    }
-    try {
-        for(const key in appConfig.packages){
-            if (packageName === '*' || packageName === key) {
-                await cloneRepo({
-                    repoName: key,
-                    reference: appConfig.packages[key].reference,
-                    path: Deno.cwd() + `/${projectName}/${appName}/${packageName}`,
-                    host: env.PROJECT_HOST,
-                    namespace: env.PROJECT_NAMESPACE,
-                    authToken: env.PROJECT_AUTH_TOKEN
-                });
-            }
+        const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
+        try {
+            config = JSON.parse(file);
+        } catch (e) {
+            error(`ERROR: ${e.message}`);
+            return;
         }
-        return true;
-    } catch (e) {
-        error(e.message);
-        return false;
     }
-}
-async function createRepo(props) {
-    try {
-        const repoName = props.repoName;
-        const authToken = props.authToken;
-        const privateRepo = props.repoType === 'private';
-        const response = await fetch(`https://api.github.com/user/repos`, {
+    const result = config.configurations.filter((obj)=>{
+        obj.PROJECT_CONFIG_NAME == configName;
+    });
+    if (result.length > 0) {
+        const response = await fetch(`http://localhost/@cmd/loadconfig`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${authToken}`,
-                'Accept': 'application/vnd.github+json',
-                'X-GitHub-Api-Version': '2022-11-28'
-            },
-            body: JSON.stringify({
-                "name": repoName,
-                "private": privateRepo,
-                "auto_init": true
-            })
+            body: JSON.stringify(result[0])
         });
         if (!response.ok) {
-            error(response.statusText);
-            return false;
-        } else {
-            return true;
-        }
-    } catch (e) {
-        error(e.message);
-        return false;
-    }
-}
-async function cloneRepo(props) {
-    let command;
-    const path = props.path;
-    const repoName = props.repoName;
-    const provider = props.provider || 'GitHub';
-    const namespace = props.namespace;
-    const authToken = props.authToken;
-    const reference = props.reference;
-    if (provider === 'GitHub') {
-        if (authToken) {
-            command = new Deno.Command('git', {
-                args: [
-                    'clone',
-                    `https://${namespace}:${authToken}@github.com/${namespace}/${repoName}.git`,
-                    path
-                ],
-                stdin: 'piped'
-            });
-        } else {
-            command = new Deno.Command('git', {
-                args: [
-                    'clone',
-                    `https://github.com/${namespace}/${repoName}.git`,
-                    path
-                ],
-                stdin: 'piped'
-            });
-        }
-        let child = command.spawn();
-        child.stdin.close();
-        await child.status;
-        if (reference) {
-            command = new Deno.Command('git', {
-                args: [
-                    '--git-dir',
-                    `${path}/.git`,
-                    '--work-tree',
-                    path,
-                    'switch',
-                    '--track',
-                    `origin/${reference}`
-                ],
-                stdin: 'piped'
-            });
-            child = command.spawn();
-            child.stdin.close();
-            await child.status;
+            error(`ERROR: ${response.statusText}`);
+            return;
         }
     }
 }
-function getEnvContent(projectHost, projectNamespace, projectAuthToken) {
-    const content = `PROJECT_HOST=${projectHost}\nPROJECT_NAMESPACE=${projectNamespace}\nPROJECT_REFERENCE=\nPROJECT_AUTH_TOKEN=${projectAuthToken}\nSERVER_HTTP_PORT=80\nSERVER_DEBUG_PORT=9229`;
-    return content;
+async function createProjectCmd(cmdArgs) {
+    const name = cmdArgs._[1];
+    const response = await fetch(`http://localhost/@cmd/createproject`, {
+        method: 'POST',
+        body: JSON.stringify({
+            name
+        })
+    });
+    if (!response.ok) {
+        error(response.statusText);
+        return;
+    }
 }
-function getDefaultEnvContent() {
-    const content = `PROJECT_HOST=GitHub\nPROJECT_NAMESPACE=\nPROJECT_NAME=\nPROJECT_REFERENCE=\nPROJECT_AUTH_TOKEN=\nSERVER_HTTP_PORT=80\nSERVER_DEBUG_PORT=9229`;
-    return content;
+async function createPackageCmd(cmdArgs) {
+    const name = cmdArgs._[1];
+    const response = await fetch(`http://localhost/@cmd/createpackage`, {
+        method: 'POST',
+        body: JSON.stringify({
+            name
+        })
+    });
+    if (!response.ok) {
+        error(response.statusText);
+        return;
+    }
 }
-function getDomainsConfig(appName) {
-    const json = {
-        localhost: {
-            application: appName || ''
-        }
-    };
-    return JSON.stringify(json, null, '\t');
+async function checkoutCmd(cmdArgs) {
+    const name = cmdArgs._[1];
+    const response = await fetch(`http://localhost/@cmd/checkout`, {
+        method: 'POST',
+        body: JSON.stringify({
+            name
+        })
+    });
+    if (!response.ok) {
+        error(response.statusText);
+        return;
+    }
 }
-function getApplicationConfig(projectName, type = 'private') {
-    const json = {
-        type,
-        packages: {
-            [projectName]: {
-                alias: 'main'
-            }
-        },
-        routes: [
-            {
-                route: "/api/datetime",
-                path: `/${projectName}/server/datetime.ts`
-            },
-            {
-                route: "/*",
-                path: `/${projectName}/client/index.html`
-            }
-        ],
-        extensions: {},
-        directives: [],
-        settings: {},
-        featureFlags: []
-    };
-    return JSON.stringify(json, null, '\t');
+async function installElementCmd() {
+    const response = await fetch(`http://localhost/@cmd/installelement`, {
+        method: 'POST',
+        body: JSON.stringify({})
+    });
+    if (!response.ok) {
+        error(response.statusText);
+        return;
+    }
 }
-function getIndexPageContent() {
-    const content = `<html lang="en">
-    <head>
-        <title>Powered By JSphere</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <script type="module">
-            const response = await fetch('/api/datetime', {
-                method:'GET',
-            });
-            const obj = await response.json();
-            document.getElementById('datetime').innerHTML = obj.datetime;
-        </script>
-    </head>
-    <body style="height:100%; width:100%; background-color:#ffffff; overflow: hidden;">
-        <div style="text-align: center; margin-top: 10%;">
-            <div style="font-family:monospace; font-size:2rem; font-weight:bold; margin-bottom:2rem;">Powered By JSphere</div>
-            <div id="datetime" style="font-family:monospace; color:#686868; font-weight:bold;"></div>
-        </div>
-    </body>
-</html>
-`;
-    return content;
-}
-function getAPIEndpointContent() {
-    const content = `export function onGET (ctx:any) {
-    const date = new Date();
-    return ctx.response.json({ datetime: date.toLocaleString() });
-}    
-`;
-    return content;
-}
-function getBuildDockerFileContent(projectName, appName) {
-    const content = `# Use the official Deno image for amd64
-FROM --platform=linux/amd64 denoland/deno:${DENO_VERSION}
-
-# Set working directory
-WORKDIR /JSphere
-
-# Set DENO_DIR to avoid conflicts with Google Cloud
-ENV DENO_DIR=/JSphere/.deno_cache
-
-# Ensure cache directory is writable
-RUN mkdir -p $DENO_DIR && chmod -R 777 $DENO_DIR
-
-# Cache dependencies **before switching user**
-RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js
-
-# Copy project config and project app directory
-COPY ${projectName}/.${projectName}/${appName}.json /JSphere/${projectName}/.${projectName}/${appName}.json
-COPY ${projectName}/${appName} /JSphere/${projectName}/${appName}
-
-# Prefer not to run as root (switching user **after** caching)
-# USER deno
-
-# Expose the correct port
-EXPOSE 80
-
-# Start the Deno application
-ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js"]
-`;
-    return content;
-}
-function getDockerFileContent() {
-    const content = `# Use the official Deno image for amd64
-FROM --platform=linux/amd64 denoland/deno:${DENO_VERSION}
-
-# Set working directory
-WORKDIR /JSphere
-
-# Set DENO_DIR to avoid conflicts with Google Cloud
-ENV DENO_DIR=/JSphere/.deno_cache
-
-# Ensure cache directory is writable
-RUN mkdir -p $DENO_DIR && chmod -R 777 $DENO_DIR
-
-# Cache dependencies **before switching user**
-RUN deno cache https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js
-
-# Prefer not to run as root (switching user **after** caching)
-# USER deno
-
-# Expose the correct port
-EXPOSE 80
-
-# Start the Deno application
-ENTRYPOINT ["deno", "run", "--allow-all", "--no-check", "https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js"]
-`;
-    return content;
-}
-export { buildCmd as buildCmd };
