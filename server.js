@@ -23142,7 +23142,7 @@ async function handleRequest2(ctx) {
                 }
             } else if (cmd == 'checkout' && ctx.request.method === 'POST') {
                 try {
-                    const params = ctx.request.params;
+                    const params = ctx.request.data;
                     if ('.' + mod12.project.name === params.name || mod12.project.appConfig?.packages[params.name] || params.name === '*') {
                         await checkoutPackage(params.name);
                         return new Response('OK', {
@@ -23392,7 +23392,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.80';
+const version = 'v1.0.0-preview.81';
 const denoVersion = '2.2.4';
 const project = {};
 async function init1(config) {
