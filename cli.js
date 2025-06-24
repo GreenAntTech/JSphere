@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.73';
+const JSPHERE_VERSION = 'v1.0.0-preview.74';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -906,6 +906,9 @@ async function loadCmd(cmdArgs) {
     const result = config.configurations.filter((obj)=>obj.PROJECT_CONFIG_NAME == configName);
     if (result.length > 0) {
         const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
+            headers: {
+                contentType: 'application/json'
+            },
             method: 'POST',
             body: JSON.stringify(result[0])
         });
@@ -919,6 +922,9 @@ async function createProjectCmd(cmdArgs) {
     const name = cmdArgs._[1];
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/createproject`, {
+        headers: {
+            contentType: 'application/json'
+        },
         method: 'POST',
         body: JSON.stringify({
             name
@@ -933,6 +939,9 @@ async function createPackageCmd(cmdArgs) {
     const name = cmdArgs._[1];
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/createpackage`, {
+        headers: {
+            contentType: 'application/json'
+        },
         method: 'POST',
         body: JSON.stringify({
             name
@@ -947,6 +956,9 @@ async function checkoutCmd(cmdArgs) {
     const name = cmdArgs._[1];
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
+        headers: {
+            contentType: 'application/json'
+        },
         method: 'POST',
         body: JSON.stringify({
             name
@@ -960,6 +972,9 @@ async function checkoutCmd(cmdArgs) {
 async function installElementCmd() {
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/installelement`, {
+        headers: {
+            contentType: 'application/json'
+        },
         method: 'POST',
         body: JSON.stringify({})
     });

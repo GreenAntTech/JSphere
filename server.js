@@ -23132,7 +23132,6 @@ async function handleRequest2(ctx) {
             if (cmd == 'loadconfig' && ctx.request.method === 'POST') {
                 try {
                     const config = ctx.request.data;
-                    console.log('LOAD CONFIG:', config);
                     debugger;
                     await mod12.init(config);
                     return new Response('OK', {
@@ -23395,12 +23394,12 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.73';
+const version = 'v1.0.0-preview.74';
 const denoVersion = '2.2.4';
-const project = {};
+let project = {};
 async function init1(config) {
     for(const key in currentConfig)Deno.env.delete(key);
-    for(const key in project)delete project[key];
+    project = {};
     if (typeof config == 'object') {
         currentConfig = config;
         for(const key in currentConfig){
