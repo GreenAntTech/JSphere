@@ -23392,7 +23392,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.67';
+const version = 'v1.0.0-preview.68';
 const denoVersion = '2.2.4';
 let project = {};
 async function init1(config) {
@@ -23456,6 +23456,7 @@ async function init1(config) {
     project.currentCacheDTS = Date.now();
     project.packageItemCache = {};
     project.aliasMappings = {};
+    console.log('PROJECT DUMP:', project);
     if (!project.appConfig.packages) project.appConfig.packages = {};
     if (!project.appConfig.routes) project.appConfig.routes = [];
     if (!project.appConfig.directives) project.appConfig.directives = [];
