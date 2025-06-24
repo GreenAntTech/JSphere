@@ -23140,11 +23140,11 @@ async function handleRequest2(ctx) {
                         status: 500
                     });
                 }
-            } else if (cmd == 'checkout' && ctx.request.method === 'GET') {
+            } else if (cmd == 'checkout' && ctx.request.method === 'POST') {
                 try {
                     const params = ctx.request.params;
-                    if ('.' + mod12.project.name === params.package || mod12.project.appConfig?.packages[params.package] || params.package === '*') {
-                        await checkoutPackage(params.package);
+                    if ('.' + mod12.project.name === params.name || mod12.project.appConfig?.packages[params.name] || params.name === '*') {
+                        await checkoutPackage(params.name);
                         return new Response('OK', {
                             status: 200
                         });
@@ -23392,7 +23392,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.79';
+const version = 'v1.0.0-preview.80';
 const denoVersion = '2.2.4';
 const project = {};
 async function init1(config) {
