@@ -23132,6 +23132,8 @@ async function handleRequest2(ctx) {
             if (cmd == 'loadconfig' && ctx.request.method === 'POST') {
                 try {
                     const config = ctx.request.data;
+                    console.log('LOAD CONFIG:', config);
+                    debugger;
                     await mod12.init(config);
                     return new Response('OK', {
                         status: 200
@@ -23393,7 +23395,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.72';
+const version = 'v1.0.0-preview.73';
 const denoVersion = '2.2.4';
 const project = {};
 async function init1(config) {
@@ -23937,11 +23939,6 @@ async function createPackage(props) {
     const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${mod12.project.folder}/.${projectName}/app.json`)));
     appConfig.packages[props.name] = {};
     await Deno.writeFile(Deno.cwd() + `/${mod12.project.folder}/.${projectName}/app.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
-    await mod12.init({
-        defaultConfiguration: {
-            name: mod12.project.folder
-        }
-    });
     await checkoutPackage(props.name);
     await Deno.mkdir(Deno.cwd() + `/${mod12.project.folder}/${props.name}/client`, {
         recursive: true
