@@ -23397,15 +23397,6 @@ const denoVersion = '@DENO_VERSION';
 let project;
 async function init1(config) {
     for(const key in currentConfig)Deno.env.delete(key);
-    const command = new Deno.Command('deno', {
-        args: [
-            'clean'
-        ],
-        stdin: 'piped'
-    });
-    const child = command.spawn();
-    child.stdin.close();
-    await child.status;
     project = {};
     if (typeof config == 'object') {
         currentConfig = config;
