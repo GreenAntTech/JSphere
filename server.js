@@ -23061,7 +23061,6 @@ function handleRequest(_ctx) {
 }
 async function handleRequest1(ctx) {
     const project = mod12.project;
-    console.log('PROJECT DUMP2:', project);
     if (!project.application) {
         return new Response(html1, {
             status: 200,
@@ -23393,10 +23392,11 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.76';
+const version = 'v1.0.0-preview.77';
 const denoVersion = '2.2.4';
 let project = {};
 async function init1(config) {
+    debugger;
     for(const key in currentConfig)Deno.env.delete(key);
     project = {};
     if (typeof config == 'object') {
@@ -23800,6 +23800,7 @@ async function getServerContext(request) {
     return serverContext;
 }
 async function getRequestContext(request) {
+    debugger;
     const url = new URL(request.url);
     const contentType = request.headers.get('content-type');
     const requestContext = {
