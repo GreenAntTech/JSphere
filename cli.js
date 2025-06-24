@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.69';
+const JSPHERE_VERSION = 'v1.0.0-preview.70';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -905,6 +905,7 @@ async function loadCmd(cmdArgs) {
     }
     const result = config.configurations.filter((obj)=>obj.PROJECT_CONFIG_NAME == configName);
     if (result.length > 0) {
+        console.log('LOAD CONFIG:', result[0]);
         const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
             method: 'POST',
             body: JSON.stringify(result[0])
@@ -913,7 +914,7 @@ async function loadCmd(cmdArgs) {
             error(`ERROR: ${response.statusText}`);
             return;
         }
-    }
+    } else console.log('NO CONFIG LOADED:', configName);
 }
 async function createProjectCmd(cmdArgs) {
     const name = cmdArgs._[1];
