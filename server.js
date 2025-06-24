@@ -23392,8 +23392,8 @@ class Utils {
         return encString;
     };
 }
-const version = '@JSPHERE_VERSION';
-const denoVersion = '@DENO_VERSION';
+const version = 'v1.0.0-preview.67';
+const denoVersion = '2.2.4';
 let project = {};
 async function init1(config) {
     for(const key in currentConfig)Deno.env.delete(key);
@@ -23470,10 +23470,10 @@ async function init1(config) {
     };
     if (!project.appConfig.settings) project.appConfig.settings = {};
     if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
-    await Deno.remove(Deno.cwd() + project.folder, {
-        recursive: true
-    });
     if (checkoutProject.toLocaleLowerCase() == 'true') {
+        await Deno.remove(Deno.cwd() + project.folder, {
+            recursive: true
+        });
         await Deno.mkdir(project.folder);
         const packages = Object.keys(project.appConfig.packages);
         packages.push('.' + project.name);

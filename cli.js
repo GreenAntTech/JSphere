@@ -822,7 +822,8 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.66';
+const JSPHERE_VERSION = 'v1.0.0-preview.67';
+const DENO_VERSION = '2.2.4';
 (async function() {
     try {
         switch(cmdArgs._[0]){
@@ -865,6 +866,7 @@ function helpCmd() {
 }
 function versionCmd() {
     info('JSphere Version: ' + JSPHERE_VERSION);
+    info('Deno Build Version: ' + DENO_VERSION);
 }
 async function startCmd(cmdArgs) {
     try {
