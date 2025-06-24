@@ -23061,6 +23061,7 @@ function handleRequest(_ctx) {
 }
 async function handleRequest1(ctx) {
     const project = mod12.project;
+    console.log('PROJECT DUMP2:', project);
     if (!project.application) {
         return new Response(html1, {
             status: 200,
@@ -23392,7 +23393,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.68';
+const version = 'v1.0.0-preview.69';
 const denoVersion = '2.2.4';
 let project = {};
 async function init1(config) {

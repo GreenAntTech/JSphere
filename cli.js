@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.68';
+const JSPHERE_VERSION = 'v1.0.0-preview.69';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -856,12 +856,12 @@ const DENO_VERSION = '2.2.4';
     }
 })();
 function helpCmd() {
-    info('checkout <package_name>');
-    info('create-package <package_name>');
-    info('create-project <project_name>');
-    info('install element');
-    info('load <project_config_name>');
-    info('start [--debug=<port_number>] [--reload]');
+    info('checkout <package_name> [--port=<port_number>]');
+    info('create-package <package_name> [--port=<port_number>]');
+    info('create-project <project_name> [--port=<port_number>]');
+    info('install element [--port=<port_number>]');
+    info('load <project_config_name> [--port=<port_number>]');
+    info('start [--debug=<port_number>] [--reload] [--port=<port_number>]');
     info('version');
 }
 function versionCmd() {
@@ -890,6 +890,7 @@ async function startCmd(cmdArgs) {
 }
 async function loadCmd(cmdArgs) {
     const configName = cmdArgs._[1];
+    const port = cmdArgs.port || '80';
     let config = {};
     if (await exists(`${Deno.cwd()}/jsphere.json`, {
         isFile: true
@@ -902,11 +903,9 @@ async function loadCmd(cmdArgs) {
             return;
         }
     }
-    const result = config.configurations.filter((obj)=>{
-        obj.PROJECT_CONFIG_NAME == configName;
-    });
+    const result = config.configurations.filter((obj)=>obj.PROJECT_CONFIG_NAME == configName);
     if (result.length > 0) {
-        const response = await fetch(`http://localhost/@cmd/loadconfig`, {
+        const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
             method: 'POST',
             body: JSON.stringify(result[0])
         });
@@ -918,7 +917,8 @@ async function loadCmd(cmdArgs) {
 }
 async function createProjectCmd(cmdArgs) {
     const name = cmdArgs._[1];
-    const response = await fetch(`http://localhost/@cmd/createproject`, {
+    const port = cmdArgs.port || '80';
+    const response = await fetch(`http://localhost:${port}/@cmd/createproject`, {
         method: 'POST',
         body: JSON.stringify({
             name
@@ -931,7 +931,8 @@ async function createProjectCmd(cmdArgs) {
 }
 async function createPackageCmd(cmdArgs) {
     const name = cmdArgs._[1];
-    const response = await fetch(`http://localhost/@cmd/createpackage`, {
+    const port = cmdArgs.port || '80';
+    const response = await fetch(`http://localhost:${port}/@cmd/createpackage`, {
         method: 'POST',
         body: JSON.stringify({
             name
@@ -944,7 +945,8 @@ async function createPackageCmd(cmdArgs) {
 }
 async function checkoutCmd(cmdArgs) {
     const name = cmdArgs._[1];
-    const response = await fetch(`http://localhost/@cmd/checkout`, {
+    const port = cmdArgs.port || '80';
+    const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
         method: 'POST',
         body: JSON.stringify({
             name
@@ -956,7 +958,8 @@ async function checkoutCmd(cmdArgs) {
     }
 }
 async function installElementCmd() {
-    const response = await fetch(`http://localhost/@cmd/installelement`, {
+    const port = cmdArgs.port || '80';
+    const response = await fetch(`http://localhost:${port}/@cmd/installelement`, {
         method: 'POST',
         body: JSON.stringify({})
     });
