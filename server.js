@@ -23132,7 +23132,6 @@ async function handleRequest2(ctx) {
             if (cmd == 'loadconfig' && ctx.request.method === 'POST') {
                 try {
                     const config = ctx.request.data;
-                    debugger;
                     await mod12.init(config);
                     return new Response('OK', {
                         status: 200
@@ -23394,7 +23393,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.75';
+const version = 'v1.0.0-preview.76';
 const denoVersion = '2.2.4';
 let project = {};
 async function init1(config) {
@@ -23411,6 +23410,7 @@ async function init1(config) {
     }
     const projectFolder = Deno.env.get('PROJECT_CONFIG_NAME') || '';
     const checkoutProject = Deno.env.get('CHECKOUT_PROJECT') || 'false';
+    const clearRuntimeCache = Deno.env.get('CLEAR_RUNTIME_CACHE') || 'false';
     const host = Deno.env.get('PROJECT_HOST') || 'GitHub';
     const namespace = Deno.env.get('PROJECT_NAMESPACE');
     const projectName = Deno.env.get('PROJECT_NAME');
@@ -23449,7 +23449,6 @@ async function init1(config) {
     project.currentCacheDTS = Date.now();
     project.packageItemCache = {};
     project.aliasMappings = {};
-    console.log('PROJECT DUMP:', project);
     if (!project.appConfig.packages) project.appConfig.packages = {};
     if (!project.appConfig.routes) project.appConfig.routes = [];
     if (!project.appConfig.directives) project.appConfig.directives = [];
@@ -23464,6 +23463,17 @@ async function init1(config) {
     };
     if (!project.appConfig.settings) project.appConfig.settings = {};
     if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
+    if (clearRuntimeCache.toLocaleLowerCase() == 'true') {
+        const command = new Deno.Command('deno', {
+            args: [
+                'clean'
+            ],
+            stdin: 'piped'
+        });
+        const child = command.spawn();
+        child.stdin.close();
+        await child.status;
+    }
     if (checkoutProject.toLocaleLowerCase() == 'true') {
         await Deno.remove(Deno.cwd() + project.folder, {
             recursive: true
@@ -23790,7 +23800,6 @@ async function getServerContext(request) {
     return serverContext;
 }
 async function getRequestContext(request) {
-    debugger;
     const url = new URL(request.url);
     const contentType = request.headers.get('content-type');
     const requestContext = {

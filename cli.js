@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.75';
+const JSPHERE_VERSION = 'v1.0.0-preview.76';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -907,7 +907,7 @@ async function loadCmd(cmdArgs) {
     if (result.length > 0) {
         const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
             headers: {
-                contentType: 'application/json'
+                'content-type': 'application/json'
             },
             method: 'POST',
             body: JSON.stringify(result[0])
@@ -923,7 +923,7 @@ async function createProjectCmd(cmdArgs) {
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/createproject`, {
         headers: {
-            contentType: 'application/json'
+            'content-type': 'application/json'
         },
         method: 'POST',
         body: JSON.stringify({
@@ -940,7 +940,7 @@ async function createPackageCmd(cmdArgs) {
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/createpackage`, {
         headers: {
-            contentType: 'application/json'
+            'content-type': 'application/json'
         },
         method: 'POST',
         body: JSON.stringify({
@@ -957,7 +957,7 @@ async function checkoutCmd(cmdArgs) {
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
         headers: {
-            contentType: 'application/json'
+            'content-type': 'application/json'
         },
         method: 'POST',
         body: JSON.stringify({
@@ -973,7 +973,7 @@ async function installElementCmd() {
     const port = cmdArgs.port || '80';
     const response = await fetch(`http://localhost:${port}/@cmd/installelement`, {
         headers: {
-            contentType: 'application/json'
+            'content-type': 'application/json'
         },
         method: 'POST',
         body: JSON.stringify({})
