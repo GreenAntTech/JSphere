@@ -23393,20 +23393,11 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.70';
+const version = 'v1.0.0-preview.71';
 const denoVersion = '2.2.4';
 let project = {};
 async function init1(config) {
     for(const key in currentConfig)Deno.env.delete(key);
-    const command = new Deno.Command('deno', {
-        args: [
-            'clean'
-        ],
-        stdin: 'piped'
-    });
-    const child = command.spawn();
-    child.stdin.close();
-    await child.status;
     project = {};
     if (typeof config == 'object') {
         currentConfig = config;
