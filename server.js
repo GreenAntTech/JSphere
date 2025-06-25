@@ -23436,7 +23436,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.84';
+const version = 'v1.0.0-preview.85';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -23536,7 +23536,9 @@ async function init1(config) {
                 });
             }
         }
-        if (watchForChanges && await exists(Deno.cwd() + project.folder)) {
+        if (watchForChanges && await exists(Deno.cwd() + project.folder, {
+            isDirectory: true
+        })) {
             mod6.info('Watching file changes in:' + Deno.cwd() + project.folder);
             if (watcher) watcher.close();
             const clearProjectCache = debounce((_event)=>{
