@@ -23074,7 +23074,7 @@ const mod11 = {
     bundle: bundle1,
     transpile: transpile1
 };
-let currentConfig = {};
+let watcher = null;
 function handleRequest(_ctx) {
     if (mod12.project.ready === false) {
         return new Response(html, {
@@ -23159,6 +23159,19 @@ async function handleRequest2(ctx) {
                     const config = ctx.request.data;
                     await mod12.init(config);
                     return new Response('OK', {
+                        status: 200
+                    });
+                } catch (e) {
+                    return new Response(e.message, {
+                        status: 500
+                    });
+                }
+            } else if (cmd == 'current-config' && ctx.request.method === 'GET') {
+                try {
+                    return new Response(JSON.stringify(mod12.currentConfig), {
+                        headers: {
+                            'content-type': 'application/json'
+                        },
                         status: 200
                     });
                 } catch (e) {
@@ -23423,10 +23436,10 @@ class Utils {
         return encString;
     };
 }
-let watcher = null;
-const version = 'v1.0.0-preview.82';
+const version = 'v1.0.0-preview.83';
 const denoVersion = '2.2.4';
 const project = {};
+let currentConfig = {};
 async function init1(config) {
     if (typeof config == 'object' && Object.keys(config).length > 0) {
         for(const key in currentConfig)Deno.env.delete(key);
@@ -23794,6 +23807,7 @@ const mod12 = {
     version: version,
     denoVersion: denoVersion,
     project: project,
+    currentConfig: currentConfig,
     init: init1,
     handleRequest: handleRequest7,
     getPackageItem: getPackageItem,

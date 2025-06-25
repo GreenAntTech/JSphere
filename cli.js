@@ -822,13 +822,16 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.82';
+const JSPHERE_VERSION = 'v1.0.0-preview.83';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
         switch(cmdArgs._[0]){
             case 'version':
                 versionCmd();
+                break;
+            case 'current-config':
+                getCurrentConfigCmd(cmdArgs);
                 break;
             case 'install-element':
                 await installElementCmd();
@@ -857,16 +860,28 @@ const DENO_VERSION = '2.2.4';
 })();
 function helpCmd() {
     info('checkout <package_name> [--port=<port_number>]');
+    info('config [--port=<port_number>]');
     info('create-package <package_name> [--port=<port_number>]');
     info('create-project <project_name> [--port=<port_number>]');
     info('install-element [--port=<port_number>]');
     info('load <project_config_name> [--port=<port_number>]');
+    info('reload [--port=<port_number>]');
     info('start [--debug=<port_number>] [--reload] [--port=<port_number>]');
     info('version');
 }
 function versionCmd() {
     info('JSphere Version: ' + JSPHERE_VERSION);
     info('Deno Build Version: ' + DENO_VERSION);
+}
+async function getCurrentConfigCmd(cmdArgs) {
+    const port = cmdArgs.port || '80';
+    const response = await fetch(`http://localhost:${port}/@cmd/currentconfig`, {
+        method: 'GET'
+    });
+    if (!response.ok) {
+        error(response.statusText);
+        return;
+    }
 }
 async function startCmd(cmdArgs) {
     try {
