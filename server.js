@@ -23436,11 +23436,12 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.85';
+const version = 'v1.0.0-preview.86';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
 async function init1(config) {
+    debugger;
     if (typeof config == 'object' && Object.keys(config).length > 0) {
         for(const key in currentConfig)Deno.env.delete(key);
         currentConfig = config;
