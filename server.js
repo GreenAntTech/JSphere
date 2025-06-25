@@ -23436,7 +23436,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.83';
+const version = 'v1.0.0-preview.84';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -23505,6 +23505,7 @@ async function init1(config) {
         if (!project.appConfig.settings) project.appConfig.settings = {};
         if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
         if (clearRuntimeCache) {
+            mod6.info('Clearing runtime cache');
             const command = new Deno.Command('deno', {
                 args: [
                     'clean'
@@ -23516,6 +23517,7 @@ async function init1(config) {
             await child.status;
         }
         if (checkoutProject) {
+            mod6.info('Checking out project to:' + Deno.cwd() + project.folder);
             await Deno.remove(Deno.cwd() + project.folder, {
                 recursive: true
             });
@@ -23535,6 +23537,7 @@ async function init1(config) {
             }
         }
         if (watchForChanges && await exists(Deno.cwd() + project.folder)) {
+            mod6.info('Watching file changes in:' + Deno.cwd() + project.folder);
             if (watcher) watcher.close();
             const clearProjectCache = debounce((_event)=>{
                 project.packageItemCache = {};
