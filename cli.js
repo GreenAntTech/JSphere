@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.81';
+const JSPHERE_VERSION = 'v1.0.0-preview.82';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -859,7 +859,7 @@ function helpCmd() {
     info('checkout <package_name> [--port=<port_number>]');
     info('create-package <package_name> [--port=<port_number>]');
     info('create-project <project_name> [--port=<port_number>]');
-    info('install element [--port=<port_number>]');
+    info('install-element [--port=<port_number>]');
     info('load <project_config_name> [--port=<port_number>]');
     info('start [--debug=<port_number>] [--reload] [--port=<port_number>]');
     info('version');

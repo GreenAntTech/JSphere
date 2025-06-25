@@ -2871,6 +2871,32 @@ const mod6 = {
     critical: critical,
     setup: setup
 };
+function debounce(fn, wait) {
+    let timeout = null;
+    let flush = null;
+    const debounced = (...args)=>{
+        debounced.clear();
+        flush = ()=>{
+            debounced.clear();
+            fn.call(debounced, ...args);
+        };
+        timeout = Number(setTimeout(flush, wait));
+    };
+    debounced.clear = ()=>{
+        if (typeof timeout === "number") {
+            clearTimeout(timeout);
+            timeout = null;
+            flush = null;
+        }
+    };
+    debounced.flush = ()=>{
+        flush?.();
+    };
+    Object.defineProperty(debounced, "pending", {
+        get: ()=>typeof timeout === "number"
+    });
+    return debounced;
+}
 function deferred() {
     let methods;
     let state = "pending";
@@ -23158,9 +23184,14 @@ async function handleRequest2(ctx) {
                 }
             } else if (cmd == 'createproject' && ctx.request.method === 'POST') {
                 try {
-                    const params = ctx.request.data;
-                    const response = await createProject(params);
-                    return new Response(response.message, {
+                    const config = ctx.request.data;
+                    const response = await createProject(config);
+                    if (response.status === 201) {
+                        await mod12.init(config);
+                        return new Response('OK', {
+                            status: response.status
+                        });
+                    } else return new Response(response.message, {
                         status: response.status
                     });
                 } catch (e) {
@@ -23180,10 +23211,10 @@ async function handleRequest2(ctx) {
                         status: 500
                     });
                 }
-            } else if (cmd == 'syncpackages' && ctx.request.method === 'POST') {
+            } else if (cmd == 'syncproject' && ctx.request.method === 'POST') {
                 try {
                     const params = ctx.request.data;
-                    const response = await syncPackages(params);
+                    const response = await syncProject(params);
                     return new Response(response.message, {
                         status: response.status
                     });
@@ -23392,105 +23423,122 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.81';
+let watcher = null;
+const version = 'v1.0.0-preview.82';
 const denoVersion = '2.2.4';
 const project = {};
 async function init1(config) {
-    for(const key in currentConfig)Deno.env.delete(key);
-    for(const key in project)delete project[key];
-    if (typeof config == 'object') {
+    if (typeof config == 'object' && Object.keys(config).length > 0) {
+        for(const key in currentConfig)Deno.env.delete(key);
         currentConfig = config;
         for(const key in currentConfig){
             Deno.env.set(key, currentConfig[key]);
         }
+        for(const key in project)delete project[key];
+        const projectFolder = Deno.env.get('PROJECT_CONFIG_NAME') || '';
+        const checkoutProject = Boolean(Deno.env.get('CHECKOUT_PROJECT'));
+        const watchForChanges = Boolean(Deno.env.get('WATCH_PROJECT_CHANGES'));
+        const clearRuntimeCache = Boolean(Deno.env.get('CLEAR_RUNTIME_CACHE'));
+        const host = Deno.env.get('PROJECT_HOST') || 'GitHub';
+        const namespace = Deno.env.get('PROJECT_NAMESPACE');
+        const projectName = Deno.env.get('PROJECT_NAME');
+        const appConfig = Deno.env.get('PROJECT_APP_CONFIG') || 'app';
+        const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
+        const reference = Deno.env.get('PROJECT_REFERENCE');
+        const path = `.${projectName}/${appConfig}.json`;
+        let file = await getFile(projectFolder + '/' + path, true);
+        if (file === null) {
+            const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), host, namespace, authToken);
+            if (repoFile === null) {
+                mod6.warning(`Could not find the application configuration file ${appConfig}.json.`);
+                mod6.warning('Attempted to locate file in the file system path:' + projectFolder + '/' + path);
+                mod6.warning('Attempted to locate file in the remote repo:' + namespace + '/' + path);
+                return;
+            }
+            mod6.info(`Loaded application configuration file from: ${namespace + '/' + path}`);
+            file = new TextDecoder().decode(repoFile.content);
+        }
+        mod6.info(`Loaded application configuration file from: ${projectFolder + '/' + path}`);
+        try {
+            project.appConfig = JSON.parse(file);
+        } catch (e) {
+            mod6.warning(`There was a problem parsing the application configuration file ${appConfig}.json.`);
+            mod6.warning('Received parsing error: ' + e.message);
+            return;
+        }
+        project.folder = projectFolder;
+        project.host = host;
+        project.namespace = namespace;
+        project.name = projectName;
+        project.application = appConfig;
+        project.authToken = authToken;
+        project.reference = reference;
+        project.extensions = {};
+        project.currentCacheDTS = Date.now();
+        project.packageItemCache = {};
+        project.aliasMappings = {};
+        if (!project.appConfig.packages) project.appConfig.packages = {};
+        if (!project.appConfig.routes) project.appConfig.routes = [];
+        if (!project.appConfig.directives) project.appConfig.directives = [];
+        if (!project.appConfig.extensions) project.appConfig.extensions = {};
+        if (!project.appConfig.extensions.cache) project.appConfig.extensions.cache = {
+            uri: 'jsphere://Cache',
+            settings: {}
+        };
+        if (!project.appConfig.extensions.feature) project.appConfig.extensions.feature = {
+            uri: 'jsphere://Feature',
+            settings: {}
+        };
+        if (!project.appConfig.settings) project.appConfig.settings = {};
+        if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
+        if (clearRuntimeCache) {
+            const command = new Deno.Command('deno', {
+                args: [
+                    'clean'
+                ],
+                stdin: 'piped'
+            });
+            const child = command.spawn();
+            child.stdin.close();
+            await child.status;
+        }
+        if (checkoutProject) {
+            await Deno.remove(Deno.cwd() + project.folder, {
+                recursive: true
+            });
+            await Deno.mkdir(project.folder);
+            const packages = Object.keys(project.appConfig.packages);
+            packages.push('.' + project.name);
+            for (const packageName of packages){
+                const reference = packageName == '.' + project.name ? project.reference : project.appConfig.packages[packageName].reference;
+                await cloneRepo({
+                    repoName: packageName,
+                    reference: reference,
+                    path: Deno.cwd() + `${project.folder}/${packageName}`,
+                    host: project.host,
+                    namespace: project.namespace,
+                    authToken: project.authToken
+                });
+            }
+        }
+        if (watchForChanges && await exists(Deno.cwd() + project.folder)) {
+            if (watcher) watcher.close();
+            const clearProjectCache = debounce((_event)=>{
+                project.packageItemCache = {};
+                project.currentCacheDTS = Date.now();
+            }, 200);
+            watcher = Deno.watchFs('./' + project.folder);
+            for await (const event of watcher){
+                clearProjectCache(event);
+            }
+        }
+    } else if (project.ready) {
+        project.packageItemCache = {};
+        project.currentCacheDTS = Date.now();
+        return;
     } else {
         mod6.warning(`JSphere is currently not hosting any applications.`);
         return;
-    }
-    const projectFolder = Deno.env.get('PROJECT_CONFIG_NAME') || '';
-    const checkoutProject = Deno.env.get('CHECKOUT_PROJECT') || 'false';
-    const clearRuntimeCache = Deno.env.get('CLEAR_RUNTIME_CACHE') || 'false';
-    const host = Deno.env.get('PROJECT_HOST') || 'GitHub';
-    const namespace = Deno.env.get('PROJECT_NAMESPACE');
-    const projectName = Deno.env.get('PROJECT_NAME');
-    const appConfig = Deno.env.get('PROJECT_APP_CONFIG');
-    const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
-    const reference = Deno.env.get('PROJECT_REFERENCE');
-    const path = `.${projectName}/${appConfig}.json`;
-    let file = await getFile(projectFolder + '/' + path, true);
-    if (file === null) {
-        const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), host, namespace, authToken);
-        if (repoFile === null) {
-            mod6.warning(`Could not find the application configuration file ${appConfig}.json.`);
-            mod6.warning('Attempted to locate file in the file system path:' + projectFolder + '/' + path);
-            mod6.warning('Attempted to locate file in the remote repo:' + namespace + '/' + path);
-            return;
-        }
-        mod6.info(`Loaded application configuration file from: ${namespace + '/' + path}`);
-        file = new TextDecoder().decode(repoFile.content);
-    }
-    mod6.info(`Loaded application configuration file from: ${projectFolder + '/' + path}`);
-    try {
-        project.appConfig = JSON.parse(file);
-    } catch (e) {
-        mod6.warning(`There was a problem parsing the application configuration file ${appConfig}.json.`);
-        mod6.warning('Received parsing error: ' + e.message);
-        return;
-    }
-    project.folder = projectFolder;
-    project.host = host;
-    project.namespace = namespace;
-    project.name = projectName;
-    project.application = appConfig;
-    project.authToken = authToken;
-    project.reference = reference;
-    project.extensions = {};
-    project.currentCacheDTS = Date.now();
-    project.packageItemCache = {};
-    project.aliasMappings = {};
-    if (!project.appConfig.packages) project.appConfig.packages = {};
-    if (!project.appConfig.routes) project.appConfig.routes = [];
-    if (!project.appConfig.directives) project.appConfig.directives = [];
-    if (!project.appConfig.extensions) project.appConfig.extensions = {};
-    if (!project.appConfig.extensions.cache) project.appConfig.extensions.cache = {
-        uri: 'jsphere://Cache',
-        settings: {}
-    };
-    if (!project.appConfig.extensions.feature) project.appConfig.extensions.feature = {
-        uri: 'jsphere://Feature',
-        settings: {}
-    };
-    if (!project.appConfig.settings) project.appConfig.settings = {};
-    if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
-    if (clearRuntimeCache.toLocaleLowerCase() == 'true') {
-        const command = new Deno.Command('deno', {
-            args: [
-                'clean'
-            ],
-            stdin: 'piped'
-        });
-        const child = command.spawn();
-        child.stdin.close();
-        await child.status;
-    }
-    if (checkoutProject.toLocaleLowerCase() == 'true') {
-        await Deno.remove(Deno.cwd() + project.folder, {
-            recursive: true
-        });
-        await Deno.mkdir(project.folder);
-        const packages = Object.keys(project.appConfig.packages);
-        packages.push('.' + project.name);
-        for (const packageName of packages){
-            const reference = packageName == '.' + project.name ? project.reference : project.appConfig.packages[packageName].reference;
-            await cloneRepo({
-                repoName: packageName,
-                reference: reference,
-                path: Deno.cwd() + `${project.folder}/${packageName}`,
-                host: project.host,
-                namespace: project.namespace,
-                authToken: project.authToken
-            });
-        }
     }
 }
 async function handleRequest7(request) {
@@ -23891,44 +23939,44 @@ const html1 = `
     </body>
 </html>
 `;
-async function createProject(props) {
+async function createProject(config) {
     let response = await mod12.createRepo({
-        repoName: '.' + props.name,
-        host: props.host,
-        namespace: props.namespace,
-        authToken: props.authToken
+        repoName: '.' + config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN
     });
     if (response.status !== 201) return response;
     response = await addUpdateFile({
-        repoName: '.' + props.name,
-        host: props.host,
-        namespace: props.namespace,
-        authToken: props.authToken,
+        repoName: '.' + config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN,
         path: 'app.json',
-        content: getApplicationConfig(props.name)
+        content: getApplicationConfig(config.PROJECT_NAME)
     });
     if (response.status !== 201) return response;
     response = await mod12.createRepo({
-        repoName: props.name,
-        host: props.host,
-        namespace: props.namespace,
-        authToken: props.authToken
+        repoName: config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN
     });
     if (response.status !== 201) return response;
     response = await addUpdateFile({
-        repoName: props.name,
-        host: props.host,
-        namespace: props.namespace,
-        authToken: props.authToken,
+        repoName: config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN,
         path: 'client/index.html',
         content: getIndexPageContent()
     });
     if (response.status !== 201) return response;
     response = await addUpdateFile({
-        repoName: props.name,
-        host: props.host,
-        namespace: props.namespace,
-        authToken: props.authToken,
+        repoName: config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN,
         path: 'server/datetime.ts',
         content: getAPIEndpointContent()
     });
@@ -23938,9 +23986,9 @@ async function createPackage(props) {
     const projectName = mod12.project.name;
     const response = await mod12.createRepo({
         repoName: props.name,
-        host: props.host,
-        namespace: props.namespace,
-        authToken: props.authToken
+        host: mod12.project.host,
+        namespace: mod12.project.namespace,
+        authToken: mod12.project.authToken
     });
     if (response.status !== 201) return response;
     await checkoutPackage('.' + projectName);
@@ -23981,7 +24029,7 @@ async function checkoutPackage(packageName) {
         }
     }
 }
-async function syncPackages(_props) {
+async function syncProject(_props) {
     const projectPath = mod12.project.folder;
     const projectName = mod12.project.name;
     const targetBranch = Deno.env.get('PROJECT_PREVIEW_BRANCH');
