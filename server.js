@@ -23436,7 +23436,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.86';
+const version = 'v1.0.0-preview.87';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -23518,8 +23518,8 @@ async function init1(config) {
             await child.status;
         }
         if (checkoutProject) {
-            mod6.info('Checking out project to:' + Deno.cwd() + project.folder);
-            await Deno.remove(Deno.cwd() + project.folder, {
+            mod6.info(`Checking out project to: ${Deno.cwd()}/${project.folder}`);
+            await Deno.remove(`${Deno.cwd()}/${project.folder}`, {
                 recursive: true
             });
             await Deno.mkdir(project.folder);
@@ -23530,17 +23530,17 @@ async function init1(config) {
                 await cloneRepo({
                     repoName: packageName,
                     reference: reference,
-                    path: Deno.cwd() + `${project.folder}/${packageName}`,
+                    path: `${Deno.cwd()}/${project.folder}/${packageName}`,
                     host: project.host,
                     namespace: project.namespace,
                     authToken: project.authToken
                 });
             }
         }
-        if (watchForChanges && await exists(Deno.cwd() + project.folder, {
+        if (watchForChanges && await exists(`${Deno.cwd()}/${project.folder}`, {
             isDirectory: true
         })) {
-            mod6.info('Watching file changes in:' + Deno.cwd() + project.folder);
+            mod6.info(`Watching file changes in: ${Deno.cwd()}/${project.folder}`);
             if (watcher) watcher.close();
             const clearProjectCache = debounce((_event)=>{
                 project.packageItemCache = {};
