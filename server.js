@@ -23436,7 +23436,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.87';
+const version = 'v1.0.0-preview.88';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -23547,9 +23547,11 @@ async function init1(config) {
                 project.currentCacheDTS = Date.now();
             }, 200);
             watcher = Deno.watchFs('./' + project.folder);
-            for await (const event of watcher){
-                clearProjectCache(event);
-            }
+            (async ()=>{
+                for await (const event of watcher){
+                    clearProjectCache(event);
+                }
+            })();
         }
     } else if (project.ready) {
         project.packageItemCache = {};
