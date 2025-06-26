@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.93';
+const JSPHERE_VERSION = 'v1.0.0-preview.94';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -885,6 +885,8 @@ async function getCurrentConfigCmd(cmdArgs) {
         error(response.statusText);
         return;
     }
+    info('Current configuration is as follows:');
+    info(await response.json());
 }
 async function startCmd(cmdArgs) {
     try {
@@ -924,16 +926,12 @@ async function loadCmd(cmdArgs) {
             error(`ERROR: ${response.statusText}`);
             return;
         }
-    } else error('Configuration not found.');
+    } else error('ERROR: Configuration not found.');
 }
 async function reloadCmd(cmdArgs) {
     const port = cmdArgs.port || '80';
-    const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
-        headers: {
-            'content-type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({})
+    const response = await fetch(`http://localhost:${port}/@cmd/reload`, {
+        method: 'GET'
     });
     if (!response.ok) {
         error(`ERROR: ${response.statusText}`);

@@ -23445,6 +23445,14 @@ async function handleRequest2(ctx) {
                         status: 500
                     });
                 }
+            } else if (cmd == 'reload' && ctx.request.method === 'GET') {
+                try {
+                    await mod12.init();
+                } catch (e) {
+                    return new Response(e.message, {
+                        status: 500
+                    });
+                }
             } else if (cmd == 'currentconfig' && ctx.request.method === 'GET') {
                 try {
                     return new Response(JSON.stringify(mod12.currentConfig), {
@@ -23715,7 +23723,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.93';
+const version = 'v1.0.0-preview.94';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -23751,8 +23759,9 @@ async function init1(config) {
             }
             mod6.info(`Loaded application configuration file from: ${namespace + '/' + path}`);
             file = new TextDecoder().decode(repoFile.content);
+        } else {
+            mod6.info(`Loaded application configuration file from: ${projectFolder + '/' + path}`);
         }
-        mod6.info(`Loaded application configuration file from: ${projectFolder + '/' + path}`);
         try {
             project.appConfig = JSON.parse(file);
         } catch (e) {
