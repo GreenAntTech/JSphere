@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.88';
+const JSPHERE_VERSION = 'v1.0.0-preview.89';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -841,6 +841,9 @@ const DENO_VERSION = '2.2.4';
                 break;
             case 'load':
                 await loadCmd(cmdArgs);
+                break;
+            case 'reload':
+                await reloadCmd(cmdArgs);
                 break;
             case 'create-project':
                 await createProjectCmd(cmdArgs);
@@ -931,6 +934,20 @@ async function loadCmd(cmdArgs) {
             error(`ERROR: ${response.statusText}`);
             return;
         }
+    }
+}
+async function reloadCmd(cmdArgs) {
+    const port = cmdArgs.port || '80';
+    const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
+        headers: {
+            'content-type': 'application/json'
+        },
+        method: 'POST',
+        body: JSON.stringify({})
+    });
+    if (!response.ok) {
+        error(`ERROR: ${response.statusText}`);
+        return;
     }
 }
 async function createProjectCmd(cmdArgs) {

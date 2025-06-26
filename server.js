@@ -23166,7 +23166,7 @@ async function handleRequest2(ctx) {
                         status: 500
                     });
                 }
-            } else if (cmd == 'current-config' && ctx.request.method === 'GET') {
+            } else if (cmd == 'currentconfig' && ctx.request.method === 'GET') {
                 try {
                     return new Response(JSON.stringify(mod12.currentConfig), {
                         headers: {
@@ -23436,13 +23436,13 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.88';
+const version = 'v1.0.0-preview.89';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
 async function init1(config) {
     debugger;
-    if (typeof config == 'object' && Object.keys(config).length > 0) {
+    if (typeof config == 'object') {
         for(const key in currentConfig)Deno.env.delete(key);
         currentConfig = config;
         for(const key in currentConfig){
@@ -24013,8 +24013,10 @@ async function createPackage(props) {
         authToken: mod12.project.authToken
     });
     if (response.status !== 201) return response;
-    await checkoutPackage('.' + projectName);
-    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${mod12.project.folder}/.${projectName}/app.json`)));
+    if (!await exists(`${Deno.cwd()}/${mod12.project.folder}/.${projectName}`, {
+        isDirectory: true
+    })) await checkoutPackage('.' + projectName);
+    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(`${Deno.cwd()}/${mod12.project.folder}/.${projectName}/app.json`)));
     appConfig.packages[props.name] = {};
     await Deno.writeFile(Deno.cwd() + `/${mod12.project.folder}/.${projectName}/app.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
     await checkoutPackage(props.name);
