@@ -23724,10 +23724,16 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.99';
+const version = 'v1.0.0-preview.100';
 const denoVersion = '2.2.4';
-const project = {};
 let currentConfig = {};
+const project = {};
+function getVersion() {
+    return version;
+}
+function getDenoVersion() {
+    return denoVersion;
+}
 function getCurrentConfig() {
     return currentConfig;
 }
@@ -24105,9 +24111,9 @@ async function createRepo(props) {
     }
 }
 const mod12 = {
-    version: version,
-    denoVersion: denoVersion,
     project: project,
+    getVersion: getVersion,
+    getDenoVersion: getDenoVersion,
     getCurrentConfig: getCurrentConfig,
     init: init1,
     handleRequest: handleRequest7,
@@ -24424,17 +24430,17 @@ async function installElement() {
     if (await exists(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}`, {
         isDirectory: true
     })) {
-        let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.version}/shared/element.js`);
+        let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/element.js`);
         if (response.ok) {
             const file = await response.text();
             await Deno.writeFile(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared/element.js`, (new TextEncoder).encode(file));
         }
-        response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.version}/shared/urlpattern.min.js`);
+        response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/urlpattern.min.js`);
         if (response.ok) {
             const file = await response.text();
             await Deno.writeFile(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
         }
-        response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.version}/shared/element.d.ts`);
+        response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/element.d.ts`);
         if (response.ok) {
             const file = await response.text();
             await Deno.writeFile(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared/element.d.ts`, (new TextEncoder).encode(file));
