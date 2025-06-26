@@ -23414,7 +23414,7 @@ async function handleRequest1(ctx) {
         ctx.cacheDTS = project.currentCacheDTS;
         ctx.settings = project.appConfig.settings;
         project.ready = true;
-        if (url.pathname == '/@cmd/ready' || url.pathname == '/@cmd/loadconfig') {
+        if (url.pathname == '/@cmd/ready' || url.pathname == '/@cmd/loadconfig' || url.pathname == '/@cmd/reload') {
             return new Response('OK', {
                 status: 200
             });
@@ -23449,6 +23449,7 @@ async function handleRequest2(ctx) {
             } else if (cmd == 'reload' && ctx.request.method === 'GET') {
                 try {
                     await mod12.init();
+                    return;
                 } catch (e) {
                     return new Response(e.message, {
                         status: 500
@@ -23724,7 +23725,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.102';
+const version = 'v1.0.0-preview.103';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
