@@ -23523,7 +23523,7 @@ async function handleRequest2(ctx) {
                             status: 201
                         });
                     } else {
-                        return new Response('ProjectPackageNotFound', {
+                        return new Response('Project package not found. Please checkout the project package before running this command.', {
                             status: 404
                         });
                     }
@@ -23715,7 +23715,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.92';
+const version = 'v1.0.0-preview.93';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
