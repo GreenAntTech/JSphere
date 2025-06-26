@@ -23414,7 +23414,7 @@ async function handleRequest1(ctx) {
         ctx.cacheDTS = project.currentCacheDTS;
         ctx.settings = project.appConfig.settings;
         project.ready = true;
-        if (url.pathname == '/@cmd/ready') {
+        if (url.pathname == '/@cmd/ready' || url.pathname == '/@cmd/loadconfig') {
             return new Response('OK', {
                 status: 200
             });
@@ -23439,9 +23439,7 @@ async function handleRequest2(ctx) {
                 try {
                     const config = ctx.request.data;
                     await mod12.init(config);
-                    return new Response('OK', {
-                        status: 200
-                    });
+                    return;
                 } catch (e) {
                     return new Response(e.message, {
                         status: 500
@@ -23717,7 +23715,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.90';
+const version = 'v1.0.0-preview.91';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
