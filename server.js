@@ -23455,7 +23455,7 @@ async function handleRequest2(ctx) {
                 }
             } else if (cmd == 'currentconfig' && ctx.request.method === 'GET') {
                 try {
-                    return new Response(JSON.stringify(mod12.currentConfig), {
+                    return new Response(JSON.stringify(mod12.getCurrentConfig()), {
                         headers: {
                             'content-type': 'application/json'
                         },
@@ -23723,10 +23723,13 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.94';
+const version = 'v1.0.0-preview.95';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
+function getCurrentConfig() {
+    return currentConfig;
+}
 async function init1(config) {
     debugger;
     if (typeof config == 'object') {
@@ -24104,7 +24107,7 @@ const mod12 = {
     version: version,
     denoVersion: denoVersion,
     project: project,
-    currentConfig: currentConfig,
+    getCurrentConfig: getCurrentConfig,
     init: init1,
     handleRequest: handleRequest7,
     getPackageItem: getPackageItem,
