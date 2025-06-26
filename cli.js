@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.95';
+const JSPHERE_VERSION = 'v1.0.0-preview.96';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -885,8 +885,9 @@ async function getCurrentConfigCmd(cmdArgs) {
         error(response.statusText);
         return;
     }
+    const currentConfig = await response.json();
     info('Current configuration is as follows:');
-    info(await response.json());
+    for(const key in currentConfig)info(`${key}=${currentConfig[key]}`);
 }
 async function startCmd(cmdArgs) {
     try {
