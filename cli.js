@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.97';
+const JSPHERE_VERSION = 'v1.0.0-preview.98';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -877,19 +877,23 @@ function versionCmd() {
     info('Deno Build Version: ' + DENO_VERSION);
 }
 async function getCurrentConfigCmd(cmdArgs) {
-    const port = cmdArgs.port || '80';
-    const response = await fetch(`http://localhost:${port}/@cmd/currentconfig`, {
-        method: 'GET'
-    });
-    if (!response.ok) {
-        error(response.statusText);
-        return;
+    try {
+        const port = cmdArgs.port || '80';
+        const response = await fetch(`http://localhost:${port}/@cmd/currentconfig`, {
+            method: 'GET'
+        });
+        if (!response.ok) {
+            error(response.statusText);
+            return;
+        }
+        const currentConfig = await response.json();
+        if (Object.keys(currentConfig).length > 0) {
+            info('Current configuration is as follows:');
+            for(const key in currentConfig)info(`${key}=${currentConfig[key]}`);
+        } else info('No configuration is currently loaded.');
+    } catch (e) {
+        error(e.message);
     }
-    const currentConfig = await response.json();
-    if (Object.keys(currentConfig).length > 0) {
-        info('Current configuration is as follows:');
-        for(const key in currentConfig)info(`${key}=${currentConfig[key]}`);
-    } else info('No configuration is currently loaded.');
 }
 async function startCmd(cmdArgs) {
     try {
@@ -914,113 +918,141 @@ async function startCmd(cmdArgs) {
     }
 }
 async function loadCmd(cmdArgs) {
-    const configName = cmdArgs._[1];
-    const port = cmdArgs.port || '80';
-    const config = await getProjectConfig(configName);
-    if (config) {
-        const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
-            headers: {
-                'content-type': 'application/json'
-            },
-            method: 'POST',
-            body: JSON.stringify(config)
+    try {
+        const configName = cmdArgs._[1];
+        const port = cmdArgs.port || '80';
+        const config = await getProjectConfig(configName);
+        if (config) {
+            const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
+                headers: {
+                    'content-type': 'application/json'
+                },
+                method: 'POST',
+                body: JSON.stringify(config)
+            });
+            if (!response.ok) {
+                error(`ERROR: ${response.statusText}`);
+                return;
+            }
+        } else error('ERROR: Configuration not found.');
+    } catch (e) {
+        error(e.message);
+    }
+}
+async function reloadCmd(cmdArgs) {
+    try {
+        const port = cmdArgs.port || '80';
+        const response = await fetch(`http://localhost:${port}/@cmd/reload`, {
+            method: 'GET'
         });
         if (!response.ok) {
             error(`ERROR: ${response.statusText}`);
             return;
         }
-    } else error('ERROR: Configuration not found.');
-}
-async function reloadCmd(cmdArgs) {
-    const port = cmdArgs.port || '80';
-    const response = await fetch(`http://localhost:${port}/@cmd/reload`, {
-        method: 'GET'
-    });
-    if (!response.ok) {
-        error(`ERROR: ${response.statusText}`);
-        return;
+    } catch (e) {
+        error(e.message);
     }
 }
 async function createProjectCmd(cmdArgs) {
-    const configName = cmdArgs._[1];
-    const port = cmdArgs.port || '80';
-    const config = await getProjectConfig(configName);
-    if (config) {
-        const response = await fetch(`http://localhost:${port}/@cmd/createproject`, {
+    try {
+        const configName = cmdArgs._[1];
+        const port = cmdArgs.port || '80';
+        const config = await getProjectConfig(configName);
+        if (config) {
+            const response = await fetch(`http://localhost:${port}/@cmd/createproject`, {
+                headers: {
+                    'content-type': 'application/json'
+                },
+                method: 'POST',
+                body: JSON.stringify(config)
+            });
+            if (!response.ok) {
+                error(`ERROR: ${response.statusText}`);
+                return;
+            }
+        } else error('Configuration not found.');
+    } catch (e) {
+        error(e.message);
+    }
+}
+async function createPackageCmd(cmdArgs) {
+    try {
+        const name = cmdArgs._[1];
+        const port = cmdArgs.port || '80';
+        const response = await fetch(`http://localhost:${port}/@cmd/createpackage`, {
             headers: {
                 'content-type': 'application/json'
             },
             method: 'POST',
-            body: JSON.stringify(config)
+            body: JSON.stringify({
+                name
+            })
         });
         if (!response.ok) {
-            error(`ERROR: ${response.statusText}`);
+            error(response.statusText);
             return;
         }
-    } else error('Configuration not found.');
-}
-async function createPackageCmd(cmdArgs) {
-    const name = cmdArgs._[1];
-    const port = cmdArgs.port || '80';
-    const response = await fetch(`http://localhost:${port}/@cmd/createpackage`, {
-        headers: {
-            'content-type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({
-            name
-        })
-    });
-    if (!response.ok) {
-        error(response.statusText);
-        return;
+    } catch (e) {
+        error(e.message);
     }
 }
 async function checkoutCmd(cmdArgs) {
-    const name = cmdArgs._[1];
-    const port = cmdArgs.port || '80';
-    const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
-        headers: {
-            'content-type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({
-            name
-        })
-    });
-    if (!response.ok) {
-        error(response.statusText);
-        return;
+    try {
+        const name = cmdArgs._[1];
+        const port = cmdArgs.port || '80';
+        const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
+            headers: {
+                'content-type': 'application/json'
+            },
+            method: 'POST',
+            body: JSON.stringify({
+                name
+            })
+        });
+        if (!response.ok) {
+            error(response.statusText);
+            return;
+        }
+    } catch (e) {
+        error(e.message);
     }
 }
 async function installElementCmd() {
-    const port = cmdArgs.port || '80';
-    const response = await fetch(`http://localhost:${port}/@cmd/installelement`, {
-        headers: {
-            'content-type': 'application/json'
-        },
-        method: 'POST',
-        body: JSON.stringify({})
-    });
-    if (!response.ok) {
-        error(response.statusText);
-        return;
+    try {
+        const port = cmdArgs.port || '80';
+        const response = await fetch(`http://localhost:${port}/@cmd/installelement`, {
+            headers: {
+                'content-type': 'application/json'
+            },
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+        if (!response.ok) {
+            error(response.statusText);
+            return;
+        }
+    } catch (e) {
+        error(e.message);
     }
 }
 async function getProjectConfig(configName) {
-    let config = {};
-    if (await exists(`${Deno.cwd()}/jsphere.json`, {
-        isFile: true
-    })) {
-        const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
-        try {
-            config = JSON.parse(file);
-        } catch (e) {
-            error(`ERROR: ${e.message}`);
-            return;
+    try {
+        let config = {};
+        if (await exists(`${Deno.cwd()}/jsphere.json`, {
+            isFile: true
+        })) {
+            const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
+            try {
+                config = JSON.parse(file);
+            } catch (e) {
+                error(`ERROR: ${e.message}`);
+                return;
+            }
+            const result = config.configurations.filter((obj)=>obj.PROJECT_CONFIG_NAME == configName);
+            if (result.length > 0) return result[0];
+            else return;
         }
-        const result = config.configurations.filter((obj)=>obj.PROJECT_CONFIG_NAME == configName);
-        if (result.length > 0) return result[0];
-        else return;
+    } catch (e) {
+        error(e.message);
     }
 }
