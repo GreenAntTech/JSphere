@@ -23724,7 +23724,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.101';
+const version = 'v1.0.0-preview.102';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -24431,6 +24431,9 @@ async function installElement() {
     if (await exists(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}`, {
         isDirectory: true
     })) {
+        await Deno.mkdir(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared`, {
+            recursive: true
+        });
         let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/element.js`);
         if (response.ok) {
             const file = await response.text();
