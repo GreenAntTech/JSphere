@@ -23724,7 +23724,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.100';
+const version = 'v1.0.0-preview.101';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -23862,6 +23862,7 @@ async function init1(config) {
     }
 }
 async function handleRequest7(request) {
+    debugger;
     let response;
     const directives = [];
     const serverContext = await getServerContext(request);
