@@ -23715,7 +23715,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.91';
+const version = 'v1.0.0-preview.92';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -23739,6 +23739,7 @@ async function init1(config) {
         const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
         const reference = Deno.env.get('PROJECT_REFERENCE');
         const path = `.${projectName}/${appConfig}.json`;
+        if (!namespace && !projectName && !authToken) return;
         let file = await getFile(projectFolder + '/' + path, true);
         if (file === null) {
             const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), host, namespace, authToken);
