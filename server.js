@@ -23427,6 +23427,7 @@ async function handleRequest2(ctx) {
     const token = Deno.env.get('SERVER_AUTH_TOKEN');
     const accessAllowed = auth && token ? auth === `token ${token}` : false;
     if (url.pathname.startsWith('/@cmd/')) {
+        mod6.info('Received the following command: ' + url.pathname);
         const cmd = url.pathname.split('/@cmd/')[1];
         if (cmd == 'ready' && ctx.request.method === 'GET') return;
         if (cmd == 'healthcheck' && ctx.request.method === 'GET') {
@@ -23723,7 +23724,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.98';
+const version = 'v1.0.0-preview.99';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
