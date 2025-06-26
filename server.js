@@ -23723,7 +23723,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.96';
+const version = 'v1.0.0-preview.97';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
