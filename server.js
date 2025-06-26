@@ -3572,6 +3572,281 @@ const mod8 = {
     getSetCookies: getSetCookies
 };
 const { hasOwn } = Object;
+function get(obj, key) {
+    if (hasOwn(obj, key)) {
+        return obj[key];
+    }
+}
+function getForce(obj, key) {
+    const v = get(obj, key);
+    assert(v != null);
+    return v;
+}
+function isNumber(x) {
+    if (typeof x === "number") return true;
+    if (/^0x[0-9a-f]+$/i.test(String(x))) return true;
+    return /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(e[-+]?\d+)?$/.test(String(x));
+}
+function hasKey(obj, keys) {
+    let o = obj;
+    keys.slice(0, -1).forEach((key)=>{
+        o = get(o, key) ?? {};
+    });
+    const key = keys[keys.length - 1];
+    return hasOwn(o, key);
+}
+function parse6(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i1)=>i1 } = {}) {
+    const aliases = {};
+    const flags = {
+        bools: {},
+        strings: {},
+        unknownFn: unknown,
+        allBools: false,
+        collect: {},
+        negatable: {}
+    };
+    if (alias !== undefined) {
+        for(const key in alias){
+            const val = getForce(alias, key);
+            if (typeof val === "string") {
+                aliases[key] = [
+                    val
+                ];
+            } else {
+                aliases[key] = val;
+            }
+            for (const alias of getForce(aliases, key)){
+                aliases[alias] = [
+                    key
+                ].concat(aliases[key].filter((y)=>alias !== y));
+            }
+        }
+    }
+    if (__boolean !== undefined) {
+        if (typeof __boolean === "boolean") {
+            flags.allBools = !!__boolean;
+        } else {
+            const booleanArgs = typeof __boolean === "string" ? [
+                __boolean
+            ] : __boolean;
+            for (const key of booleanArgs.filter(Boolean)){
+                flags.bools[key] = true;
+                const alias = get(aliases, key);
+                if (alias) {
+                    for (const al of alias){
+                        flags.bools[al] = true;
+                    }
+                }
+            }
+        }
+    }
+    if (string !== undefined) {
+        const stringArgs = typeof string === "string" ? [
+            string
+        ] : string;
+        for (const key of stringArgs.filter(Boolean)){
+            flags.strings[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.strings[al] = true;
+                }
+            }
+        }
+    }
+    if (collect !== undefined) {
+        const collectArgs = typeof collect === "string" ? [
+            collect
+        ] : collect;
+        for (const key of collectArgs.filter(Boolean)){
+            flags.collect[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.collect[al] = true;
+                }
+            }
+        }
+    }
+    if (negatable !== undefined) {
+        const negatableArgs = typeof negatable === "string" ? [
+            negatable
+        ] : negatable;
+        for (const key of negatableArgs.filter(Boolean)){
+            flags.negatable[key] = true;
+            const alias = get(aliases, key);
+            if (alias) {
+                for (const al of alias){
+                    flags.negatable[al] = true;
+                }
+            }
+        }
+    }
+    const argv = {
+        _: []
+    };
+    function argDefined(key, arg) {
+        return flags.allBools && /^--[^=]+$/.test(arg) || get(flags.bools, key) || !!get(flags.strings, key) || !!get(aliases, key);
+    }
+    function setKey(obj, name, value, collect = true) {
+        let o = obj;
+        const keys = name.split(".");
+        keys.slice(0, -1).forEach(function(key) {
+            if (get(o, key) === undefined) {
+                o[key] = {};
+            }
+            o = get(o, key);
+        });
+        const key = keys[keys.length - 1];
+        const collectable = collect && !!get(flags.collect, name);
+        if (!collectable) {
+            o[key] = value;
+        } else if (get(o, key) === undefined) {
+            o[key] = [
+                value
+            ];
+        } else if (Array.isArray(get(o, key))) {
+            o[key].push(value);
+        } else {
+            o[key] = [
+                get(o, key),
+                value
+            ];
+        }
+    }
+    function setArg(key, val, arg = undefined, collect) {
+        if (arg && flags.unknownFn && !argDefined(key, arg)) {
+            if (flags.unknownFn(arg, key, val) === false) return;
+        }
+        const value = !get(flags.strings, key) && isNumber(val) ? Number(val) : val;
+        setKey(argv, key, value, collect);
+        const alias = get(aliases, key);
+        if (alias) {
+            for (const x of alias){
+                setKey(argv, x, value, collect);
+            }
+        }
+    }
+    function aliasIsBoolean(key) {
+        return getForce(aliases, key).some((x)=>typeof get(flags.bools, x) === "boolean");
+    }
+    let notFlags = [];
+    if (args.includes("--")) {
+        notFlags = args.slice(args.indexOf("--") + 1);
+        args = args.slice(0, args.indexOf("--"));
+    }
+    for(let i1 = 0; i1 < args.length; i1++){
+        const arg = args[i1];
+        if (/^--.+=/.test(arg)) {
+            const m = arg.match(/^--([^=]+)=(.*)$/s);
+            assert(m != null);
+            const [, key, value] = m;
+            if (flags.bools[key]) {
+                const booleanValue = value !== "false";
+                setArg(key, booleanValue, arg);
+            } else {
+                setArg(key, value, arg);
+            }
+        } else if (/^--no-.+/.test(arg) && get(flags.negatable, arg.replace(/^--no-/, ""))) {
+            const m = arg.match(/^--no-(.+)/);
+            assert(m != null);
+            setArg(m[1], false, arg, false);
+        } else if (/^--.+/.test(arg)) {
+            const m = arg.match(/^--(.+)/);
+            assert(m != null);
+            const [, key] = m;
+            const next = args[i1 + 1];
+            if (next !== undefined && !/^-/.test(next) && !get(flags.bools, key) && !flags.allBools && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
+                setArg(key, next, arg);
+                i1++;
+            } else if (/^(true|false)$/.test(next)) {
+                setArg(key, next === "true", arg);
+                i1++;
+            } else {
+                setArg(key, get(flags.strings, key) ? "" : true, arg);
+            }
+        } else if (/^-[^-]+/.test(arg)) {
+            const letters = arg.slice(1, -1).split("");
+            let broken = false;
+            for(let j = 0; j < letters.length; j++){
+                const next = arg.slice(j + 2);
+                if (next === "-") {
+                    setArg(letters[j], next, arg);
+                    continue;
+                }
+                if (/[A-Za-z]/.test(letters[j]) && /=/.test(next)) {
+                    setArg(letters[j], next.split(/=(.+)/)[1], arg);
+                    broken = true;
+                    break;
+                }
+                if (/[A-Za-z]/.test(letters[j]) && /-?\d+(\.\d*)?(e-?\d+)?$/.test(next)) {
+                    setArg(letters[j], next, arg);
+                    broken = true;
+                    break;
+                }
+                if (letters[j + 1] && letters[j + 1].match(/\W/)) {
+                    setArg(letters[j], arg.slice(j + 2), arg);
+                    broken = true;
+                    break;
+                } else {
+                    setArg(letters[j], get(flags.strings, letters[j]) ? "" : true, arg);
+                }
+            }
+            const [key] = arg.slice(-1);
+            if (!broken && key !== "-") {
+                if (args[i1 + 1] && !/^(-|--)[^-]/.test(args[i1 + 1]) && !get(flags.bools, key) && (get(aliases, key) ? !aliasIsBoolean(key) : true)) {
+                    setArg(key, args[i1 + 1], arg);
+                    i1++;
+                } else if (args[i1 + 1] && /^(true|false)$/.test(args[i1 + 1])) {
+                    setArg(key, args[i1 + 1] === "true", arg);
+                    i1++;
+                } else {
+                    setArg(key, get(flags.strings, key) ? "" : true, arg);
+                }
+            }
+        } else {
+            if (!flags.unknownFn || flags.unknownFn(arg) !== false) {
+                argv._.push(flags.strings["_"] ?? !isNumber(arg) ? arg : Number(arg));
+            }
+            if (stopEarly) {
+                argv._.push(...args.slice(i1 + 1));
+                break;
+            }
+        }
+    }
+    for (const [key, value] of Object.entries(defaults)){
+        if (!hasKey(argv, key.split("."))) {
+            setKey(argv, key, value);
+            if (aliases[key]) {
+                for (const x of aliases[key]){
+                    setKey(argv, x, value);
+                }
+            }
+        }
+    }
+    for (const key of Object.keys(flags.bools)){
+        if (!hasKey(argv, key.split("."))) {
+            const value = get(flags.collect, key) ? [] : false;
+            setKey(argv, key, value, false);
+        }
+    }
+    for (const key of Object.keys(flags.strings)){
+        if (!hasKey(argv, key.split(".")) && get(flags.collect, key)) {
+            setKey(argv, key, [], false);
+        }
+    }
+    if (doubleDash) {
+        argv["--"] = [];
+        for (const key of notFlags){
+            argv["--"].push(key);
+        }
+    } else {
+        for (const key of notFlags){
+            argv._.push(key);
+        }
+    }
+    return argv;
+}
 const importMeta = {
     url: "https://deno.land/x/deno_dom@v0.1.48/build/deno-wasm/deno-wasm.js",
     main: false
@@ -3640,7 +3915,7 @@ cachedTextDecoder.decode();
 function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
 }
-function parse6(html) {
+function parse7(html) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         var ptr0 = passStringToWasm0(html, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3711,7 +3986,7 @@ async function init(input) {
     init.__wbindgen_wasm_module = module1;
     return wasm;
 }
-let parse7 = (_html)=>{
+let parse8 = (_html)=>{
     console.error("Error: deno-dom: No parser registered");
     Deno.exit(1);
 };
@@ -3719,12 +3994,12 @@ let parseFrag = (_html, _contextLocalName)=>{
     console.error("Error: deno-dom: No parser registered");
     Deno.exit(1);
 };
-const originalParse = parse7;
+const originalParse = parse8;
 function register(func, fragFunc) {
-    if (parse7 !== originalParse) {
+    if (parse8 !== originalParse) {
         return;
     }
-    parse7 = func;
+    parse8 = func;
     parseFrag = fragFunc;
 }
 const __default = {
@@ -7924,7 +8199,7 @@ class DOMImplementation {
     }
 }
 function nodesFromString(html) {
-    const parsed = JSON.parse(parse7(html));
+    const parsed = JSON.parse(parse8(html));
     const node = nodeFromArray(parsed, null);
     return node;
 }
@@ -8341,7 +8616,7 @@ Object.defineProperty(Array, "isArray", {
     configurable: true
 });
 await init();
-register(parse6, parse_frag);
+register(parse7, parse_frag);
 const mod9 = await async function() {
     return {
         nodesFromString,
@@ -23086,6 +23361,7 @@ function handleRequest(_ctx) {
     }
 }
 async function handleRequest1(ctx) {
+    const url = new URL(ctx.request.url);
     const project = mod12.project;
     if (!project.application) {
         return new Response(html1, {
@@ -23138,6 +23414,11 @@ async function handleRequest1(ctx) {
         ctx.cacheDTS = project.currentCacheDTS;
         ctx.settings = project.appConfig.settings;
         project.ready = true;
+        if (url.pathname == '/@cmd/ready') {
+            return new Response('OK', {
+                status: 200
+            });
+        }
     }
 }
 async function handleRequest2(ctx) {
@@ -23147,8 +23428,8 @@ async function handleRequest2(ctx) {
     const accessAllowed = auth && token ? auth === `token ${token}` : false;
     if (url.pathname.startsWith('/@cmd/')) {
         const cmd = url.pathname.split('/@cmd/')[1];
-        if (!cmd) return;
-        if (cmd == 'healthcheck') {
+        if (cmd == 'ready' && ctx.request.method === 'GET') return;
+        if (cmd == 'healthcheck' && ctx.request.method === 'GET') {
             return new Response('OK', {
                 status: 200
             });
@@ -23436,7 +23717,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.89';
+const version = 'v1.0.0-preview.90';
 const denoVersion = '2.2.4';
 const project = {};
 let currentConfig = {};
@@ -24319,8 +24600,9 @@ function matchRoute(routeStr, routeObjects) {
         params: {}
     };
 }
-await mod12.init();
-const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || '80');
+const cmdArgs = parse6(Deno.args);
+await mod12.init({});
+const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || cmdArgs.httpPort || '80');
 mod6.info(`JSphere Application Server has started.`);
 serve(mod12.handleRequest, {
     port: serverPort

@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.89';
+const JSPHERE_VERSION = 'v1.0.0-preview.90';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -888,6 +888,7 @@ async function getCurrentConfigCmd(cmdArgs) {
 }
 async function startCmd(cmdArgs) {
     try {
+        const httpPort = cmdArgs.httpPort || '80';
         const debugPort = cmdArgs.debug || '9229';
         const args = [];
         args.push('--allow-all');
@@ -895,6 +896,7 @@ async function startCmd(cmdArgs) {
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${debugPort}`);
         args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
+        args.push('--httpPort=' + httpPort);
         const command = new Deno.Command('deno', {
             args,
             stdin: 'piped'
@@ -902,6 +904,13 @@ async function startCmd(cmdArgs) {
         const child = command.spawn();
         child.stdin.close();
         await child.status;
+        const response = await fetch(`http://localhost:${httpPort}/@cmd/ready`, {
+            method: 'GET'
+        });
+        if (!response.ok) {
+            error(response.statusText);
+            return;
+        }
     } catch (e) {
         error(e.message);
     }
