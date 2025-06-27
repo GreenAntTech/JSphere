@@ -23725,7 +23725,7 @@ class Utils {
         return encString;
     };
 }
-const version = 'v1.0.0-preview.103';
+const version = 'v1.0.0-preview.104';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -24112,6 +24112,29 @@ async function createRepo(props) {
         };
     }
 }
+async function deleteRepo(props) {
+    const namespace = props.namespace;
+    const repoName = props.repoName;
+    const authToken = props.authToken;
+    const response = await fetch(`https://api.github.com/repos/${namespace}/${repoName}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28'
+        }
+    });
+    if (!response.ok) {
+        return {
+            status: response.status,
+            statusText: response.statusText
+        };
+    } else {
+        return {
+            status: response.status
+        };
+    }
+}
 const mod12 = {
     project: project,
     getVersion: getVersion,
@@ -24124,7 +24147,8 @@ const mod12 = {
     getFile: getFile,
     getFileFromRepo: getFileFromRepo,
     cloneRepo: cloneRepo,
-    createRepo: createRepo
+    createRepo: createRepo,
+    deleteRepo: deleteRepo
 };
 const mod13 = {
     handleRequest: handleRequest
@@ -24320,6 +24344,7 @@ async function createPackage(props) {
     const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(`${Deno.cwd()}/${mod12.project.folder}/.${projectName}/app.json`)));
     appConfig.packages[props.name] = {};
     await Deno.writeFile(Deno.cwd() + `/${mod12.project.folder}/.${projectName}/app.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
+    mod12.project.appConfig.packages[props.name] = {};
     await checkoutPackage(props.name);
     await Deno.mkdir(Deno.cwd() + `/${mod12.project.folder}/${props.name}/client`, {
         recursive: true
