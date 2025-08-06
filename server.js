@@ -23411,8 +23411,6 @@ async function handleRequest1(ctx) {
         const currentCacheDTS = await cache.get(`currentCacheDTS`);
         if (currentCacheDTS === null) await cache.set(`currentCacheDTS`, project.currentCacheDTS);
         else project.currentCacheDTS = currentCacheDTS;
-        ctx.cacheDTS = project.currentCacheDTS;
-        ctx.settings = project.appConfig.settings;
         project.ready = true;
         if (url.pathname == '/@cmd/ready' || url.pathname == '/@cmd/loadconfig' || url.pathname == '/@cmd/reload') {
             return new Response('OK', {
@@ -23428,6 +23426,16 @@ async function handleRequest2(ctx) {
     const accessAllowed = auth && token ? auth === `token ${token}` : false;
     if (url.pathname.startsWith('/@cmd/')) {
         mod6.info('Received the following command: ' + url.pathname);
+        if (ctx.request.method === 'OPTIONS') {
+            return new Response('OK', {
+                status: 204,
+                headers: {
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, PUT, DELETE'
+                }
+            });
+        }
         const cmd = url.pathname.split('/@cmd/')[1];
         if (cmd == 'ready' && ctx.request.method === 'GET') return;
         if (cmd == 'healthcheck' && ctx.request.method === 'GET') {
@@ -23724,8 +23732,31 @@ class Utils {
         const encString = new TextDecoder().decode(encode1(encData));
         return encString;
     };
+    generateKeyPair = async ()=>{
+        const keyPair = await crypto.subtle.generateKey({
+            name: "RSA-OAEP",
+            modulusLength: 2048,
+            publicExponent: new Uint8Array([
+                1,
+                0,
+                1
+            ]),
+            hash: "SHA-512"
+        }, true, [
+            "encrypt",
+            "decrypt"
+        ]);
+        const exportedPublicKeyBuffer = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+        const exportedPrivateKeyBuffer = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+        const publicKeyHex = new TextDecoder().decode(encode1(new Uint8Array(exportedPublicKeyBuffer)));
+        const privateKeyHex = new TextDecoder().decode(encode1(new Uint8Array(exportedPrivateKeyBuffer)));
+        return [
+            publicKeyHex,
+            privateKeyHex
+        ];
+    };
 }
-const version = 'v1.0.0-preview.104';
+const version = 'v1.0.0-preview.105';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
