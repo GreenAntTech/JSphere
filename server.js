@@ -23426,16 +23426,6 @@ async function handleRequest2(ctx) {
     const accessAllowed = auth && token ? auth === `token ${token}` : false;
     if (url.pathname.startsWith('/@cmd/')) {
         mod6.info('Received the following command: ' + url.pathname);
-        if (ctx.request.method === 'OPTIONS') {
-            return new Response('OK', {
-                status: 204,
-                headers: {
-                    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'OPTIONS, GET, POST, PUT, DELETE'
-                }
-            });
-        }
         const cmd = url.pathname.split('/@cmd/')[1];
         if (cmd == 'ready' && ctx.request.method === 'GET') return;
         if (cmd == 'healthcheck' && ctx.request.method === 'GET') {
@@ -23702,36 +23692,6 @@ class Utils {
         const valueHash = new TextDecoder().decode(encode1(new Uint8Array(await crypto.subtle.digest("sha-256", cryptoData))));
         return valueHash === hash;
     };
-    decrypt = async (data)=>{
-        const keyData = decode1(new TextEncoder().encode(Deno.env.get('CRYPTO_PRIVATE_KEY')));
-        const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
-            name: "RSA-OAEP",
-            hash: "SHA-512"
-        }, true, [
-            'decrypt'
-        ]);
-        const decBuffer = await crypto.subtle.decrypt({
-            name: "RSA-OAEP"
-        }, privateKey, decode1(new TextEncoder().encode(data)));
-        const decData = new Uint8Array(decBuffer);
-        const decString = new TextDecoder().decode(decData);
-        return decString;
-    };
-    encrypt = async (data)=>{
-        const keyData = decode1(new TextEncoder().encode(Deno.env.get('CRYPTO_PUBLIC_KEY')));
-        const publicKey = await crypto.subtle.importKey('spki', keyData, {
-            name: "RSA-OAEP",
-            hash: "SHA-512"
-        }, true, [
-            'encrypt'
-        ]);
-        const encBuffer = await crypto.subtle.encrypt({
-            name: "RSA-OAEP"
-        }, publicKey, new TextEncoder().encode(data));
-        const encData = new Uint8Array(encBuffer);
-        const encString = new TextDecoder().decode(encode1(encData));
-        return encString;
-    };
     generateKeyPair = async ()=>{
         const keyPair = await crypto.subtle.generateKey({
             name: "RSA-OAEP",
@@ -23748,15 +23708,101 @@ class Utils {
         ]);
         const exportedPublicKeyBuffer = await crypto.subtle.exportKey("spki", keyPair.publicKey);
         const exportedPrivateKeyBuffer = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
-        const publicKeyHex = new TextDecoder().decode(encode1(new Uint8Array(exportedPublicKeyBuffer)));
-        const privateKeyHex = new TextDecoder().decode(encode1(new Uint8Array(exportedPrivateKeyBuffer)));
+        const publicKeyBase64 = new TextDecoder().decode(encode1(new Uint8Array(exportedPublicKeyBuffer)));
+        const privateKeyBase64 = new TextDecoder().decode(encode1(new Uint8Array(exportedPrivateKeyBuffer)));
         return [
-            publicKeyHex,
-            privateKeyHex
+            publicKeyBase64,
+            privateKeyBase64
         ];
     };
+    decrypt = async (data, key)=>{
+        const keyData = decode1(new TextEncoder().encode(key));
+        const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, true, [
+            'decrypt'
+        ]);
+        const decBuffer = await crypto.subtle.decrypt({
+            name: "RSA-OAEP"
+        }, privateKey, decode1(new TextEncoder().encode(data)));
+        const decData = new Uint8Array(decBuffer);
+        const decString = new TextDecoder().decode(decData);
+        return decString;
+    };
+    encrypt = async (data, key)=>{
+        const keyData = decode1(new TextEncoder().encode(key));
+        const publicKey = await crypto.subtle.importKey('spki', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, true, [
+            'encrypt'
+        ]);
+        const encBuffer = await crypto.subtle.encrypt({
+            name: "RSA-OAEP"
+        }, publicKey, new TextEncoder().encode(data));
+        const encData = new Uint8Array(encBuffer);
+        const encString = new TextDecoder().decode(encode1(encData));
+        return encString;
+    };
+    encryptData = async (data, key)=>{
+        const keyData = decode1(new TextEncoder().encode(key));
+        const publicKey = await crypto.subtle.importKey('spki', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, false, [
+            'encrypt'
+        ]);
+        const aesKey = await crypto.subtle.generateKey({
+            name: "AES-GCM",
+            length: 256
+        }, true, [
+            'encrypt',
+            'decrypt'
+        ]);
+        const aesKeyData = await crypto.subtle.exportKey('raw', aesKey);
+        const encryptedAesKey = await crypto.subtle.encrypt({
+            name: "RSA-OAEP"
+        }, publicKey, aesKeyData);
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encryptedData = await crypto.subtle.encrypt({
+            name: "AES-GCM",
+            iv: iv
+        }, aesKey, new TextEncoder().encode(data));
+        return {
+            encryptedAesKey: new TextDecoder().decode(encode1(new Uint8Array(encryptedAesKey))),
+            encryptedData: new TextDecoder().decode(encode1(new Uint8Array(encryptedData))),
+            iv: new TextDecoder().decode(encode1(iv))
+        };
+    };
+    decryptData = async (encryptedPackage, key)=>{
+        const keyData = decode1(new TextEncoder().encode(key));
+        const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, false, [
+            'decrypt'
+        ]);
+        const encryptedAesKeyData = decode1(new TextEncoder().encode(encryptedPackage.encryptedAesKey));
+        const aesKeyData = await crypto.subtle.decrypt({
+            name: "RSA-OAEP"
+        }, privateKey, encryptedAesKeyData);
+        const aesKey = await crypto.subtle.importKey('raw', aesKeyData, {
+            name: "AES-GCM"
+        }, false, [
+            'decrypt'
+        ]);
+        const iv = decode1(new TextEncoder().encode(encryptedPackage.iv));
+        const encryptedData = decode1(new TextEncoder().encode(encryptedPackage.encryptedData));
+        const decryptedData = await crypto.subtle.decrypt({
+            name: "AES-GCM",
+            iv: iv
+        }, aesKey, encryptedData);
+        const decString = new TextDecoder().decode(decryptedData);
+        return decString;
+    };
 }
-const version = 'v1.0.0-preview.105';
+const version = 'v1.0.0-preview.106';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -23770,7 +23816,6 @@ function getCurrentConfig() {
     return currentConfig;
 }
 async function init1(config) {
-    debugger;
     if (typeof config == 'object') {
         for(const key in currentConfig)Deno.env.delete(key);
         currentConfig = config;
@@ -23894,7 +23939,6 @@ async function init1(config) {
     }
 }
 async function handleRequest7(request) {
-    debugger;
     let response;
     const directives = [];
     const serverContext = await getServerContext(request);
