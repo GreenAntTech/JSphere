@@ -23716,6 +23716,7 @@ class Utils {
         ];
     };
     decrypt = async (data, key)=>{
+        if (!key) key = Deno.env.get('CRYPTO_PRIVATE_KEY');
         const keyData = decode1(new TextEncoder().encode(key));
         const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
             name: "RSA-OAEP",
@@ -23731,6 +23732,7 @@ class Utils {
         return decString;
     };
     encrypt = async (data, key)=>{
+        if (!key) key = Deno.env.get('CRYPTO_PUBLIC_KEY');
         const keyData = decode1(new TextEncoder().encode(key));
         const publicKey = await crypto.subtle.importKey('spki', keyData, {
             name: "RSA-OAEP",
