@@ -23748,7 +23748,7 @@ class Utils {
         return decString;
     };
     encryptData = async (data, key)=>{
-        if (!key) key = Deno.env.get('CRYPTO_PRIVATE_KEY');
+        if (!key) key = Deno.env.get('CRYPTO_PUBLIC_KEY');
         const keyData = decode1(new TextEncoder().encode(key));
         const publicKey = await crypto.subtle.importKey('spki', keyData, {
             name: "RSA-OAEP",
@@ -23806,7 +23806,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.108';
+const version = 'v1.0.0-preview.109';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
