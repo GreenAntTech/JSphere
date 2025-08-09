@@ -23715,6 +23715,22 @@ class Utils {
             privateKeyBase64
         ];
     };
+    encrypt = async (data, key)=>{
+        if (!key) key = Deno.env.get('CRYPTO_PRIVATE_KEY');
+        const keyData = decode1(new TextEncoder().encode(key));
+        const publicKey = await crypto.subtle.importKey('spki', keyData, {
+            name: "RSA-OAEP",
+            hash: "SHA-512"
+        }, true, [
+            'encrypt'
+        ]);
+        const encBuffer = await crypto.subtle.encrypt({
+            name: "RSA-OAEP"
+        }, publicKey, new TextEncoder().encode(data));
+        const encData = new Uint8Array(encBuffer);
+        const encString = new TextDecoder().decode(encode1(encData));
+        return encString;
+    };
     decrypt = async (data, key)=>{
         if (!key) key = Deno.env.get('CRYPTO_PRIVATE_KEY');
         const keyData = decode1(new TextEncoder().encode(key));
@@ -23731,23 +23747,8 @@ class Utils {
         const decString = new TextDecoder().decode(decData);
         return decString;
     };
-    encrypt = async (data, key)=>{
-        if (!key) key = Deno.env.get('CRYPTO_PUBLIC_KEY');
-        const keyData = decode1(new TextEncoder().encode(key));
-        const publicKey = await crypto.subtle.importKey('spki', keyData, {
-            name: "RSA-OAEP",
-            hash: "SHA-512"
-        }, true, [
-            'encrypt'
-        ]);
-        const encBuffer = await crypto.subtle.encrypt({
-            name: "RSA-OAEP"
-        }, publicKey, new TextEncoder().encode(data));
-        const encData = new Uint8Array(encBuffer);
-        const encString = new TextDecoder().decode(encode1(encData));
-        return encString;
-    };
     encryptData = async (data, key)=>{
+        if (!key) key = Deno.env.get('CRYPTO_PRIVATE_KEY');
         const keyData = decode1(new TextEncoder().encode(key));
         const publicKey = await crypto.subtle.importKey('spki', keyData, {
             name: "RSA-OAEP",
@@ -23778,6 +23779,7 @@ class Utils {
         };
     };
     decryptData = async (encryptedPackage, key)=>{
+        if (!key) key = Deno.env.get('CRYPTO_PRIVATE_KEY');
         const keyData = decode1(new TextEncoder().encode(key));
         const privateKey = await crypto.subtle.importKey('pkcs8', keyData, {
             name: "RSA-OAEP",
@@ -23804,7 +23806,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.106';
+const version = 'v1.0.0-preview.107';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
