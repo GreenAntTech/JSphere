@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.109');
+console.log('elementJS:', 'v1.0.0-preview.110');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -191,7 +191,12 @@ function observe(objectToObserve, config) {
     const listeners = new Set();
     function makeObservable(obj, isRoot) {
         if (!obj || typeof obj !== 'object') return obj;
-        if (proxyCache.has(obj)) return proxyCache.get(obj);
+        if (proxyCache.has(obj)) return [
+            proxyCache.get(obj),
+            watch,
+            watchEffect,
+            computed
+        ];
         const __root__ = {
             watch,
             watchEffect,
@@ -326,7 +331,7 @@ async function renderDocument(config, ctx) {
             const el = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
-            initElementAsComponent(el, new Object());
+            initElementAsComponent(el, observe(new Object()));
             await el.init$(config.props);
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
@@ -339,7 +344,7 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
-            initElementAsComponent(el, new Object());
+            initElementAsComponent(el, observe(new Object()));
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
             await el.init$(config.props);
