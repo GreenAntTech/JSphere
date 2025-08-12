@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.111');
+console.log('elementJS:', 'v1.0.0-preview.112');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -323,7 +323,7 @@ function runAt(props) {
 async function renderDocument(config, ctx) {
     try {
         if (!config) config = {};
-        if (!config.props) config.props = {};
+        if (!config.pageState) config.pageState = {};
         validateInputs(config, ctx);
         appContext.ctx = ctx;
         if (appContext.server) {
@@ -331,12 +331,13 @@ async function renderDocument(config, ctx) {
             const el = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
-            initElementAsComponent(el, observe(new Object()));
-            await el.init$(config.props);
+            initElementAsComponent(el, observe(config.pageState));
+            await el.init$();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
                 if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$));
             }
+            el.setAttribute('el-state', JSON.stringify(config.pageState));
             el.setAttribute('el-server-rendered', 'true');
             return el;
         } else {
@@ -344,10 +345,11 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
-            initElementAsComponent(el, observe(new Object()));
+            if (el.hasAttribute('el-state')) Object.assign(config.pageState, JSON.parse(el.getAttribute('el-state')));
+            initElementAsComponent(el, observe(config.pageState));
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
-            await el.init$(config.props);
+            await el.init$();
             return el;
         }
     } catch (e) {
