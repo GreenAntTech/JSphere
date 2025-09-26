@@ -2215,39 +2215,7 @@ Deno.build.os === "windows";
 const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
-function getInstance(_config, _utils) {
-    return new Cache();
-}
-class Cache {
-    cache = {};
-    constructor(){}
-    get = (key)=>{
-        const item = this.cache[key];
-        if (item && item.expires !== 0 && Date.now() >= item.expires) {
-            this.remove(key);
-        }
-        return this.cache[key] ? this.cache[key].value : null;
-    };
-    set = (key, value, expires)=>{
-        expires = typeof expires == 'number' && expires > 0 ? Date.now() + expires * 1000 : 0;
-        this.cache[key] = {
-            value,
-            expires
-        };
-    };
-    setExpires = (key, expires)=>{
-        const value = this.get(key);
-        if (value) this.set(key, value, expires);
-        return value;
-    };
-    remove = (key)=>{
-        delete this.cache[key];
-    };
-}
-const mod4 = {
-    getInstance: getInstance
-};
-function getInstance1(config, _utils) {
+function getInstance(config, _utils) {
     return new Feature(config.appConfig.featureFlags);
 }
 class Feature {
@@ -2266,8 +2234,8 @@ class Feature {
         }
     }
 }
-const mod5 = {
-    getInstance: getInstance1
+const mod4 = {
+    getInstance: getInstance
 };
 var LogLevels;
 (function(LogLevels) {
@@ -2858,7 +2826,7 @@ function setup(config) {
     }
 }
 setup(DEFAULT_CONFIG);
-const mod6 = {
+const mod5 = {
     LogLevels: LogLevels,
     Logger: Logger,
     LoggerConfig: LoggerConfig,
@@ -2870,6 +2838,1139 @@ const mod6 = {
     error: error,
     critical: critical,
     setup: setup
+};
+const osType2 = (()=>{
+    const { Deno: Deno1 } = globalThis;
+    if (typeof Deno1?.build?.os === "string") {
+        return Deno1.build.os;
+    }
+    const { navigator } = globalThis;
+    if (navigator?.appVersion?.includes?.("Win") ?? false) {
+        return "windows";
+    }
+    return "linux";
+})();
+const isWindows2 = osType2 === "windows";
+const CHAR_FORWARD_SLASH2 = 47;
+function assertPath2(path) {
+    if (typeof path !== "string") {
+        throw new TypeError(`Path must be a string. Received ${JSON.stringify(path)}`);
+    }
+}
+function isPosixPathSeparator2(code) {
+    return code === 47;
+}
+function isPathSeparator2(code) {
+    return isPosixPathSeparator2(code) || code === 92;
+}
+function isWindowsDeviceRoot2(code) {
+    return code >= 97 && code <= 122 || code >= 65 && code <= 90;
+}
+function normalizeString2(path, allowAboveRoot, separator, isPathSeparator) {
+    let res = "";
+    let lastSegmentLength = 0;
+    let lastSlash = -1;
+    let dots = 0;
+    let code;
+    for(let i1 = 0, len = path.length; i1 <= len; ++i1){
+        if (i1 < len) code = path.charCodeAt(i1);
+        else if (isPathSeparator(code)) break;
+        else code = CHAR_FORWARD_SLASH2;
+        if (isPathSeparator(code)) {
+            if (lastSlash === i1 - 1 || dots === 1) {} else if (lastSlash !== i1 - 1 && dots === 2) {
+                if (res.length < 2 || lastSegmentLength !== 2 || res.charCodeAt(res.length - 1) !== 46 || res.charCodeAt(res.length - 2) !== 46) {
+                    if (res.length > 2) {
+                        const lastSlashIndex = res.lastIndexOf(separator);
+                        if (lastSlashIndex === -1) {
+                            res = "";
+                            lastSegmentLength = 0;
+                        } else {
+                            res = res.slice(0, lastSlashIndex);
+                            lastSegmentLength = res.length - 1 - res.lastIndexOf(separator);
+                        }
+                        lastSlash = i1;
+                        dots = 0;
+                        continue;
+                    } else if (res.length === 2 || res.length === 1) {
+                        res = "";
+                        lastSegmentLength = 0;
+                        lastSlash = i1;
+                        dots = 0;
+                        continue;
+                    }
+                }
+                if (allowAboveRoot) {
+                    if (res.length > 0) res += `${separator}..`;
+                    else res = "..";
+                    lastSegmentLength = 2;
+                }
+            } else {
+                if (res.length > 0) res += separator + path.slice(lastSlash + 1, i1);
+                else res = path.slice(lastSlash + 1, i1);
+                lastSegmentLength = i1 - lastSlash - 1;
+            }
+            lastSlash = i1;
+            dots = 0;
+        } else if (code === 46 && dots !== -1) {
+            ++dots;
+        } else {
+            dots = -1;
+        }
+    }
+    return res;
+}
+function _format2(sep, pathObject) {
+    const dir = pathObject.dir || pathObject.root;
+    const base = pathObject.base || (pathObject.name || "") + (pathObject.ext || "");
+    if (!dir) return base;
+    if (dir === pathObject.root) return dir + base;
+    return dir + sep + base;
+}
+const WHITESPACE_ENCODINGS2 = {
+    "\u0009": "%09",
+    "\u000A": "%0A",
+    "\u000B": "%0B",
+    "\u000C": "%0C",
+    "\u000D": "%0D",
+    "\u0020": "%20"
+};
+function encodeWhitespace2(string) {
+    return string.replaceAll(/[\s]/g, (c)=>{
+        return WHITESPACE_ENCODINGS2[c] ?? c;
+    });
+}
+class DenoStdInternalError2 extends Error {
+    constructor(message){
+        super(message);
+        this.name = "DenoStdInternalError";
+    }
+}
+function assert2(expr, msg = "") {
+    if (!expr) {
+        throw new DenoStdInternalError2(msg);
+    }
+}
+const sep6 = "\\";
+const delimiter6 = ";";
+function resolve6(...pathSegments) {
+    let resolvedDevice = "";
+    let resolvedTail = "";
+    let resolvedAbsolute = false;
+    for(let i1 = pathSegments.length - 1; i1 >= -1; i1--){
+        let path;
+        const { Deno: Deno1 } = globalThis;
+        if (i1 >= 0) {
+            path = pathSegments[i1];
+        } else if (!resolvedDevice) {
+            if (typeof Deno1?.cwd !== "function") {
+                throw new TypeError("Resolved a drive-letter-less path without a CWD.");
+            }
+            path = Deno1.cwd();
+        } else {
+            if (typeof Deno1?.env?.get !== "function" || typeof Deno1?.cwd !== "function") {
+                throw new TypeError("Resolved a relative path without a CWD.");
+            }
+            path = Deno1.cwd();
+            if (path === undefined || path.slice(0, 3).toLowerCase() !== `${resolvedDevice.toLowerCase()}\\`) {
+                path = `${resolvedDevice}\\`;
+            }
+        }
+        assertPath2(path);
+        const len = path.length;
+        if (len === 0) continue;
+        let rootEnd = 0;
+        let device = "";
+        let isAbsolute = false;
+        const code = path.charCodeAt(0);
+        if (len > 1) {
+            if (isPathSeparator2(code)) {
+                isAbsolute = true;
+                if (isPathSeparator2(path.charCodeAt(1))) {
+                    let j = 2;
+                    let last = j;
+                    for(; j < len; ++j){
+                        if (isPathSeparator2(path.charCodeAt(j))) break;
+                    }
+                    if (j < len && j !== last) {
+                        const firstPart = path.slice(last, j);
+                        last = j;
+                        for(; j < len; ++j){
+                            if (!isPathSeparator2(path.charCodeAt(j))) break;
+                        }
+                        if (j < len && j !== last) {
+                            last = j;
+                            for(; j < len; ++j){
+                                if (isPathSeparator2(path.charCodeAt(j))) break;
+                            }
+                            if (j === len) {
+                                device = `\\\\${firstPart}\\${path.slice(last)}`;
+                                rootEnd = j;
+                            } else if (j !== last) {
+                                device = `\\\\${firstPart}\\${path.slice(last, j)}`;
+                                rootEnd = j;
+                            }
+                        }
+                    }
+                } else {
+                    rootEnd = 1;
+                }
+            } else if (isWindowsDeviceRoot2(code)) {
+                if (path.charCodeAt(1) === 58) {
+                    device = path.slice(0, 2);
+                    rootEnd = 2;
+                    if (len > 2) {
+                        if (isPathSeparator2(path.charCodeAt(2))) {
+                            isAbsolute = true;
+                            rootEnd = 3;
+                        }
+                    }
+                }
+            }
+        } else if (isPathSeparator2(code)) {
+            rootEnd = 1;
+            isAbsolute = true;
+        }
+        if (device.length > 0 && resolvedDevice.length > 0 && device.toLowerCase() !== resolvedDevice.toLowerCase()) {
+            continue;
+        }
+        if (resolvedDevice.length === 0 && device.length > 0) {
+            resolvedDevice = device;
+        }
+        if (!resolvedAbsolute) {
+            resolvedTail = `${path.slice(rootEnd)}\\${resolvedTail}`;
+            resolvedAbsolute = isAbsolute;
+        }
+        if (resolvedAbsolute && resolvedDevice.length > 0) break;
+    }
+    resolvedTail = normalizeString2(resolvedTail, !resolvedAbsolute, "\\", isPathSeparator2);
+    return resolvedDevice + (resolvedAbsolute ? "\\" : "") + resolvedTail || ".";
+}
+function normalize8(path) {
+    assertPath2(path);
+    const len = path.length;
+    if (len === 0) return ".";
+    let rootEnd = 0;
+    let device;
+    let isAbsolute = false;
+    const code = path.charCodeAt(0);
+    if (len > 1) {
+        if (isPathSeparator2(code)) {
+            isAbsolute = true;
+            if (isPathSeparator2(path.charCodeAt(1))) {
+                let j = 2;
+                let last = j;
+                for(; j < len; ++j){
+                    if (isPathSeparator2(path.charCodeAt(j))) break;
+                }
+                if (j < len && j !== last) {
+                    const firstPart = path.slice(last, j);
+                    last = j;
+                    for(; j < len; ++j){
+                        if (!isPathSeparator2(path.charCodeAt(j))) break;
+                    }
+                    if (j < len && j !== last) {
+                        last = j;
+                        for(; j < len; ++j){
+                            if (isPathSeparator2(path.charCodeAt(j))) break;
+                        }
+                        if (j === len) {
+                            return `\\\\${firstPart}\\${path.slice(last)}\\`;
+                        } else if (j !== last) {
+                            device = `\\\\${firstPart}\\${path.slice(last, j)}`;
+                            rootEnd = j;
+                        }
+                    }
+                }
+            } else {
+                rootEnd = 1;
+            }
+        } else if (isWindowsDeviceRoot2(code)) {
+            if (path.charCodeAt(1) === 58) {
+                device = path.slice(0, 2);
+                rootEnd = 2;
+                if (len > 2) {
+                    if (isPathSeparator2(path.charCodeAt(2))) {
+                        isAbsolute = true;
+                        rootEnd = 3;
+                    }
+                }
+            }
+        }
+    } else if (isPathSeparator2(code)) {
+        return "\\";
+    }
+    let tail;
+    if (rootEnd < len) {
+        tail = normalizeString2(path.slice(rootEnd), !isAbsolute, "\\", isPathSeparator2);
+    } else {
+        tail = "";
+    }
+    if (tail.length === 0 && !isAbsolute) tail = ".";
+    if (tail.length > 0 && isPathSeparator2(path.charCodeAt(len - 1))) {
+        tail += "\\";
+    }
+    if (device === undefined) {
+        if (isAbsolute) {
+            if (tail.length > 0) return `\\${tail}`;
+            else return "\\";
+        } else if (tail.length > 0) {
+            return tail;
+        } else {
+            return "";
+        }
+    } else if (isAbsolute) {
+        if (tail.length > 0) return `${device}\\${tail}`;
+        else return `${device}\\`;
+    } else if (tail.length > 0) {
+        return device + tail;
+    } else {
+        return device;
+    }
+}
+function isAbsolute6(path) {
+    assertPath2(path);
+    const len = path.length;
+    if (len === 0) return false;
+    const code = path.charCodeAt(0);
+    if (isPathSeparator2(code)) {
+        return true;
+    } else if (isWindowsDeviceRoot2(code)) {
+        if (len > 2 && path.charCodeAt(1) === 58) {
+            if (isPathSeparator2(path.charCodeAt(2))) return true;
+        }
+    }
+    return false;
+}
+function join8(...paths) {
+    const pathsCount = paths.length;
+    if (pathsCount === 0) return ".";
+    let joined;
+    let firstPart = null;
+    for(let i1 = 0; i1 < pathsCount; ++i1){
+        const path = paths[i1];
+        assertPath2(path);
+        if (path.length > 0) {
+            if (joined === undefined) joined = firstPart = path;
+            else joined += `\\${path}`;
+        }
+    }
+    if (joined === undefined) return ".";
+    let needsReplace = true;
+    let slashCount = 0;
+    assert2(firstPart != null);
+    if (isPathSeparator2(firstPart.charCodeAt(0))) {
+        ++slashCount;
+        const firstLen = firstPart.length;
+        if (firstLen > 1) {
+            if (isPathSeparator2(firstPart.charCodeAt(1))) {
+                ++slashCount;
+                if (firstLen > 2) {
+                    if (isPathSeparator2(firstPart.charCodeAt(2))) ++slashCount;
+                    else {
+                        needsReplace = false;
+                    }
+                }
+            }
+        }
+    }
+    if (needsReplace) {
+        for(; slashCount < joined.length; ++slashCount){
+            if (!isPathSeparator2(joined.charCodeAt(slashCount))) break;
+        }
+        if (slashCount >= 2) joined = `\\${joined.slice(slashCount)}`;
+    }
+    return normalize8(joined);
+}
+function relative6(from, to) {
+    assertPath2(from);
+    assertPath2(to);
+    if (from === to) return "";
+    const fromOrig = resolve6(from);
+    const toOrig = resolve6(to);
+    if (fromOrig === toOrig) return "";
+    from = fromOrig.toLowerCase();
+    to = toOrig.toLowerCase();
+    if (from === to) return "";
+    let fromStart = 0;
+    let fromEnd = from.length;
+    for(; fromStart < fromEnd; ++fromStart){
+        if (from.charCodeAt(fromStart) !== 92) break;
+    }
+    for(; fromEnd - 1 > fromStart; --fromEnd){
+        if (from.charCodeAt(fromEnd - 1) !== 92) break;
+    }
+    const fromLen = fromEnd - fromStart;
+    let toStart = 0;
+    let toEnd = to.length;
+    for(; toStart < toEnd; ++toStart){
+        if (to.charCodeAt(toStart) !== 92) break;
+    }
+    for(; toEnd - 1 > toStart; --toEnd){
+        if (to.charCodeAt(toEnd - 1) !== 92) break;
+    }
+    const toLen = toEnd - toStart;
+    const length = fromLen < toLen ? fromLen : toLen;
+    let lastCommonSep = -1;
+    let i1 = 0;
+    for(; i1 <= length; ++i1){
+        if (i1 === length) {
+            if (toLen > length) {
+                if (to.charCodeAt(toStart + i1) === 92) {
+                    return toOrig.slice(toStart + i1 + 1);
+                } else if (i1 === 2) {
+                    return toOrig.slice(toStart + i1);
+                }
+            }
+            if (fromLen > length) {
+                if (from.charCodeAt(fromStart + i1) === 92) {
+                    lastCommonSep = i1;
+                } else if (i1 === 2) {
+                    lastCommonSep = 3;
+                }
+            }
+            break;
+        }
+        const fromCode = from.charCodeAt(fromStart + i1);
+        const toCode = to.charCodeAt(toStart + i1);
+        if (fromCode !== toCode) break;
+        else if (fromCode === 92) lastCommonSep = i1;
+    }
+    if (i1 !== length && lastCommonSep === -1) {
+        return toOrig;
+    }
+    let out = "";
+    if (lastCommonSep === -1) lastCommonSep = 0;
+    for(i1 = fromStart + lastCommonSep + 1; i1 <= fromEnd; ++i1){
+        if (i1 === fromEnd || from.charCodeAt(i1) === 92) {
+            if (out.length === 0) out += "..";
+            else out += "\\..";
+        }
+    }
+    if (out.length > 0) {
+        return out + toOrig.slice(toStart + lastCommonSep, toEnd);
+    } else {
+        toStart += lastCommonSep;
+        if (toOrig.charCodeAt(toStart) === 92) ++toStart;
+        return toOrig.slice(toStart, toEnd);
+    }
+}
+function toNamespacedPath6(path) {
+    if (typeof path !== "string") return path;
+    if (path.length === 0) return "";
+    const resolvedPath = resolve6(path);
+    if (resolvedPath.length >= 3) {
+        if (resolvedPath.charCodeAt(0) === 92) {
+            if (resolvedPath.charCodeAt(1) === 92) {
+                const code = resolvedPath.charCodeAt(2);
+                if (code !== 63 && code !== 46) {
+                    return `\\\\?\\UNC\\${resolvedPath.slice(2)}`;
+                }
+            }
+        } else if (isWindowsDeviceRoot2(resolvedPath.charCodeAt(0))) {
+            if (resolvedPath.charCodeAt(1) === 58 && resolvedPath.charCodeAt(2) === 92) {
+                return `\\\\?\\${resolvedPath}`;
+            }
+        }
+    }
+    return path;
+}
+function dirname6(path) {
+    assertPath2(path);
+    const len = path.length;
+    if (len === 0) return ".";
+    let rootEnd = -1;
+    let end = -1;
+    let matchedSlash = true;
+    let offset = 0;
+    const code = path.charCodeAt(0);
+    if (len > 1) {
+        if (isPathSeparator2(code)) {
+            rootEnd = offset = 1;
+            if (isPathSeparator2(path.charCodeAt(1))) {
+                let j = 2;
+                let last = j;
+                for(; j < len; ++j){
+                    if (isPathSeparator2(path.charCodeAt(j))) break;
+                }
+                if (j < len && j !== last) {
+                    last = j;
+                    for(; j < len; ++j){
+                        if (!isPathSeparator2(path.charCodeAt(j))) break;
+                    }
+                    if (j < len && j !== last) {
+                        last = j;
+                        for(; j < len; ++j){
+                            if (isPathSeparator2(path.charCodeAt(j))) break;
+                        }
+                        if (j === len) {
+                            return path;
+                        }
+                        if (j !== last) {
+                            rootEnd = offset = j + 1;
+                        }
+                    }
+                }
+            }
+        } else if (isWindowsDeviceRoot2(code)) {
+            if (path.charCodeAt(1) === 58) {
+                rootEnd = offset = 2;
+                if (len > 2) {
+                    if (isPathSeparator2(path.charCodeAt(2))) rootEnd = offset = 3;
+                }
+            }
+        }
+    } else if (isPathSeparator2(code)) {
+        return path;
+    }
+    for(let i1 = len - 1; i1 >= offset; --i1){
+        if (isPathSeparator2(path.charCodeAt(i1))) {
+            if (!matchedSlash) {
+                end = i1;
+                break;
+            }
+        } else {
+            matchedSlash = false;
+        }
+    }
+    if (end === -1) {
+        if (rootEnd === -1) return ".";
+        else end = rootEnd;
+    }
+    return path.slice(0, end);
+}
+function basename6(path, ext = "") {
+    if (ext !== undefined && typeof ext !== "string") {
+        throw new TypeError('"ext" argument must be a string');
+    }
+    assertPath2(path);
+    let start = 0;
+    let end = -1;
+    let matchedSlash = true;
+    let i1;
+    if (path.length >= 2) {
+        const drive = path.charCodeAt(0);
+        if (isWindowsDeviceRoot2(drive)) {
+            if (path.charCodeAt(1) === 58) start = 2;
+        }
+    }
+    if (ext !== undefined && ext.length > 0 && ext.length <= path.length) {
+        if (ext.length === path.length && ext === path) return "";
+        let extIdx = ext.length - 1;
+        let firstNonSlashEnd = -1;
+        for(i1 = path.length - 1; i1 >= start; --i1){
+            const code = path.charCodeAt(i1);
+            if (isPathSeparator2(code)) {
+                if (!matchedSlash) {
+                    start = i1 + 1;
+                    break;
+                }
+            } else {
+                if (firstNonSlashEnd === -1) {
+                    matchedSlash = false;
+                    firstNonSlashEnd = i1 + 1;
+                }
+                if (extIdx >= 0) {
+                    if (code === ext.charCodeAt(extIdx)) {
+                        if (--extIdx === -1) {
+                            end = i1;
+                        }
+                    } else {
+                        extIdx = -1;
+                        end = firstNonSlashEnd;
+                    }
+                }
+            }
+        }
+        if (start === end) end = firstNonSlashEnd;
+        else if (end === -1) end = path.length;
+        return path.slice(start, end);
+    } else {
+        for(i1 = path.length - 1; i1 >= start; --i1){
+            if (isPathSeparator2(path.charCodeAt(i1))) {
+                if (!matchedSlash) {
+                    start = i1 + 1;
+                    break;
+                }
+            } else if (end === -1) {
+                matchedSlash = false;
+                end = i1 + 1;
+            }
+        }
+        if (end === -1) return "";
+        return path.slice(start, end);
+    }
+}
+function extname6(path) {
+    assertPath2(path);
+    let start = 0;
+    let startDot = -1;
+    let startPart = 0;
+    let end = -1;
+    let matchedSlash = true;
+    let preDotState = 0;
+    if (path.length >= 2 && path.charCodeAt(1) === 58 && isWindowsDeviceRoot2(path.charCodeAt(0))) {
+        start = startPart = 2;
+    }
+    for(let i1 = path.length - 1; i1 >= start; --i1){
+        const code = path.charCodeAt(i1);
+        if (isPathSeparator2(code)) {
+            if (!matchedSlash) {
+                startPart = i1 + 1;
+                break;
+            }
+            continue;
+        }
+        if (end === -1) {
+            matchedSlash = false;
+            end = i1 + 1;
+        }
+        if (code === 46) {
+            if (startDot === -1) startDot = i1;
+            else if (preDotState !== 1) preDotState = 1;
+        } else if (startDot !== -1) {
+            preDotState = -1;
+        }
+    }
+    if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+        return "";
+    }
+    return path.slice(startDot, end);
+}
+function format6(pathObject) {
+    if (pathObject === null || typeof pathObject !== "object") {
+        throw new TypeError(`The "pathObject" argument must be of type Object. Received type ${typeof pathObject}`);
+    }
+    return _format2("\\", pathObject);
+}
+function parse6(path) {
+    assertPath2(path);
+    const ret = {
+        root: "",
+        dir: "",
+        base: "",
+        ext: "",
+        name: ""
+    };
+    const len = path.length;
+    if (len === 0) return ret;
+    let rootEnd = 0;
+    let code = path.charCodeAt(0);
+    if (len > 1) {
+        if (isPathSeparator2(code)) {
+            rootEnd = 1;
+            if (isPathSeparator2(path.charCodeAt(1))) {
+                let j = 2;
+                let last = j;
+                for(; j < len; ++j){
+                    if (isPathSeparator2(path.charCodeAt(j))) break;
+                }
+                if (j < len && j !== last) {
+                    last = j;
+                    for(; j < len; ++j){
+                        if (!isPathSeparator2(path.charCodeAt(j))) break;
+                    }
+                    if (j < len && j !== last) {
+                        last = j;
+                        for(; j < len; ++j){
+                            if (isPathSeparator2(path.charCodeAt(j))) break;
+                        }
+                        if (j === len) {
+                            rootEnd = j;
+                        } else if (j !== last) {
+                            rootEnd = j + 1;
+                        }
+                    }
+                }
+            }
+        } else if (isWindowsDeviceRoot2(code)) {
+            if (path.charCodeAt(1) === 58) {
+                rootEnd = 2;
+                if (len > 2) {
+                    if (isPathSeparator2(path.charCodeAt(2))) {
+                        if (len === 3) {
+                            ret.root = ret.dir = path;
+                            return ret;
+                        }
+                        rootEnd = 3;
+                    }
+                } else {
+                    ret.root = ret.dir = path;
+                    return ret;
+                }
+            }
+        }
+    } else if (isPathSeparator2(code)) {
+        ret.root = ret.dir = path;
+        return ret;
+    }
+    if (rootEnd > 0) ret.root = path.slice(0, rootEnd);
+    let startDot = -1;
+    let startPart = rootEnd;
+    let end = -1;
+    let matchedSlash = true;
+    let i1 = path.length - 1;
+    let preDotState = 0;
+    for(; i1 >= rootEnd; --i1){
+        code = path.charCodeAt(i1);
+        if (isPathSeparator2(code)) {
+            if (!matchedSlash) {
+                startPart = i1 + 1;
+                break;
+            }
+            continue;
+        }
+        if (end === -1) {
+            matchedSlash = false;
+            end = i1 + 1;
+        }
+        if (code === 46) {
+            if (startDot === -1) startDot = i1;
+            else if (preDotState !== 1) preDotState = 1;
+        } else if (startDot !== -1) {
+            preDotState = -1;
+        }
+    }
+    if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+        if (end !== -1) {
+            ret.base = ret.name = path.slice(startPart, end);
+        }
+    } else {
+        ret.name = path.slice(startPart, startDot);
+        ret.base = path.slice(startPart, end);
+        ret.ext = path.slice(startDot, end);
+    }
+    if (startPart > 0 && startPart !== rootEnd) {
+        ret.dir = path.slice(0, startPart - 1);
+    } else ret.dir = ret.root;
+    return ret;
+}
+function fromFileUrl6(url) {
+    url = url instanceof URL ? url : new URL(url);
+    if (url.protocol != "file:") {
+        throw new TypeError("Must be a file URL.");
+    }
+    let path = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
+    if (url.hostname != "") {
+        path = `\\\\${url.hostname}${path}`;
+    }
+    return path;
+}
+function toFileUrl6(path) {
+    if (!isAbsolute6(path)) {
+        throw new TypeError("Must be an absolute path.");
+    }
+    const [, hostname, pathname] = path.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
+    const url = new URL("file:///");
+    url.pathname = encodeWhitespace2(pathname.replace(/%/g, "%25"));
+    if (hostname != null && hostname != "localhost") {
+        url.hostname = hostname;
+        if (!url.hostname) {
+            throw new TypeError("Invalid hostname.");
+        }
+    }
+    return url;
+}
+const mod6 = {
+    sep: sep6,
+    delimiter: delimiter6,
+    resolve: resolve6,
+    normalize: normalize8,
+    isAbsolute: isAbsolute6,
+    join: join8,
+    relative: relative6,
+    toNamespacedPath: toNamespacedPath6,
+    dirname: dirname6,
+    basename: basename6,
+    extname: extname6,
+    format: format6,
+    parse: parse6,
+    fromFileUrl: fromFileUrl6,
+    toFileUrl: toFileUrl6
+};
+const sep7 = "/";
+const delimiter7 = ":";
+function resolve7(...pathSegments) {
+    let resolvedPath = "";
+    let resolvedAbsolute = false;
+    for(let i1 = pathSegments.length - 1; i1 >= -1 && !resolvedAbsolute; i1--){
+        let path;
+        if (i1 >= 0) path = pathSegments[i1];
+        else {
+            const { Deno: Deno1 } = globalThis;
+            if (typeof Deno1?.cwd !== "function") {
+                throw new TypeError("Resolved a relative path without a CWD.");
+            }
+            path = Deno1.cwd();
+        }
+        assertPath2(path);
+        if (path.length === 0) {
+            continue;
+        }
+        resolvedPath = `${path}/${resolvedPath}`;
+        resolvedAbsolute = path.charCodeAt(0) === CHAR_FORWARD_SLASH2;
+    }
+    resolvedPath = normalizeString2(resolvedPath, !resolvedAbsolute, "/", isPosixPathSeparator2);
+    if (resolvedAbsolute) {
+        if (resolvedPath.length > 0) return `/${resolvedPath}`;
+        else return "/";
+    } else if (resolvedPath.length > 0) return resolvedPath;
+    else return ".";
+}
+function normalize9(path) {
+    assertPath2(path);
+    if (path.length === 0) return ".";
+    const isAbsolute = path.charCodeAt(0) === 47;
+    const trailingSeparator = path.charCodeAt(path.length - 1) === 47;
+    path = normalizeString2(path, !isAbsolute, "/", isPosixPathSeparator2);
+    if (path.length === 0 && !isAbsolute) path = ".";
+    if (path.length > 0 && trailingSeparator) path += "/";
+    if (isAbsolute) return `/${path}`;
+    return path;
+}
+function isAbsolute7(path) {
+    assertPath2(path);
+    return path.length > 0 && path.charCodeAt(0) === 47;
+}
+function join9(...paths) {
+    if (paths.length === 0) return ".";
+    let joined;
+    for(let i1 = 0, len = paths.length; i1 < len; ++i1){
+        const path = paths[i1];
+        assertPath2(path);
+        if (path.length > 0) {
+            if (!joined) joined = path;
+            else joined += `/${path}`;
+        }
+    }
+    if (!joined) return ".";
+    return normalize9(joined);
+}
+function relative7(from, to) {
+    assertPath2(from);
+    assertPath2(to);
+    if (from === to) return "";
+    from = resolve7(from);
+    to = resolve7(to);
+    if (from === to) return "";
+    let fromStart = 1;
+    const fromEnd = from.length;
+    for(; fromStart < fromEnd; ++fromStart){
+        if (from.charCodeAt(fromStart) !== 47) break;
+    }
+    const fromLen = fromEnd - fromStart;
+    let toStart = 1;
+    const toEnd = to.length;
+    for(; toStart < toEnd; ++toStart){
+        if (to.charCodeAt(toStart) !== 47) break;
+    }
+    const toLen = toEnd - toStart;
+    const length = fromLen < toLen ? fromLen : toLen;
+    let lastCommonSep = -1;
+    let i1 = 0;
+    for(; i1 <= length; ++i1){
+        if (i1 === length) {
+            if (toLen > length) {
+                if (to.charCodeAt(toStart + i1) === 47) {
+                    return to.slice(toStart + i1 + 1);
+                } else if (i1 === 0) {
+                    return to.slice(toStart + i1);
+                }
+            } else if (fromLen > length) {
+                if (from.charCodeAt(fromStart + i1) === 47) {
+                    lastCommonSep = i1;
+                } else if (i1 === 0) {
+                    lastCommonSep = 0;
+                }
+            }
+            break;
+        }
+        const fromCode = from.charCodeAt(fromStart + i1);
+        const toCode = to.charCodeAt(toStart + i1);
+        if (fromCode !== toCode) break;
+        else if (fromCode === 47) lastCommonSep = i1;
+    }
+    let out = "";
+    for(i1 = fromStart + lastCommonSep + 1; i1 <= fromEnd; ++i1){
+        if (i1 === fromEnd || from.charCodeAt(i1) === 47) {
+            if (out.length === 0) out += "..";
+            else out += "/..";
+        }
+    }
+    if (out.length > 0) return out + to.slice(toStart + lastCommonSep);
+    else {
+        toStart += lastCommonSep;
+        if (to.charCodeAt(toStart) === 47) ++toStart;
+        return to.slice(toStart);
+    }
+}
+function toNamespacedPath7(path) {
+    return path;
+}
+function dirname7(path) {
+    assertPath2(path);
+    if (path.length === 0) return ".";
+    const hasRoot = path.charCodeAt(0) === 47;
+    let end = -1;
+    let matchedSlash = true;
+    for(let i1 = path.length - 1; i1 >= 1; --i1){
+        if (path.charCodeAt(i1) === 47) {
+            if (!matchedSlash) {
+                end = i1;
+                break;
+            }
+        } else {
+            matchedSlash = false;
+        }
+    }
+    if (end === -1) return hasRoot ? "/" : ".";
+    if (hasRoot && end === 1) return "//";
+    return path.slice(0, end);
+}
+function basename7(path, ext = "") {
+    if (ext !== undefined && typeof ext !== "string") {
+        throw new TypeError('"ext" argument must be a string');
+    }
+    assertPath2(path);
+    let start = 0;
+    let end = -1;
+    let matchedSlash = true;
+    let i1;
+    if (ext !== undefined && ext.length > 0 && ext.length <= path.length) {
+        if (ext.length === path.length && ext === path) return "";
+        let extIdx = ext.length - 1;
+        let firstNonSlashEnd = -1;
+        for(i1 = path.length - 1; i1 >= 0; --i1){
+            const code = path.charCodeAt(i1);
+            if (code === 47) {
+                if (!matchedSlash) {
+                    start = i1 + 1;
+                    break;
+                }
+            } else {
+                if (firstNonSlashEnd === -1) {
+                    matchedSlash = false;
+                    firstNonSlashEnd = i1 + 1;
+                }
+                if (extIdx >= 0) {
+                    if (code === ext.charCodeAt(extIdx)) {
+                        if (--extIdx === -1) {
+                            end = i1;
+                        }
+                    } else {
+                        extIdx = -1;
+                        end = firstNonSlashEnd;
+                    }
+                }
+            }
+        }
+        if (start === end) end = firstNonSlashEnd;
+        else if (end === -1) end = path.length;
+        return path.slice(start, end);
+    } else {
+        for(i1 = path.length - 1; i1 >= 0; --i1){
+            if (path.charCodeAt(i1) === 47) {
+                if (!matchedSlash) {
+                    start = i1 + 1;
+                    break;
+                }
+            } else if (end === -1) {
+                matchedSlash = false;
+                end = i1 + 1;
+            }
+        }
+        if (end === -1) return "";
+        return path.slice(start, end);
+    }
+}
+function extname7(path) {
+    assertPath2(path);
+    let startDot = -1;
+    let startPart = 0;
+    let end = -1;
+    let matchedSlash = true;
+    let preDotState = 0;
+    for(let i1 = path.length - 1; i1 >= 0; --i1){
+        const code = path.charCodeAt(i1);
+        if (code === 47) {
+            if (!matchedSlash) {
+                startPart = i1 + 1;
+                break;
+            }
+            continue;
+        }
+        if (end === -1) {
+            matchedSlash = false;
+            end = i1 + 1;
+        }
+        if (code === 46) {
+            if (startDot === -1) startDot = i1;
+            else if (preDotState !== 1) preDotState = 1;
+        } else if (startDot !== -1) {
+            preDotState = -1;
+        }
+    }
+    if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+        return "";
+    }
+    return path.slice(startDot, end);
+}
+function format7(pathObject) {
+    if (pathObject === null || typeof pathObject !== "object") {
+        throw new TypeError(`The "pathObject" argument must be of type Object. Received type ${typeof pathObject}`);
+    }
+    return _format2("/", pathObject);
+}
+function parse7(path) {
+    assertPath2(path);
+    const ret = {
+        root: "",
+        dir: "",
+        base: "",
+        ext: "",
+        name: ""
+    };
+    if (path.length === 0) return ret;
+    const isAbsolute = path.charCodeAt(0) === 47;
+    let start;
+    if (isAbsolute) {
+        ret.root = "/";
+        start = 1;
+    } else {
+        start = 0;
+    }
+    let startDot = -1;
+    let startPart = 0;
+    let end = -1;
+    let matchedSlash = true;
+    let i1 = path.length - 1;
+    let preDotState = 0;
+    for(; i1 >= start; --i1){
+        const code = path.charCodeAt(i1);
+        if (code === 47) {
+            if (!matchedSlash) {
+                startPart = i1 + 1;
+                break;
+            }
+            continue;
+        }
+        if (end === -1) {
+            matchedSlash = false;
+            end = i1 + 1;
+        }
+        if (code === 46) {
+            if (startDot === -1) startDot = i1;
+            else if (preDotState !== 1) preDotState = 1;
+        } else if (startDot !== -1) {
+            preDotState = -1;
+        }
+    }
+    if (startDot === -1 || end === -1 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+        if (end !== -1) {
+            if (startPart === 0 && isAbsolute) {
+                ret.base = ret.name = path.slice(1, end);
+            } else {
+                ret.base = ret.name = path.slice(startPart, end);
+            }
+        }
+    } else {
+        if (startPart === 0 && isAbsolute) {
+            ret.name = path.slice(1, startDot);
+            ret.base = path.slice(1, end);
+        } else {
+            ret.name = path.slice(startPart, startDot);
+            ret.base = path.slice(startPart, end);
+        }
+        ret.ext = path.slice(startDot, end);
+    }
+    if (startPart > 0) ret.dir = path.slice(0, startPart - 1);
+    else if (isAbsolute) ret.dir = "/";
+    return ret;
+}
+function fromFileUrl7(url) {
+    url = url instanceof URL ? url : new URL(url);
+    if (url.protocol != "file:") {
+        throw new TypeError("Must be a file URL.");
+    }
+    return decodeURIComponent(url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
+}
+function toFileUrl7(path) {
+    if (!isAbsolute7(path)) {
+        throw new TypeError("Must be an absolute path.");
+    }
+    const url = new URL("file:///");
+    url.pathname = encodeWhitespace2(path.replace(/%/g, "%25").replace(/\\/g, "%5C"));
+    return url;
+}
+const mod7 = {
+    sep: sep7,
+    delimiter: delimiter7,
+    resolve: resolve7,
+    normalize: normalize9,
+    isAbsolute: isAbsolute7,
+    join: join9,
+    relative: relative7,
+    toNamespacedPath: toNamespacedPath7,
+    dirname: dirname7,
+    basename: basename7,
+    extname: extname7,
+    format: format7,
+    parse: parse7,
+    fromFileUrl: fromFileUrl7,
+    toFileUrl: toFileUrl7
+};
+const path4 = isWindows2 ? mod6 : mod7;
+const { join: join10, normalize: normalize10 } = path4;
+const path5 = isWindows2 ? mod6 : mod7;
+const { basename: basename8, delimiter: delimiter8, dirname: dirname8, extname: extname8, format: format8, fromFileUrl: fromFileUrl8, isAbsolute: isAbsolute8, join: join11, normalize: normalize11, parse: parse8, relative: relative8, resolve: resolve8, sep: sep8, toFileUrl: toFileUrl8, toNamespacedPath: toNamespacedPath8 } = path5;
+async function exists2(filePath) {
+    try {
+        await Deno.lstat(filePath);
+        return true;
+    } catch (err) {
+        if (err instanceof Deno.errors.NotFound) {
+            return false;
+        }
+        throw err;
+    }
+}
+var EOL;
+(function(EOL) {
+    EOL["LF"] = "\n";
+    EOL["CRLF"] = "\r\n";
+})(EOL || (EOL = {}));
+const getFileNameFromPath = (filePath)=>{
+    return filePath.split('/').at(-1)?.split('.').slice(0, -1).join('.') || "";
+};
+const decompress = async (filePath, destinationPath = "./", options = {})=>{
+    if (!await exists2(filePath)) {
+        throw "this file does not found";
+    }
+    if (!destinationPath) {
+        destinationPath = "./";
+    }
+    const fileNameWithOutExt = getFileNameFromPath(filePath);
+    const fullDestinationPath = options.includeFileName ? join11(destinationPath, fileNameWithOutExt) : destinationPath;
+    return await decompressProcess(filePath, fullDestinationPath) ? fullDestinationPath : false;
+};
+const decompressProcess = async (zipSourcePath, destinationPath)=>{
+    const unzipCommandProcess = Deno.run({
+        cmd: Deno.build.os === "windows" ? [
+            "PowerShell",
+            "Expand-Archive",
+            "-Path",
+            `"${zipSourcePath}"`,
+            "-DestinationPath",
+            `"${destinationPath}"`
+        ] : [
+            "unzip",
+            zipSourcePath,
+            "-d",
+            destinationPath
+        ]
+    });
+    const processStatus = (await unzipCommandProcess.status()).success;
+    Deno.close(unzipCommandProcess.rid);
+    return processStatus;
 };
 function debounce(fn, wait) {
     let timeout = null;
@@ -3298,7 +4399,7 @@ function decode(b64) {
     }
     return bytes;
 }
-const mod7 = {
+const mod8 = {
     encode: encode,
     decode: decode
 };
@@ -3565,7 +4666,7 @@ function getSetCookies(headers) {
         ...headers.entries()
     ].filter(([key])=>key === "set-cookie").map(([_, value])=>value).map(parseSetCookie).filter(Boolean);
 }
-const mod8 = {
+const mod9 = {
     getCookies: getCookies,
     setCookie: setCookie,
     deleteCookie: deleteCookie,
@@ -3595,7 +4696,7 @@ function hasKey(obj, keys) {
     const key = keys[keys.length - 1];
     return hasOwn(o, key);
 }
-function parse6(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i1)=>i1 } = {}) {
+function parse9(args, { "--": doubleDash = false, alias = {}, boolean: __boolean = false, default: defaults = {}, stopEarly = false, string = [], collect = [], negatable = [], unknown = (i1)=>i1 } = {}) {
     const aliases = {};
     const flags = {
         bools: {},
@@ -3915,7 +5016,7 @@ cachedTextDecoder.decode();
 function getStringFromWasm0(ptr, len) {
     return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
 }
-function parse7(html) {
+function parse10(html) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         var ptr0 = passStringToWasm0(html, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3986,7 +5087,7 @@ async function init(input) {
     init.__wbindgen_wasm_module = module1;
     return wasm;
 }
-let parse8 = (_html)=>{
+let parse11 = (_html)=>{
     console.error("Error: deno-dom: No parser registered");
     Deno.exit(1);
 };
@@ -3994,12 +5095,12 @@ let parseFrag = (_html, _contextLocalName)=>{
     console.error("Error: deno-dom: No parser registered");
     Deno.exit(1);
 };
-const originalParse = parse8;
+const originalParse = parse11;
 function register(func, fragFunc) {
-    if (parse8 !== originalParse) {
+    if (parse11 !== originalParse) {
         return;
     }
-    parse8 = func;
+    parse11 = func;
     parseFrag = fragFunc;
 }
 const __default = {
@@ -8199,7 +9300,7 @@ class DOMImplementation {
     }
 }
 function nodesFromString(html) {
-    const parsed = JSON.parse(parse8(html));
+    const parsed = JSON.parse(parse11(html));
     const node = nodeFromArray(parsed, null);
     return node;
 }
@@ -8616,8 +9717,8 @@ Object.defineProperty(Array, "isArray", {
     configurable: true
 });
 await init();
-register(parse7, parse_frag);
-const mod9 = await async function() {
+register(parse10, parse_frag);
+const mod10 = await async function() {
     return {
         nodesFromString,
         denoDomDisableQuerySelectorCodeGeneration: disableCodeGeneration,
@@ -9299,7 +10400,7 @@ async function cacheToLocalDir(url, decompress) {
     if (localPath == null) {
         return undefined;
     }
-    if (!await exists2(localPath)) {
+    if (!await exists3(localPath)) {
         const fileBytes = decompress(new Uint8Array(await getUrlBytes(url)));
         try {
             await Deno.writeFile(localPath, fileBytes);
@@ -9307,7 +10408,7 @@ async function cacheToLocalDir(url, decompress) {
             return fileBytes;
         }
     }
-    return toFileUrl6(localPath);
+    return toFileUrl9(localPath);
 }
 async function getUrlLocalPath(url) {
     try {
@@ -9327,7 +10428,7 @@ async function getInitializedLocalDataDirPath() {
     await ensureDir(dirPath);
     return dirPath;
 }
-async function exists2(filePath) {
+async function exists3(filePath) {
     try {
         await Deno.lstat(filePath);
         return true;
@@ -9364,7 +10465,7 @@ async function getUrlBytes(url) {
     const response = await fetchWithRetries(url);
     return await response.arrayBuffer();
 }
-const WHITESPACE_ENCODINGS2 = {
+const WHITESPACE_ENCODINGS3 = {
     "\u0009": "%09",
     "\u000A": "%0A",
     "\u000B": "%0B",
@@ -9372,23 +10473,23 @@ const WHITESPACE_ENCODINGS2 = {
     "\u000D": "%0D",
     "\u0020": "%20"
 };
-function encodeWhitespace2(string) {
+function encodeWhitespace3(string) {
     return string.replaceAll(/[\s]/g, (c)=>{
-        return WHITESPACE_ENCODINGS2[c] ?? c;
+        return WHITESPACE_ENCODINGS3[c] ?? c;
     });
 }
-function toFileUrl6(path) {
+function toFileUrl9(path) {
     return Deno.build.os === "windows" ? windowsToFileUrl(path) : posixToFileUrl(path);
 }
 function posixToFileUrl(path) {
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace2(path.replace(/%/g, "%25").replace(/\\/g, "%5C"));
+    url.pathname = encodeWhitespace3(path.replace(/%/g, "%25").replace(/\\/g, "%5C"));
     return url;
 }
 function windowsToFileUrl(path) {
     const [, hostname, pathname] = path.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace2(pathname.replace(/%/g, "%25"));
+    url.pathname = encodeWhitespace3(pathname.replace(/%/g, "%25"));
     if (hostname != null && hostname != "localhost") {
         url.hostname = hostname;
         if (!url.hostname) {
@@ -9444,12 +10545,12 @@ function localDataDir() {
     }
     return undefined;
 }
-function assertPath2(path) {
+function assertPath3(path) {
     if (typeof path !== "string") {
         throw new TypeError(`Path must be a string. Received ${JSON.stringify(path)}`);
     }
 }
-const CHAR_FORWARD_SLASH2 = 47;
+const CHAR_FORWARD_SLASH3 = 47;
 function stripTrailingSeparators1(segment, isSep) {
     if (segment.length <= 1) {
         return segment;
@@ -9464,20 +10565,20 @@ function stripTrailingSeparators1(segment, isSep) {
     }
     return segment.slice(0, end);
 }
-function isPosixPathSeparator2(code) {
+function isPosixPathSeparator3(code) {
     return code === 47;
 }
-function isPathSeparator2(code) {
+function isPathSeparator3(code) {
     return code === 47 || code === 92;
 }
-function isWindowsDeviceRoot2(code) {
+function isWindowsDeviceRoot3(code) {
     return code >= 97 && code <= 122 || code >= 65 && code <= 90;
 }
 function assertArg(path) {
-    assertPath2(path);
+    assertPath3(path);
     if (path.length === 0) return ".";
 }
-function dirname6(path) {
+function dirname9(path) {
     assertArg(path);
     const len = path.length;
     let rootEnd = -1;
@@ -9486,23 +10587,23 @@ function dirname6(path) {
     let offset = 0;
     const code = path.charCodeAt(0);
     if (len > 1) {
-        if (isPathSeparator2(code)) {
+        if (isPathSeparator3(code)) {
             rootEnd = offset = 1;
-            if (isPathSeparator2(path.charCodeAt(1))) {
+            if (isPathSeparator3(path.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator2(path.charCodeAt(j))) break;
+                    if (isPathSeparator3(path.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator2(path.charCodeAt(j))) break;
+                        if (!isPathSeparator3(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator2(path.charCodeAt(j))) break;
+                            if (isPathSeparator3(path.charCodeAt(j))) break;
                         }
                         if (j === len) {
                             return path;
@@ -9513,19 +10614,19 @@ function dirname6(path) {
                     }
                 }
             }
-        } else if (isWindowsDeviceRoot2(code)) {
+        } else if (isWindowsDeviceRoot3(code)) {
             if (path.charCodeAt(1) === 58) {
                 rootEnd = offset = 2;
                 if (len > 2) {
-                    if (isPathSeparator2(path.charCodeAt(2))) rootEnd = offset = 3;
+                    if (isPathSeparator3(path.charCodeAt(2))) rootEnd = offset = 3;
                 }
             }
         }
-    } else if (isPathSeparator2(code)) {
+    } else if (isPathSeparator3(code)) {
         return path;
     }
     for(let i1 = len - 1; i1 >= offset; --i1){
-        if (isPathSeparator2(path.charCodeAt(i1))) {
+        if (isPathSeparator3(path.charCodeAt(i1))) {
             if (!matchedSlash) {
                 end = i1;
                 break;
@@ -9538,7 +10639,7 @@ function dirname6(path) {
         if (rootEnd === -1) return ".";
         else end = rootEnd;
     }
-    return stripTrailingSeparators1(path.slice(0, end), isPosixPathSeparator2);
+    return stripTrailingSeparators1(path.slice(0, end), isPosixPathSeparator3);
 }
 function assertArg1(url) {
     url = url instanceof URL ? url : new URL(url);
@@ -9547,7 +10648,7 @@ function assertArg1(url) {
     }
     return url;
 }
-function fromFileUrl6(url) {
+function fromFileUrl9(url) {
     url = assertArg1(url);
     let path = decodeURIComponent(url.pathname.replace(/\//g, "\\").replace(/%(?![0-9A-Fa-f]{2})/g, "%25")).replace(/^\\*([A-Za-z]:)(\\|$)/, "$1\\");
     if (url.hostname !== "") {
@@ -9555,16 +10656,16 @@ function fromFileUrl6(url) {
     }
     return path;
 }
-function isAbsolute6(path) {
-    assertPath2(path);
+function isAbsolute9(path) {
+    assertPath3(path);
     const len = path.length;
     if (len === 0) return false;
     const code = path.charCodeAt(0);
-    if (isPathSeparator2(code)) {
+    if (isPathSeparator3(code)) {
         return true;
-    } else if (isWindowsDeviceRoot2(code)) {
+    } else if (isWindowsDeviceRoot3(code)) {
         if (len > 2 && path.charCodeAt(1) === 58) {
-            if (isPathSeparator2(path.charCodeAt(2))) return true;
+            if (isPathSeparator3(path.charCodeAt(2))) return true;
         }
     }
     return false;
@@ -9575,16 +10676,16 @@ class AssertionError extends Error {
         this.name = "AssertionError";
     }
 }
-function assert2(expr, msg = "") {
+function assert3(expr, msg = "") {
     if (!expr) {
         throw new AssertionError(msg);
     }
 }
 function assertArg2(path) {
-    assertPath2(path);
+    assertPath3(path);
     if (path.length === 0) return ".";
 }
-function normalizeString2(path, allowAboveRoot, separator, isPathSeparator) {
+function normalizeString3(path, allowAboveRoot, separator, isPathSeparator) {
     let res = "";
     let lastSegmentLength = 0;
     let lastSlash = -1;
@@ -9593,7 +10694,7 @@ function normalizeString2(path, allowAboveRoot, separator, isPathSeparator) {
     for(let i1 = 0; i1 <= path.length; ++i1){
         if (i1 < path.length) code = path.charCodeAt(i1);
         else if (isPathSeparator(code)) break;
-        else code = CHAR_FORWARD_SLASH2;
+        else code = CHAR_FORWARD_SLASH3;
         if (isPathSeparator(code)) {
             if (lastSlash === i1 - 1 || dots === 1) {} else if (lastSlash !== i1 - 1 && dots === 2) {
                 if (res.length < 2 || lastSegmentLength !== 2 || res.charCodeAt(res.length - 1) !== 46 || res.charCodeAt(res.length - 2) !== 46) {
@@ -9637,7 +10738,7 @@ function normalizeString2(path, allowAboveRoot, separator, isPathSeparator) {
     }
     return res;
 }
-function normalize8(path) {
+function normalize12(path) {
     assertArg2(path);
     const len = path.length;
     let rootEnd = 0;
@@ -9645,24 +10746,24 @@ function normalize8(path) {
     let isAbsolute = false;
     const code = path.charCodeAt(0);
     if (len > 1) {
-        if (isPathSeparator2(code)) {
+        if (isPathSeparator3(code)) {
             isAbsolute = true;
-            if (isPathSeparator2(path.charCodeAt(1))) {
+            if (isPathSeparator3(path.charCodeAt(1))) {
                 let j = 2;
                 let last = j;
                 for(; j < len; ++j){
-                    if (isPathSeparator2(path.charCodeAt(j))) break;
+                    if (isPathSeparator3(path.charCodeAt(j))) break;
                 }
                 if (j < len && j !== last) {
                     const firstPart = path.slice(last, j);
                     last = j;
                     for(; j < len; ++j){
-                        if (!isPathSeparator2(path.charCodeAt(j))) break;
+                        if (!isPathSeparator3(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         last = j;
                         for(; j < len; ++j){
-                            if (isPathSeparator2(path.charCodeAt(j))) break;
+                            if (isPathSeparator3(path.charCodeAt(j))) break;
                         }
                         if (j === len) {
                             return `\\\\${firstPart}\\${path.slice(last)}\\`;
@@ -9675,29 +10776,29 @@ function normalize8(path) {
             } else {
                 rootEnd = 1;
             }
-        } else if (isWindowsDeviceRoot2(code)) {
+        } else if (isWindowsDeviceRoot3(code)) {
             if (path.charCodeAt(1) === 58) {
                 device = path.slice(0, 2);
                 rootEnd = 2;
                 if (len > 2) {
-                    if (isPathSeparator2(path.charCodeAt(2))) {
+                    if (isPathSeparator3(path.charCodeAt(2))) {
                         isAbsolute = true;
                         rootEnd = 3;
                     }
                 }
             }
         }
-    } else if (isPathSeparator2(code)) {
+    } else if (isPathSeparator3(code)) {
         return "\\";
     }
     let tail;
     if (rootEnd < len) {
-        tail = normalizeString2(path.slice(rootEnd), !isAbsolute, "\\", isPathSeparator2);
+        tail = normalizeString3(path.slice(rootEnd), !isAbsolute, "\\", isPathSeparator3);
     } else {
         tail = "";
     }
     if (tail.length === 0 && !isAbsolute) tail = ".";
-    if (tail.length > 0 && isPathSeparator2(path.charCodeAt(len - 1))) {
+    if (tail.length > 0 && isPathSeparator3(path.charCodeAt(len - 1))) {
         tail += "\\";
     }
     if (device === undefined) {
@@ -9718,13 +10819,13 @@ function normalize8(path) {
         return device;
     }
 }
-function join8(...paths) {
+function join12(...paths) {
     if (paths.length === 0) return ".";
     let joined;
     let firstPart = null;
     for(let i1 = 0; i1 < paths.length; ++i1){
         const path = paths[i1];
-        assertPath2(path);
+        assertPath3(path);
         if (path.length > 0) {
             if (joined === undefined) joined = firstPart = path;
             else joined += `\\${path}`;
@@ -9733,15 +10834,15 @@ function join8(...paths) {
     if (joined === undefined) return ".";
     let needsReplace = true;
     let slashCount = 0;
-    assert2(firstPart !== null);
-    if (isPathSeparator2(firstPart.charCodeAt(0))) {
+    assert3(firstPart !== null);
+    if (isPathSeparator3(firstPart.charCodeAt(0))) {
         ++slashCount;
         const firstLen = firstPart.length;
         if (firstLen > 1) {
-            if (isPathSeparator2(firstPart.charCodeAt(1))) {
+            if (isPathSeparator3(firstPart.charCodeAt(1))) {
                 ++slashCount;
                 if (firstLen > 2) {
-                    if (isPathSeparator2(firstPart.charCodeAt(2))) ++slashCount;
+                    if (isPathSeparator3(firstPart.charCodeAt(2))) ++slashCount;
                     else {
                         needsReplace = false;
                     }
@@ -9751,13 +10852,13 @@ function join8(...paths) {
     }
     if (needsReplace) {
         for(; slashCount < joined.length; ++slashCount){
-            if (!isPathSeparator2(joined.charCodeAt(slashCount))) break;
+            if (!isPathSeparator3(joined.charCodeAt(slashCount))) break;
         }
         if (slashCount >= 2) joined = `\\${joined.slice(slashCount)}`;
     }
-    return normalize8(joined);
+    return normalize12(joined);
 }
-function resolve6(...pathSegments) {
+function resolve9(...pathSegments) {
     let resolvedDevice = "";
     let resolvedTail = "";
     let resolvedAbsolute = false;
@@ -9780,7 +10881,7 @@ function resolve6(...pathSegments) {
                 path = `${resolvedDevice}\\`;
             }
         }
-        assertPath2(path);
+        assertPath3(path);
         const len = path.length;
         if (len === 0) continue;
         let rootEnd = 0;
@@ -9788,24 +10889,24 @@ function resolve6(...pathSegments) {
         let isAbsolute = false;
         const code = path.charCodeAt(0);
         if (len > 1) {
-            if (isPathSeparator2(code)) {
+            if (isPathSeparator3(code)) {
                 isAbsolute = true;
-                if (isPathSeparator2(path.charCodeAt(1))) {
+                if (isPathSeparator3(path.charCodeAt(1))) {
                     let j = 2;
                     let last = j;
                     for(; j < len; ++j){
-                        if (isPathSeparator2(path.charCodeAt(j))) break;
+                        if (isPathSeparator3(path.charCodeAt(j))) break;
                     }
                     if (j < len && j !== last) {
                         const firstPart = path.slice(last, j);
                         last = j;
                         for(; j < len; ++j){
-                            if (!isPathSeparator2(path.charCodeAt(j))) break;
+                            if (!isPathSeparator3(path.charCodeAt(j))) break;
                         }
                         if (j < len && j !== last) {
                             last = j;
                             for(; j < len; ++j){
-                                if (isPathSeparator2(path.charCodeAt(j))) break;
+                                if (isPathSeparator3(path.charCodeAt(j))) break;
                             }
                             if (j === len) {
                                 device = `\\\\${firstPart}\\${path.slice(last)}`;
@@ -9819,19 +10920,19 @@ function resolve6(...pathSegments) {
                 } else {
                     rootEnd = 1;
                 }
-            } else if (isWindowsDeviceRoot2(code)) {
+            } else if (isWindowsDeviceRoot3(code)) {
                 if (path.charCodeAt(1) === 58) {
                     device = path.slice(0, 2);
                     rootEnd = 2;
                     if (len > 2) {
-                        if (isPathSeparator2(path.charCodeAt(2))) {
+                        if (isPathSeparator3(path.charCodeAt(2))) {
                             isAbsolute = true;
                             rootEnd = 3;
                         }
                     }
                 }
             }
-        } else if (isPathSeparator2(code)) {
+        } else if (isPathSeparator3(code)) {
             rootEnd = 1;
             isAbsolute = true;
         }
@@ -9847,10 +10948,10 @@ function resolve6(...pathSegments) {
         }
         if (resolvedAbsolute && resolvedDevice.length > 0) break;
     }
-    resolvedTail = normalizeString2(resolvedTail, !resolvedAbsolute, "\\", isPathSeparator2);
+    resolvedTail = normalizeString3(resolvedTail, !resolvedAbsolute, "\\", isPathSeparator3);
     return resolvedDevice + (resolvedAbsolute ? "\\" : "") + resolvedTail || ".";
 }
-const WHITESPACE_ENCODINGS3 = {
+const WHITESPACE_ENCODINGS4 = {
     "\u0009": "%09",
     "\u000A": "%0A",
     "\u000B": "%0B",
@@ -9858,18 +10959,18 @@ const WHITESPACE_ENCODINGS3 = {
     "\u000D": "%0D",
     "\u0020": "%20"
 };
-function encodeWhitespace3(string) {
+function encodeWhitespace4(string) {
     return string.replaceAll(/[\s]/g, (c)=>{
-        return WHITESPACE_ENCODINGS3[c] ?? c;
+        return WHITESPACE_ENCODINGS4[c] ?? c;
     });
 }
-function toFileUrl7(path) {
-    if (!isAbsolute6(path)) {
+function toFileUrl10(path) {
+    if (!isAbsolute9(path)) {
         throw new TypeError("Must be an absolute path.");
     }
     const [, hostname, pathname] = path.match(/^(?:[/\\]{2}([^/\\]+)(?=[/\\](?:[^/\\]|$)))?(.*)/);
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace3(pathname.replace(/%/g, "%25"));
+    url.pathname = encodeWhitespace4(pathname.replace(/%/g, "%25"));
     if (hostname !== undefined && hostname !== "localhost") {
         url.hostname = hostname;
         if (!url.hostname) {
@@ -9878,15 +10979,15 @@ function toFileUrl7(path) {
     }
     return url;
 }
-function isPosixPathSeparator3(code) {
+function isPosixPathSeparator4(code) {
     return code === 47;
 }
-function dirname7(path) {
+function dirname10(path) {
     assertArg(path);
     let end = -1;
     let matchedNonSeparator = false;
     for(let i1 = path.length - 1; i1 >= 1; --i1){
-        if (isPosixPathSeparator3(path.charCodeAt(i1))) {
+        if (isPosixPathSeparator4(path.charCodeAt(i1))) {
             if (matchedNonSeparator) {
                 end = i1;
                 break;
@@ -9896,43 +10997,43 @@ function dirname7(path) {
         }
     }
     if (end === -1) {
-        return isPosixPathSeparator3(path.charCodeAt(0)) ? "/" : ".";
+        return isPosixPathSeparator4(path.charCodeAt(0)) ? "/" : ".";
     }
-    return stripTrailingSeparators1(path.slice(0, end), isPosixPathSeparator3);
+    return stripTrailingSeparators1(path.slice(0, end), isPosixPathSeparator4);
 }
-function fromFileUrl7(url) {
+function fromFileUrl10(url) {
     url = assertArg1(url);
     return decodeURIComponent(url.pathname.replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
 }
-function isAbsolute7(path) {
-    assertPath2(path);
-    return path.length > 0 && isPosixPathSeparator3(path.charCodeAt(0));
+function isAbsolute10(path) {
+    assertPath3(path);
+    return path.length > 0 && isPosixPathSeparator4(path.charCodeAt(0));
 }
-function normalize9(path) {
+function normalize13(path) {
     assertArg2(path);
-    const isAbsolute = isPosixPathSeparator3(path.charCodeAt(0));
-    const trailingSeparator = isPosixPathSeparator3(path.charCodeAt(path.length - 1));
-    path = normalizeString2(path, !isAbsolute, "/", isPosixPathSeparator3);
+    const isAbsolute = isPosixPathSeparator4(path.charCodeAt(0));
+    const trailingSeparator = isPosixPathSeparator4(path.charCodeAt(path.length - 1));
+    path = normalizeString3(path, !isAbsolute, "/", isPosixPathSeparator4);
     if (path.length === 0 && !isAbsolute) path = ".";
     if (path.length > 0 && trailingSeparator) path += "/";
     if (isAbsolute) return `/${path}`;
     return path;
 }
-function join9(...paths) {
+function join13(...paths) {
     if (paths.length === 0) return ".";
     let joined;
     for(let i1 = 0; i1 < paths.length; ++i1){
         const path = paths[i1];
-        assertPath2(path);
+        assertPath3(path);
         if (path.length > 0) {
             if (!joined) joined = path;
             else joined += `/${path}`;
         }
     }
     if (!joined) return ".";
-    return normalize9(joined);
+    return normalize13(joined);
 }
-function resolve7(...pathSegments) {
+function resolve10(...pathSegments) {
     let resolvedPath = "";
     let resolvedAbsolute = false;
     for(let i1 = pathSegments.length - 1; i1 >= -1 && !resolvedAbsolute; i1--){
@@ -9945,29 +11046,29 @@ function resolve7(...pathSegments) {
             }
             path = Deno1.cwd();
         }
-        assertPath2(path);
+        assertPath3(path);
         if (path.length === 0) {
             continue;
         }
         resolvedPath = `${path}/${resolvedPath}`;
-        resolvedAbsolute = isPosixPathSeparator3(path.charCodeAt(0));
+        resolvedAbsolute = isPosixPathSeparator4(path.charCodeAt(0));
     }
-    resolvedPath = normalizeString2(resolvedPath, !resolvedAbsolute, "/", isPosixPathSeparator3);
+    resolvedPath = normalizeString3(resolvedPath, !resolvedAbsolute, "/", isPosixPathSeparator4);
     if (resolvedAbsolute) {
         if (resolvedPath.length > 0) return `/${resolvedPath}`;
         else return "/";
     } else if (resolvedPath.length > 0) return resolvedPath;
     else return ".";
 }
-function toFileUrl8(path) {
-    if (!isAbsolute7(path)) {
+function toFileUrl11(path) {
+    if (!isAbsolute10(path)) {
         throw new TypeError("Must be an absolute path.");
     }
     const url = new URL("file:///");
-    url.pathname = encodeWhitespace3(path.replace(/%/g, "%25").replace(/\\/g, "%5C"));
+    url.pathname = encodeWhitespace4(path.replace(/%/g, "%25").replace(/\\/g, "%5C"));
     return url;
 }
-const osType2 = (()=>{
+const osType3 = (()=>{
     const { Deno: Deno1 } = globalThis;
     if (typeof Deno1?.build?.os === "string") {
         return Deno1.build.os;
@@ -9978,34 +11079,34 @@ const osType2 = (()=>{
     }
     return "linux";
 })();
-const isWindows2 = osType2 === "windows";
-function dirname8(path) {
-    return isWindows2 ? dirname6(path) : dirname7(path);
+const isWindows3 = osType3 === "windows";
+function dirname11(path) {
+    return isWindows3 ? dirname9(path) : dirname10(path);
 }
-function fromFileUrl8(url) {
-    return isWindows2 ? fromFileUrl6(url) : fromFileUrl7(url);
+function fromFileUrl11(url) {
+    return isWindows3 ? fromFileUrl9(url) : fromFileUrl10(url);
 }
-function isAbsolute8(path) {
-    return isWindows2 ? isAbsolute6(path) : isAbsolute7(path);
+function isAbsolute11(path) {
+    return isWindows3 ? isAbsolute9(path) : isAbsolute10(path);
 }
-function join10(...paths) {
-    return isWindows2 ? join8(...paths) : join9(...paths);
+function join14(...paths) {
+    return isWindows3 ? join12(...paths) : join13(...paths);
 }
-function normalize10(path) {
-    return isWindows2 ? normalize8(path) : normalize9(path);
+function normalize14(path) {
+    return isWindows3 ? normalize12(path) : normalize13(path);
 }
-function resolve8(...pathSegments) {
-    return isWindows2 ? resolve6(...pathSegments) : resolve7(...pathSegments);
+function resolve11(...pathSegments) {
+    return isWindows3 ? resolve9(...pathSegments) : resolve10(...pathSegments);
 }
-function toFileUrl9(path) {
-    return isWindows2 ? toFileUrl7(path) : toFileUrl8(path);
+function toFileUrl12(path) {
+    return isWindows3 ? toFileUrl10(path) : toFileUrl11(path);
 }
 function locationToUrl(location) {
     if (location instanceof URL) {
         return new URL(location);
     }
     try {
-        if (!isAbsolute8(location)) {
+        if (!isAbsolute11(location)) {
             return new URL(location);
         }
     } catch (error) {
@@ -10013,7 +11114,7 @@ function locationToUrl(location) {
             throw error;
         }
     }
-    return toFileUrl9(resolve8(location));
+    return toFileUrl12(resolve11(location));
 }
 class FetchCacher {
     #fileFetcher;
@@ -10098,7 +11199,7 @@ async function writeAll(writer, data) {
     }
 }
 new TextDecoder();
-function assert3(cond, msg = "Assertion failed.") {
+function assert4(cond, msg = "Assertion failed.") {
     if (!cond) {
         throw new Error(msg);
     }
@@ -10194,7 +11295,7 @@ function time_now() {
 function msToS(ms) {
     return Math.round(ms / 1000);
 }
-const mod10 = {
+const mod11 = {
     read_file_bytes: read_file_bytes,
     canonicalize_path: canonicalize_path,
     create_dir_all: create_dir_all,
@@ -10799,7 +11900,7 @@ const imports1 = {
             return addHeapObject1(ret);
         }
     },
-    "./snippets/deno_cache_dir-ba33e10a7a030c61/fs.js": mod10
+    "./snippets/deno_cache_dir-ba33e10a7a030c61/fs.js": mod11
 };
 function instantiate1() {
     return instantiateWithInstance1().exports;
@@ -22722,11 +23823,11 @@ function base64decode(b64) {
 class DiskCache {
     location;
     constructor(location){
-        assert3(isAbsolute8(location));
+        assert4(isAbsolute11(location));
         this.location = location;
     }
     async get(filename) {
-        const path = join10(this.location, filename);
+        const path = join14(this.location, filename);
         const file = await Deno.open(path, {
             read: true
         });
@@ -22735,8 +23836,8 @@ class DiskCache {
         return value;
     }
     async set(filename, data) {
-        const path = join10(this.location, filename);
-        const parentFilename = dirname8(path);
+        const path = join14(this.location, filename);
+        const parentFilename = dirname11(path);
         await ensureDir1(parentFilename);
         const file = await Deno.open(path, {
             write: true,
@@ -22755,7 +23856,7 @@ function cacheDir() {
     if (Deno.build.os === "darwin") {
         const home = homeDir();
         if (home) {
-            return join10(home, "Library/Caches");
+            return join14(home, "Library/Caches");
         }
     } else if (Deno.build.os === "windows") {
         Deno.permissions.request({
@@ -22774,7 +23875,7 @@ function cacheDir() {
         } else {
             const home = homeDir();
             if (home) {
-                return join10(home, ".cache");
+                return join14(home, ".cache");
             }
         }
     }
@@ -22804,9 +23905,9 @@ class HttpCache {
         this.#readOnly = readOnly;
     }
     static async create(options) {
-        assert3(isAbsolute8(options.root), "Root must be an absolute path.");
+        assert4(isAbsolute11(options.root), "Root must be an absolute path.");
         if (options.vendorRoot != null) {
-            assert3(isAbsolute8(options.vendorRoot), "Vendor root must be an absolute path.");
+            assert4(isAbsolute11(options.vendorRoot), "Vendor root must be an absolute path.");
         }
         const { GlobalHttpCache, LocalHttpCache } = await instantiate1();
         let cache;
@@ -22847,8 +23948,8 @@ class DenoDir {
     root;
     constructor(root){
         const resolvedRoot = DenoDir.tryResolveRootPath(root);
-        assert3(resolvedRoot, "Could not set the Deno root directory");
-        assert3(isAbsolute8(resolvedRoot), `The root directory "${resolvedRoot}" is not absolute.`);
+        assert4(resolvedRoot, "Could not set the Deno root directory");
+        assert4(isAbsolute11(resolvedRoot), `The root directory "${resolvedRoot}" is not absolute.`);
         Deno.permissions.request({
             name: "read",
             path: resolvedRoot
@@ -22856,11 +23957,11 @@ class DenoDir {
         this.root = resolvedRoot;
     }
     createGenCache() {
-        return new DiskCache(join10(this.root, "gen"));
+        return new DiskCache(join14(this.root, "gen"));
     }
     createHttpCache(options) {
         return HttpCache.create({
-            root: join10(this.root, "remote"),
+            root: join14(this.root, "remote"),
             vendorRoot: options?.vendorRoot == null ? undefined : resolvePathOrUrl(options.vendorRoot),
             readOnly: options?.readOnly
         });
@@ -22875,19 +23976,19 @@ class DenoDir {
             });
             const dd = Deno.env.get("DENO_DIR");
             if (dd) {
-                if (!isAbsolute8(dd)) {
-                    root = normalize10(join10(Deno.cwd(), dd));
+                if (!isAbsolute11(dd)) {
+                    root = normalize14(join14(Deno.cwd(), dd));
                 } else {
                     root = dd;
                 }
             } else {
                 const cd = cacheDir();
                 if (cd) {
-                    root = join10(cd, "deno");
+                    root = join14(cd, "deno");
                 } else {
                     const hd = homeDir();
                     if (hd) {
-                        root = join10(hd, ".deno");
+                        root = join14(hd, ".deno");
                     }
                 }
             }
@@ -22899,7 +24000,7 @@ function resolvePathOrUrl(path) {
     if (path instanceof URL) {
         path = path.toString();
     }
-    return resolve8(path);
+    return resolve11(path);
 }
 function splitLast(value, delimiter) {
     const split = value.split(delimiter);
@@ -23024,7 +24125,7 @@ function stripHashbang(value) {
     }
 }
 async function fetchLocal(specifier) {
-    const local = fromFileUrl8(specifier);
+    const local = fromFileUrl11(specifier);
     if (!local) {
         throw new TypeError(`Invalid file path.\n  Specifier: "${specifier.toString()}"`);
     }
@@ -23345,13 +24446,223 @@ async function processImportMapInput(importMap, load) {
         return undefined;
     }
 }
-const mod11 = {
+const mod12 = {
     bundle: bundle1,
     transpile: transpile1
 };
+class GitRepoManager {
+    token;
+    owner;
+    repo;
+    branch;
+    baseUrl;
+    constructor(configOrToken, owner, repo, branch = 'main'){
+        if (typeof configOrToken === 'object') {
+            this.token = configOrToken.token;
+            this.owner = configOrToken.owner;
+            this.repo = configOrToken.repo;
+            this.branch = configOrToken.branch || 'main';
+        } else {
+            this.token = configOrToken;
+            this.owner = owner;
+            this.repo = repo;
+            this.branch = branch;
+        }
+        this.baseUrl = 'https://api.github.com';
+    }
+    async makeRequest(endpoint, method = 'GET', body = null) {
+        const url = `${this.baseUrl}/repos/${this.owner}/${this.repo}${endpoint}`;
+        const headers = {
+            'Authorization': `token ${this.token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        };
+        const config = {
+            method,
+            headers
+        };
+        if (body) {
+            config.body = JSON.stringify(body);
+        }
+        try {
+            const response = await fetch(url, config);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw new Error(`Network error: ${String(error)}`);
+        }
+    }
+    async getFileList(path = '') {
+        try {
+            const endpoint = `/contents/${path}?ref=${this.branch}`;
+            const response = await this.makeRequest(endpoint);
+            const items = Array.isArray(response) ? response : [
+                response
+            ];
+            return items.map((item)=>({
+                    name: item.name,
+                    path: item.path,
+                    type: item.type,
+                    size: item.size,
+                    sha: item.sha,
+                    downloadUrl: item.download_url
+                }));
+        } catch (error) {
+            throw new Error(`Failed to get file list: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async getFile(filePath) {
+        try {
+            const endpoint = `/contents/${filePath}?ref=${this.branch}`;
+            const response = await this.makeRequest(endpoint);
+            if (response.type !== 'file') {
+                throw new Error(`${filePath} is not a file`);
+            }
+            if (!response.content) {
+                throw new Error(`File ${filePath} has no content`);
+            }
+            return {
+                name: response.name,
+                path: response.path,
+                content: (new TextEncoder).encode(atob(response.content)),
+                sha: response.sha,
+                size: response.size,
+                encoding: response.encoding || 'base64'
+            };
+        } catch (error) {
+            throw new Error(`Failed to get file: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async commitFiles(files, commitMessage) {
+        try {
+            if (files.length === 0) {
+                throw new Error('No files provided to commit');
+            }
+            const refResponse = await this.makeRequest(`/git/refs/heads/${this.branch}`);
+            const currentCommitSha = refResponse.object.sha;
+            const commitResponse = await this.makeRequest(`/git/commits/${currentCommitSha}`);
+            const currentTreeSha = commitResponse.tree.sha;
+            const blobs = [];
+            for (const file of files){
+                const blobResponse = await this.makeRequest('/git/blobs', 'POST', {
+                    content: btoa(unescape(encodeURIComponent(file.content))),
+                    encoding: 'base64'
+                });
+                blobs.push({
+                    path: file.path,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: blobResponse.sha
+                });
+            }
+            const treeResponse = await this.makeRequest('/git/trees', 'POST', {
+                base_tree: currentTreeSha,
+                tree: blobs
+            });
+            const newCommitResponse = await this.makeRequest('/git/commits', 'POST', {
+                message: commitMessage,
+                tree: treeResponse.sha,
+                parents: [
+                    currentCommitSha
+                ]
+            });
+            await this.makeRequest(`/git/refs/heads/${this.branch}`, 'PATCH', {
+                sha: newCommitResponse.sha
+            });
+            return {
+                commitSha: newCommitResponse.sha,
+                message: commitMessage,
+                filesCommitted: files.length
+            };
+        } catch (error) {
+            throw new Error(`Failed to commit files: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async deleteFiles(filePaths, commitMessage) {
+        try {
+            if (filePaths.length === 0) {
+                throw new Error('No file paths provided to delete');
+            }
+            const filesToDelete = [];
+            const errors = [];
+            for (const filePath of filePaths){
+                try {
+                    const file = await this.getFile(filePath);
+                    filesToDelete.push({
+                        path: filePath,
+                        sha: file.sha
+                    });
+                } catch (error) {
+                    errors.push(`File ${filePath} not found: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+            if (filesToDelete.length === 0) {
+                throw new Error(`No files found to delete. Errors: ${errors.join(', ')}`);
+            }
+            const refResponse = await this.makeRequest(`/git/refs/heads/${this.branch}`);
+            const currentCommitSha = refResponse.object.sha;
+            const commitResponse = await this.makeRequest(`/git/commits/${currentCommitSha}`);
+            const currentTreeSha = commitResponse.tree.sha;
+            const treeItems = filesToDelete.map((file)=>({
+                    path: file.path,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: null
+                }));
+            const treeResponse = await this.makeRequest('/git/trees', 'POST', {
+                base_tree: currentTreeSha,
+                tree: treeItems
+            });
+            const newCommitResponse = await this.makeRequest('/git/commits', 'POST', {
+                message: commitMessage,
+                tree: treeResponse.sha,
+                parents: [
+                    currentCommitSha
+                ]
+            });
+            await this.makeRequest(`/git/refs/heads/${this.branch}`, 'PATCH', {
+                sha: newCommitResponse.sha
+            });
+            return {
+                commitSha: newCommitResponse.sha,
+                message: commitMessage,
+                filesDeleted: filesToDelete.length,
+                deletedFiles: filesToDelete.map((f)=>f.path)
+            };
+        } catch (error) {
+            throw new Error(`Failed to delete files: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async updateFile(filePath, content, commitMessage) {
+        return await this.commitFiles([
+            {
+                path: filePath,
+                content
+            }
+        ], commitMessage);
+    }
+    async deleteFile(filePath, commitMessage) {
+        return await this.deleteFiles([
+            filePath
+        ], commitMessage);
+    }
+    get repositoryInfo() {
+        return {
+            owner: this.owner,
+            repo: this.repo,
+            branch: this.branch
+        };
+    }
+}
 let watcher = null;
 function handleRequest(_ctx) {
-    if (mod12.project.ready === false) {
+    if (mod14.project.ready === false) {
         return new Response(html, {
             status: 503,
             headers: {
@@ -23360,9 +24671,180 @@ function handleRequest(_ctx) {
         });
     }
 }
+class LRUCache {
+    cache = new Map();
+    accessOrder = new Map();
+    config;
+    metrics;
+    currentSize = 0;
+    accessCounter = 0;
+    cleanupTimer;
+    constructor(config = {}){
+        this.config = {
+            maxSize: 100 * 1024 * 1024,
+            ttl: 30 * 60 * 1000,
+            cleanupInterval: 5 * 60 * 1000,
+            enableMetrics: true,
+            ...config
+        };
+        this.metrics = {
+            hits: 0,
+            misses: 0,
+            evictions: 0,
+            totalSize: 0,
+            entryCount: 0,
+            hitRate: 0
+        };
+        this.startCleanupTimer();
+    }
+    set(key, value, customTTL) {
+        const now = Date.now();
+        const size = this.calculateSize(value);
+        const ttl = customTTL || this.config.ttl;
+        if (this.cache.has(key)) {
+            this.delete(key);
+        }
+        this.ensureSpace(size);
+        const entry = {
+            value,
+            timestamp: now,
+            ttl,
+            accessCount: 1,
+            lastAccessed: now,
+            size
+        };
+        this.cache.set(key, entry);
+        this.accessOrder.set(key, this.accessCounter++);
+        this.currentSize += size;
+        this.updateMetrics();
+    }
+    get(key) {
+        const entry = this.cache.get(key);
+        if (!entry) {
+            this.metrics.misses++;
+            this.updateHitRate();
+            return null;
+        }
+        const now = Date.now();
+        if (now - entry.timestamp > entry.ttl) {
+            this.delete(key);
+            this.metrics.misses++;
+            this.updateHitRate();
+            return null;
+        }
+        entry.accessCount++;
+        entry.lastAccessed = now;
+        this.accessOrder.set(key, this.accessCounter++);
+        this.metrics.hits++;
+        this.updateHitRate();
+        return entry.value;
+    }
+    delete(key) {
+        const entry = this.cache.get(key);
+        if (!entry) return false;
+        this.cache.delete(key);
+        this.accessOrder.delete(key);
+        this.currentSize -= entry.size;
+        this.updateMetrics();
+        return true;
+    }
+    clear() {
+        this.cache.clear();
+        this.accessOrder.clear();
+        this.currentSize = 0;
+        this.metrics.evictions += this.metrics.entryCount;
+        this.updateMetrics();
+    }
+    has(key) {
+        const entry = this.cache.get(key);
+        if (!entry) return false;
+        const now = Date.now();
+        if (now - entry.timestamp > entry.ttl) {
+            this.delete(key);
+            return false;
+        }
+        return true;
+    }
+    getMetrics() {
+        return {
+            ...this.metrics
+        };
+    }
+    ensureSpace(requiredSize) {
+        while(this.currentSize + requiredSize > this.config.maxSize && this.cache.size > 0){
+            this.evictLRU();
+        }
+    }
+    evictLRU() {
+        let oldestKey = null;
+        let oldestAccess = Infinity;
+        for (const [key, accessTime] of this.accessOrder.entries()){
+            if (accessTime < oldestAccess) {
+                oldestAccess = accessTime;
+                oldestKey = key;
+            }
+        }
+        if (oldestKey) {
+            this.delete(oldestKey);
+            this.metrics.evictions++;
+        }
+    }
+    calculateSize(value) {
+        if (value instanceof Uint8Array) {
+            return value.length;
+        }
+        if (typeof value === 'string') {
+            return value.length * 2;
+        }
+        if (typeof value === 'object' && value !== null) {
+            return JSON.stringify(value).length * 2;
+        }
+        return 64;
+    }
+    updateMetrics() {
+        this.metrics.totalSize = this.currentSize;
+        this.metrics.entryCount = this.cache.size;
+    }
+    updateHitRate() {
+        const total = this.metrics.hits + this.metrics.misses;
+        this.metrics.hitRate = total > 0 ? this.metrics.hits / total : 0;
+    }
+    startCleanupTimer() {
+        this.cleanupTimer = setInterval(()=>{
+            this.cleanup();
+        }, this.config.cleanupInterval);
+    }
+    cleanup() {
+        const now = Date.now();
+        const expiredKeys = [];
+        for (const [key, entry] of this.cache.entries()){
+            if (now - entry.timestamp > entry.ttl) {
+                expiredKeys.push(key);
+            }
+        }
+        for (const key of expiredKeys){
+            this.delete(key);
+        }
+        if (this.config.enableMetrics && expiredKeys.length > 0) {
+            mod5.info(`Cache cleanup: removed ${expiredKeys.length} expired entries`);
+        }
+    }
+    destroy() {
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+        }
+        this.clear();
+    }
+}
+function getInstance1(_config, _utils) {
+    return new LRUCache();
+}
+const mod13 = {
+    getInstance: getInstance1
+};
 async function handleRequest1(ctx) {
     const url = new URL(ctx.request.url);
-    const project = mod12.project;
+    const project = mod14.project;
     if (!project.application) {
         return new Response(html1, {
             status: 200,
@@ -23375,8 +24857,8 @@ async function handleRequest1(ctx) {
         for(const prop in project.appConfig.extensions){
             const contextExtension = project.appConfig.extensions[prop];
             let module1;
-            if (prop === 'cache' && contextExtension.uri === 'jsphere://Cache') module1 = mod4;
-            else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') module1 = mod5;
+            if (prop === 'cache' && contextExtension.uri === 'jsphere://Cache') module1 = mod13;
+            else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') module1 = mod4;
             else if (contextExtension.uri.startsWith('/')) {
                 try {
                     module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${contextExtension.uri}?eTag=${project.currentCacheDTS}`);
@@ -23400,17 +24882,14 @@ async function handleRequest1(ctx) {
             }
             ctx[prop] = contextExtension.instance = await module1.getInstance({
                 extension: prop,
-                settings: mod12.getSettings(contextExtension.settings || {}),
+                settings: mod14.getSettings(contextExtension.settings || {}),
                 appConfig: {
                     featureFlags: project.appConfig.featureFlags,
-                    settings: mod12.getSettings(project.appConfig.settings || {})
+                    settings: mod14.getSettings(project.appConfig.settings || {})
                 }
             });
         }
-        const cache = project.appConfig.extensions['cache'].instance;
-        const currentCacheDTS = await cache.get(`currentCacheDTS`);
-        if (currentCacheDTS === null) await cache.set(`currentCacheDTS`, project.currentCacheDTS);
-        else project.currentCacheDTS = currentCacheDTS;
+        ctx.cacheDTS = project.currentCacheDTS;
         project.ready = true;
         if (url.pathname == '/@cmd/ready' || url.pathname == '/@cmd/loadconfig' || url.pathname == '/@cmd/reload') {
             return new Response('OK', {
@@ -23421,129 +24900,101 @@ async function handleRequest1(ctx) {
 }
 async function handleRequest2(ctx) {
     const url = new URL(ctx.request.url);
-    const auth = ctx.request.headers.get('Authorization');
-    const token = Deno.env.get('SERVER_AUTH_TOKEN');
-    const accessAllowed = auth && token ? auth === `token ${token}` : false;
     if (url.pathname.startsWith('/@cmd/')) {
-        mod6.info('Received the following command: ' + url.pathname);
         const cmd = url.pathname.split('/@cmd/')[1];
-        if (cmd == 'ready' && ctx.request.method === 'GET') return;
-        if (cmd == 'healthcheck' && ctx.request.method === 'GET') {
-            return new Response('OK', {
-                status: 200
-            });
+        const requestId = crypto.randomUUID();
+        let accessAllowed = true;
+        mod5.info(`Command request: ${cmd}`, {
+            requestId
+        });
+        const publicEndpoints = [
+            'ready',
+            'healthcheck'
+        ];
+        const isPublicEndpoint = publicEndpoints.includes(cmd);
+        if (!isPublicEndpoint && url.hostname !== 'localhost') {
+            const auth = ctx.request.headers.get('Authorization');
+            const token = Deno.env.get('SERVER_AUTH_TOKEN');
+            accessAllowed = auth && token ? auth === `token ${token}` : false;
         }
         if (accessAllowed || url.hostname === 'localhost') {
-            if (cmd == 'loadconfig' && ctx.request.method === 'POST') {
-                try {
-                    const config = ctx.request.data;
-                    await mod12.init(config);
-                    return;
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'reload' && ctx.request.method === 'GET') {
-                try {
-                    await mod12.init();
-                    return;
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'currentconfig' && ctx.request.method === 'GET') {
-                try {
-                    return new Response(JSON.stringify(mod12.getCurrentConfig()), {
-                        headers: {
-                            'content-type': 'application/json'
-                        },
-                        status: 200
-                    });
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'checkout' && ctx.request.method === 'POST') {
-                try {
-                    const params = ctx.request.data;
-                    if ('.' + mod12.project.name === params.name || mod12.project.appConfig?.packages[params.name] || params.name === '*') {
-                        await checkoutPackage(params.name);
-                        return new Response('OK', {
-                            status: 200
-                        });
-                    } else return new Response('OK', {
-                        status: 404
-                    });
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'createproject' && ctx.request.method === 'POST') {
-                try {
-                    const config = ctx.request.data;
-                    const response = await createProject(config);
-                    if (response.status === 201) {
-                        await mod12.init(config);
-                        return new Response('OK', {
-                            status: response.status
-                        });
-                    } else return new Response(response.message, {
-                        status: response.status
-                    });
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'createpackage' && ctx.request.method === 'POST') {
-                try {
-                    const params = ctx.request.data;
-                    const response = await createPackage(params);
-                    return new Response(response.message, {
-                        status: response.status
-                    });
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'syncproject' && ctx.request.method === 'POST') {
-                try {
-                    const params = ctx.request.data;
-                    const response = await syncProject(params);
-                    return new Response(response.message, {
-                        status: response.status
-                    });
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
-                    });
-                }
-            } else if (cmd == 'installelement' && ctx.request.method === 'POST') {
-                try {
-                    const response = await installElement();
-                    if (response) {
-                        return new Response('OK', {
-                            status: 201
-                        });
-                    } else {
-                        return new Response('Project package not found. Please checkout the project package before running this command.', {
-                            status: 404
+            switch(cmd){
+                case 'ready':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
                         });
                     }
-                } catch (e) {
-                    return new Response(e.message, {
-                        status: 500
+                    return;
+                case 'healthcheck':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return new Response('OK', {
+                        status: 200
                     });
-                }
-            } else {
-                return new Response('Command Not Found.', {
-                    status: 404
-                });
+                case 'loadconfig':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleLoadConfig(ctx, requestId);
+                case 'reload':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleReload(requestId);
+                case 'currentconfig':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCurrentConfig(requestId);
+                case 'createproject':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCreateProject(ctx, requestId);
+                case 'createpackage':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCreatePackage(ctx, requestId);
+                case 'checkout':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCheckout(ctx, requestId);
+                case 'syncproject':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleSyncProject(requestId);
+                case 'installelement':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleInstallElement(requestId);
+                default:
+                    return new Response('Command Not Found.', {
+                        status: 404
+                    });
             }
         }
     }
@@ -23556,7 +25007,7 @@ async function handleRequest3(ctx) {
             if (!eTag) return new Response('', {
                 status: 200
             });
-            const item = await mod12.getPackageItem(ctx.request.url.pathname);
+            const item = await mod14.getPackageItem(ctx.request.url.pathname);
             if (item) {
                 const content = ts === 'true' ? item.content : parseContent(item.content, eTag);
                 return new Response(content, {
@@ -23579,8 +25030,8 @@ async function handleRequest3(ctx) {
 }
 function handleRequest4(ctx) {
     const extension = extname2(ctx.request.url.pathname);
-    if (mod12.project.appConfig.routes && !lookup(extension)) {
-        const route = matchRoute(ctx.request.url.pathname, mod12.project.appConfig.routes);
+    if (mod14.project.appConfig.routes && !lookup(extension)) {
+        const route = matchRoute(ctx.request.url.pathname, mod14.project.appConfig.routes);
         if (route.path) {
             ctx.request.routePath = route.path;
             Object.assign(ctx.request.params, route.params);
@@ -23592,17 +25043,17 @@ async function handleRequest5(ctx) {
     if ((folder == 'client' || folder == 'shared' || folder == 'tests') && ctx.request.method == 'GET') {
         try {
             const pathname = ctx.request.routePath;
-            let item = mod12.project.packageItemCache[pathname];
+            let item = mod14.project.packageItemCache.getPackageItem(pathname);
             if (!item || item.contentType === 'application/typescript; charset=utf-8') {
                 if (pathname.endsWith('.ts')) {
                     const port = ctx.request.url.port;
-                    const url = `http://127.0.0.1${port ? ':' + port : ''}${pathname}?ts=true&eTag=${mod12.project.currentCacheDTS}`;
-                    const result1 = await mod11.transpile(url);
-                    item = mod12.project.packageItemCache[pathname];
+                    const url = `http://127.0.0.1${port ? ':' + port : ''}${pathname}?ts=true&eTag=${mod14.project.currentCacheDTS}`;
+                    const result1 = await mod12.transpile(url);
+                    item = mod14.project.packageItemCache.getPackageItem(pathname);
                     item.contentType = 'text/javascript';
                     item.content = new TextEncoder().encode(result1.get(url));
                 } else {
-                    item = await mod12.getPackageItem(ctx.request.routePath);
+                    item = await mod14.getPackageItem(ctx.request.routePath);
                 }
             }
             if (item) {
@@ -23642,9 +25093,9 @@ async function handleRequest6(ctx) {
             const slash = pathname.startsWith('/');
             let module1;
             try {
-                module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${slash ? '' : '/'}${pathname}?eTag=${mod12.project.currentCacheDTS}`);
+                module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${slash ? '' : '/'}${pathname}?eTag=${mod14.project.currentCacheDTS}`);
             } catch (e) {
-                mod6.error(e);
+                mod5.error(e);
                 return new Response('API Endpoint: Failed To Load Dependency', {
                     status: 424
                 });
@@ -23657,7 +25108,7 @@ async function handleRequest6(ctx) {
                         status: 204
                     });
                 } catch (e) {
-                    mod6.error(e);
+                    mod5.error(e);
                     return new Response('API Endpoint: Internal Server Error', {
                         status: 500
                     });
@@ -23666,7 +25117,7 @@ async function handleRequest6(ctx) {
                 status: 405
             });
         } catch (e) {
-            mod6.error(e);
+            mod5.error(e);
             return new Response('Internal Server Error', {
                 status: 500
             });
@@ -23806,10 +25257,44 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.112';
+const version = 'v1.0.0-preview.114';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
+class PackageItemCache extends LRUCache {
+    constructor(){
+        super({
+            maxSize: 200 * 1024 * 1024,
+            ttl: 60 * 60 * 1000,
+            cleanupInterval: 10 * 60 * 1000,
+            enableMetrics: true
+        });
+    }
+    setPackageItem(path, item) {
+        debugger;
+        this.set(path, item);
+    }
+    getPackageItem(path) {
+        debugger;
+        return this.get(path);
+    }
+    invalidatePackage(packageName) {
+        const keysToDelete = [];
+        for (const key of this.cache.keys()){
+            if (packageName == '*' || key.startsWith(`/${packageName}/`)) {
+                keysToDelete.push(key);
+            }
+        }
+        for (const key of keysToDelete){
+            this.delete(key);
+        }
+        if (packageName == '*') {
+            mod5.info(`Invalidated ${keysToDelete.length} cache entries for this project`);
+        } else {
+            mod5.info(`Invalidated ${keysToDelete.length} cache entries for package: ${packageName}`);
+        }
+    }
+}
 function getVersion() {
     return version;
 }
@@ -23827,7 +25312,6 @@ async function init1(config) {
             Deno.env.set(key, currentConfig[key]);
         }
         for(const key in project)delete project[key];
-        const projectFolder = Deno.env.get('PROJECT_CONFIG_NAME') || '';
         const checkoutProject = Boolean(Deno.env.get('CHECKOUT_PROJECT'));
         const watchForChanges = Boolean(Deno.env.get('WATCH_PROJECT_CHANGES'));
         const clearRuntimeCache = Boolean(Deno.env.get('CLEAR_RUNTIME_CACHE'));
@@ -23838,26 +25322,27 @@ async function init1(config) {
         const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
         const reference = Deno.env.get('PROJECT_REFERENCE');
         const path = `.${projectName}/${appConfig}.json`;
+        const projectFolder = Deno.env.get('PROJECT_CONFIG_NAME') || projectName;
         if (!namespace && !projectName && !authToken) return;
         let file = await getFile(projectFolder + '/' + path, true);
         if (file === null) {
             const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), host, namespace, authToken);
             if (repoFile === null) {
-                mod6.warning(`Could not find the application configuration file ${appConfig}.json.`);
-                mod6.warning('Attempted to locate file in the file system path:' + projectFolder + '/' + path);
-                mod6.warning('Attempted to locate file in the remote repo:' + namespace + '/' + path);
+                mod5.warning(`Could not find the application configuration file ${appConfig}.json.`);
+                mod5.warning('Attempted to locate file in the file system path:' + projectFolder + '/' + path);
+                mod5.warning('Attempted to locate file in the remote repo:' + namespace + '/' + path);
                 return;
             }
-            mod6.info(`Loaded application configuration file from: ${namespace + '/' + path}`);
+            mod5.info(`Loaded application configuration file from: ${namespace + '/' + path}`);
             file = new TextDecoder().decode(repoFile.content);
         } else {
-            mod6.info(`Loaded application configuration file from: ${projectFolder + '/' + path}`);
+            mod5.info(`Loaded application configuration file from: ${projectFolder + '/' + path}`);
         }
         try {
             project.appConfig = JSON.parse(file);
         } catch (e) {
-            mod6.warning(`There was a problem parsing the application configuration file ${appConfig}.json.`);
-            mod6.warning('Received parsing error: ' + e.message);
+            mod5.warning(`There was a problem parsing the application configuration file ${appConfig}.json.`);
+            mod5.warning('Received parsing error: ' + e.message);
             return;
         }
         project.folder = projectFolder;
@@ -23869,7 +25354,7 @@ async function init1(config) {
         project.reference = reference;
         project.extensions = {};
         project.currentCacheDTS = Date.now();
-        project.packageItemCache = {};
+        project.packageItemCache = new PackageItemCache();
         project.aliasMappings = {};
         if (!project.appConfig.packages) project.appConfig.packages = {};
         if (!project.appConfig.routes) project.appConfig.routes = [];
@@ -23886,7 +25371,7 @@ async function init1(config) {
         if (!project.appConfig.settings) project.appConfig.settings = {};
         if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
         if (clearRuntimeCache) {
-            mod6.info('Clearing runtime cache');
+            mod5.info('Clearing runtime cache');
             const command = new Deno.Command('deno', {
                 args: [
                     'clean'
@@ -23898,7 +25383,7 @@ async function init1(config) {
             await child.status;
         }
         if (checkoutProject) {
-            mod6.info(`Checking out project to: ${Deno.cwd()}/${project.folder}`);
+            mod5.info(`Checking out project to: ${Deno.cwd()}/${project.folder}`);
             await Deno.remove(`${Deno.cwd()}/${project.folder}`, {
                 recursive: true
             });
@@ -23907,7 +25392,7 @@ async function init1(config) {
             packages.push('.' + project.name);
             for (const packageName of packages){
                 const reference = packageName == '.' + project.name ? project.reference : project.appConfig.packages[packageName].reference;
-                await cloneRepo({
+                await downloadRepoReference({
                     repoName: packageName,
                     reference: reference,
                     path: `${Deno.cwd()}/${project.folder}/${packageName}`,
@@ -23920,10 +25405,10 @@ async function init1(config) {
         if (watchForChanges && await exists(`${Deno.cwd()}/${project.folder}`, {
             isDirectory: true
         })) {
-            mod6.info(`Watching file changes in: ${Deno.cwd()}/${project.folder}`);
+            mod5.info(`Watching file changes in: ${Deno.cwd()}/${project.folder}`);
             if (watcher) watcher.close();
             const clearProjectCache = debounce((_event)=>{
-                project.packageItemCache = {};
+                project.packageItemCache?.invalidatePackage('*');
                 project.currentCacheDTS = Date.now();
             }, 200);
             watcher = Deno.watchFs('./' + project.folder);
@@ -23934,11 +25419,11 @@ async function init1(config) {
             })();
         }
     } else if (project.ready) {
-        project.packageItemCache = {};
+        project.packageItemCache?.invalidatePackage('*');
         project.currentCacheDTS = Date.now();
         return;
     } else {
-        mod6.warning(`JSphere is currently not hosting any applications.`);
+        mod5.warning(`JSphere is currently not hosting any applications.`);
         return;
     }
 }
@@ -23947,9 +25432,9 @@ async function handleRequest7(request) {
     const directives = [];
     const serverContext = await getServerContext(request);
     if (serverContext.request.url.hostname != '127.0.0.1' || serverContext.request.url.hostname == '127.0.0.1' && serverContext.request.url.pathname.startsWith('/@cmd/')) {
-        if (!response) response = mod13.handleRequest(serverContext);
-        if (!response) response = await mod15.handleRequest(serverContext);
-        if (!response) response = await mod14.handleRequest(serverContext);
+        if (!response) response = handleRequest(serverContext);
+        if (!response) response = await handleRequest2(serverContext);
+        if (!response) response = await handleRequest1(serverContext);
         if (!response) {
             for (const path of project.appConfig.directives){
                 const slash = path.startsWith('/');
@@ -23961,9 +25446,9 @@ async function handleRequest7(request) {
                 directives.push(module1);
             }
         }
-        if (!response) response = mod17.handleRequest(serverContext);
-        if (!response) response = await mod18.handleRequest(serverContext);
-        if (!response) response = await mod19.handleRequest(serverContext);
+        if (!response) response = handleRequest4(serverContext);
+        if (!response) response = await handleRequest5(serverContext);
+        if (!response) response = await handleRequest6(serverContext);
         while(directives.length > 0){
             const module1 = directives.pop();
             if (module1.onResponse) {
@@ -23972,7 +25457,7 @@ async function handleRequest7(request) {
             }
         }
     } else {
-        response = await mod16.handleRequest(serverContext);
+        response = await handleRequest3(serverContext);
     }
     if (response) {
         if (serverContext.request.url.hostname != '127.0.0.1' && response.status == 200) {
@@ -23987,8 +25472,10 @@ async function handleRequest7(request) {
 }
 async function getPackageItem(itemPath) {
     if (!itemPath.startsWith('/')) itemPath = '/' + itemPath;
-    const item = project.packageItemCache[itemPath];
-    if (item) return item;
+    const cachedItem = project.packageItemCache.getPackageItem(itemPath);
+    if (cachedItem) {
+        return cachedItem;
+    }
     const pathParts = itemPath.split('/');
     let packageKey = pathParts[1];
     if (project.aliasMappings[packageKey]) {
@@ -24023,11 +25510,10 @@ async function getPackageItem(itemPath) {
             content: file.content,
             eTag
         };
-        project.packageItemCache[itemPath] = packageItem;
+        project.packageItemCache?.setPackageItem(itemPath, packageItem, eTag);
         return packageItem;
-    } else {
-        return null;
     }
+    return null;
 }
 function getSettings(settings) {
     for(const setting in settings){
@@ -24040,7 +25526,7 @@ async function getFile(path, text = false) {
     try {
         const slash = path.startsWith('/');
         const result1 = await Deno.readFile(Deno.cwd() + (slash ? '' : '/') + path);
-        mod6.info('Using local resource: ' + path);
+        mod5.info('Using local resource: ' + path);
         return text ? (new TextDecoder).decode(result1) : {
             name: path.split('/').pop(),
             content: result1
@@ -24074,12 +25560,12 @@ async function getFileFromRepo(path, host, namespace, authToken) {
                 if (response.ok) {
                     const result1 = await response.json();
                     if (result1.sha) {
-                        const content = mod7.decode(result1.content);
+                        const content = mod8.decode(result1.content);
                         result1.content = content;
                         return result1;
-                    } else mod6.warning(`${url} - ${result1.message}`);
+                    } else mod5.warning(`${url} - ${result1.message}`);
                 } else {
-                    mod6.warning(`${url} - ${response.statusText}`);
+                    mod5.warning(`${url} - ${response.statusText}`);
                 }
             } else {
                 url = `https://raw.githubusercontent.com/${namespace}/${repo}/${ref}/${path}`;
@@ -24108,8 +25594,8 @@ async function getFileFromRepo(path, host, namespace, authToken) {
             }
         }
     } catch (e) {
-        mod6.warning(`A problem occured while trying to receive a resource from the GitHub account '${namespace}'.`);
-        mod6.error('Error: ' + e.message);
+        mod5.warning(`A problem occured while trying to receive a resource from the GitHub account '${namespace}'.`);
+        mod5.error('Error: ' + e.message);
     }
     return null;
 }
@@ -24214,7 +25700,38 @@ async function deleteRepo(props) {
         };
     }
 }
-const mod12 = {
+async function downloadRepoReference(props) {
+    const path = props.path;
+    const repoName = props.repoName;
+    const provider = props.provider || 'GitHub';
+    const namespace = props.namespace;
+    const authToken = props.authToken;
+    const reference = props.reference;
+    let response;
+    if (provider == 'GitHub') {
+        const url = `https://api.github.com/repos/${namespace}/${repoName}/zipball/${reference}.zip`;
+        mod5.info(`Downloading ${url} ...`);
+        response = await fetch(url, {
+            method: 'GET',
+            redirect: 'follow',
+            headers: {
+                'Authorization': `token ${authToken}`
+            }
+        });
+    }
+    if (!response?.ok) {
+        throw new Error(`Failed to download zip file: ${response?.status} ${response?.statusText}`);
+    }
+    const tmpZip = await Deno.makeTempFile({
+        suffix: ".zip"
+    });
+    const data = new Uint8Array(await response.arrayBuffer());
+    await Deno.writeFile(tmpZip, data);
+    mod5.info(`Extracting to ${path} ...`);
+    await decompress(tmpZip, path);
+    mod5.info(`Extracted to ${path} ...`);
+}
+const mod14 = {
     project: project,
     getVersion: getVersion,
     getDenoVersion: getDenoVersion,
@@ -24227,28 +25744,8 @@ const mod12 = {
     getFileFromRepo: getFileFromRepo,
     cloneRepo: cloneRepo,
     createRepo: createRepo,
-    deleteRepo: deleteRepo
-};
-const mod13 = {
-    handleRequest: handleRequest
-};
-const mod14 = {
-    handleRequest: handleRequest1
-};
-const mod15 = {
-    handleRequest: handleRequest2
-};
-const mod16 = {
-    handleRequest: handleRequest3
-};
-const mod17 = {
-    handleRequest: handleRequest4
-};
-const mod18 = {
-    handleRequest: handleRequest5
-};
-const mod19 = {
-    handleRequest: handleRequest6
+    deleteRepo: deleteRepo,
+    downloadRepoReference: downloadRepoReference
 };
 async function getServerContext(request) {
     const requestCtx = await getRequestContext(request);
@@ -24256,7 +25753,7 @@ async function getServerContext(request) {
         request: requestCtx,
         response: new ResponseContext(),
         utils: new Utils(),
-        parser: new mod9.DOMParser(),
+        parser: new mod10.DOMParser(),
         getPackageItem: async (path)=>{
             const packageItem = await getPackageItem(path);
             return packageItem;
@@ -24264,10 +25761,10 @@ async function getServerContext(request) {
         user: {}
     };
     if (project.ready) {
-        serverContext.cacheDTS = project.currentCacheDTS;
         for(const prop in project.appConfig.extensions){
             serverContext[prop] = project.appConfig.extensions[prop].instance;
         }
+        serverContext.cacheDTS = project.currentCacheDTS;
         serverContext.settings = project.appConfig?.settings;
     }
     return serverContext;
@@ -24280,7 +25777,7 @@ async function getRequestContext(request) {
         method: request.method,
         routePath: url.pathname,
         headers: request.headers,
-        cookies: mod8.getCookies(request.headers),
+        cookies: mod9.getCookies(request.headers),
         params: {},
         data: {},
         files: []
@@ -24344,6 +25841,35 @@ class ResponseContext {
             }
         });
     };
+    stream = (fn, init)=>{
+        let controller = null;
+        let closed = false;
+        const rs = new ReadableStream({
+            start: (ctrl)=>{
+                controller = ctrl;
+                fn((data, onClose)=>{
+                    if (closed || !controller) {
+                        if (onClose) onClose();
+                        return;
+                    }
+                    try {
+                        controller.enqueue(data);
+                    } catch (e) {
+                        console.error('Failed to push to stream:', e.message);
+                        controller = null;
+                        closed = true;
+                        throw e;
+                    }
+                });
+            },
+            cancel () {
+                closed = true;
+                controller = null;
+                console.log('Stream closed by client');
+            }
+        });
+        return new Response(rs, init);
+    };
 }
 const html = `
 <html>
@@ -24365,106 +25891,120 @@ const html1 = `
     </body>
 </html>
 `;
-async function createProject(config) {
-    let response = await mod12.createRepo({
-        repoName: '.' + config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
-        namespace: config.PROJECT_NAMESPACE,
-        authToken: config.PROJECT_AUTH_TOKEN
-    });
-    if (response.status !== 201) return response;
-    response = await addUpdateFile({
-        repoName: '.' + config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
-        namespace: config.PROJECT_NAMESPACE,
-        authToken: config.PROJECT_AUTH_TOKEN,
-        path: 'app.json',
-        content: getApplicationConfig(config.PROJECT_NAME)
-    });
-    if (response.status !== 201) return response;
-    response = await mod12.createRepo({
-        repoName: config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
-        namespace: config.PROJECT_NAMESPACE,
-        authToken: config.PROJECT_AUTH_TOKEN
-    });
-    if (response.status !== 201) return response;
-    response = await addUpdateFile({
-        repoName: config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
-        namespace: config.PROJECT_NAMESPACE,
-        authToken: config.PROJECT_AUTH_TOKEN,
-        path: 'client/index.html',
-        content: getIndexPageContent()
-    });
-    if (response.status !== 201) return response;
-    response = await addUpdateFile({
-        repoName: config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
-        namespace: config.PROJECT_NAMESPACE,
-        authToken: config.PROJECT_AUTH_TOKEN,
-        path: 'server/datetime.ts',
-        content: getAPIEndpointContent()
-    });
-    return response;
-}
-async function createPackage(props) {
-    const projectName = mod12.project.name;
-    const response = await mod12.createRepo({
-        repoName: props.name,
-        host: mod12.project.host,
-        namespace: mod12.project.namespace,
-        authToken: mod12.project.authToken
-    });
-    if (response.status !== 201) return response;
-    if (!await exists(`${Deno.cwd()}/${mod12.project.folder}/.${projectName}`, {
-        isDirectory: true
-    })) await checkoutPackage('.' + projectName);
-    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(`${Deno.cwd()}/${mod12.project.folder}/.${projectName}/app.json`)));
-    appConfig.packages[props.name] = {};
-    await Deno.writeFile(Deno.cwd() + `/${mod12.project.folder}/.${projectName}/app.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
-    mod12.project.appConfig.packages[props.name] = {};
-    await checkoutPackage(props.name);
-    await Deno.mkdir(Deno.cwd() + `/${mod12.project.folder}/${props.name}/client`, {
-        recursive: true
-    });
-    await Deno.mkdir(Deno.cwd() + `/${mod12.project.folder}/${props.name}/server`, {
-        recursive: true
-    });
-    await Deno.mkdir(Deno.cwd() + `/${mod12.project.folder}/${props.name}/shared`, {
-        recursive: true
-    });
-    await Deno.mkdir(Deno.cwd() + `/${mod12.project.folder}/${props.name}/tests`, {
-        recursive: true
-    });
-    return {
-        status: 201
-    };
-}
-async function checkoutPackage(packageName) {
-    const packages = {};
-    packages['.' + mod12.project.name] = {};
-    Object.assign(packages, mod12.project.appConfig.packages);
-    for(const key in packages){
-        if (packageName === '*' || packageName === key) {
-            await mod12.cloneRepo({
-                repoName: key,
-                reference: packages[key].reference,
-                path: Deno.cwd() + `/${mod12.project.folder}/${packageName}`,
-                host: mod12.project.host,
-                namespace: mod12.project.namespace,
-                authToken: mod12.project.authToken
-            });
-        }
+async function handleLoadConfig(ctx, requestId) {
+    try {
+        const config = ctx.request.data;
+        await mod14.init(config);
+        return new Response('OK', {
+            status: 200
+        });
+    } catch (error) {
+        mod5.error('Failed to load config:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
     }
 }
-async function syncProject(_props) {
-    const projectPath = mod12.project.folder;
-    const projectName = mod12.project.name;
-    const targetBranch = Deno.env.get('PROJECT_PREVIEW_BRANCH');
-    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${projectPath}/.${projectName}/app.${targetBranch}.json`)));
-    const isWindows = Deno.build.os === "windows";
+async function handleReload(requestId) {
     try {
+        await mod14.init();
+        return new Response('OK', {
+            status: 200
+        });
+    } catch (error) {
+        mod5.error('Failed to reload config:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+function handleCurrentConfig(requestId) {
+    try {
+        const config = mod14.getCurrentConfig();
+        return new Response(JSON.stringify(config), {
+            headers: {
+                'content-type': 'application/json'
+            },
+            status: 200
+        });
+    } catch (error) {
+        mod5.error('Failed to retrieve current config:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function handleCreateProject(ctx, requestId) {
+    try {
+        const config = ctx.request.data;
+        const response = await createProject(config);
+        if (response.status === 201) {
+            await mod14.init(config);
+            return new Response('OK', {
+                status: 201
+            });
+        } else {
+            return new Response(response.message, {
+                status: response.status
+            });
+        }
+    } catch (error) {
+        mod5.error('Failed to create project:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function handleCreatePackage(ctx, requestId) {
+    try {
+        const params = ctx.request.data;
+        const response = await createPackage(params);
+        return new Response(response.message, {
+            status: response.status
+        });
+    } catch (error) {
+        mod5.error('Failed to create package:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function handleCheckout(ctx, requestId) {
+    try {
+        const params = ctx.request.data;
+        if (params.name.includes('/')) {
+            await checkoutFile(params.name);
+            return new Response('OK', {
+                status: 200
+            });
+        } else if ('.' + mod14.project.name === params.name || mod14.project.appConfig?.packages[params.name] || params.name === '*') {
+            await checkoutPackage(params.name);
+            return new Response('OK', {
+                status: 200
+            });
+        } else return new Response('OK', {
+            status: 404
+        });
+    } catch (error) {
+        mod5.error('Failed to create package:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function handleSyncProject(requestId) {
+    try {
+        const projectPath = mod14.project.folder;
+        const projectName = mod14.project.name;
+        const targetBranch = Deno.env.get('PROJECT_PREVIEW_BRANCH');
+        const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${projectPath}/.${projectName}/app.${targetBranch}.json`)));
+        const isWindows = Deno.build.os === "windows";
         if (typeof appConfig.packages == 'object') {
             for(const key in appConfig.packages){
                 const commands = [
@@ -24491,14 +26031,146 @@ async function syncProject(_props) {
                 await command.output();
             }
         }
-        return {
+        return new Response('OK', {
             status: 200
-        };
-    } catch (e) {
-        return {
-            status: 500,
-            message: e.message
-        };
+        });
+    } catch (error) {
+        mod5.error('Failed to sync project:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function handleInstallElement(requestId) {
+    try {
+        if (await exists(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}`, {
+            isDirectory: true
+        })) {
+            await Deno.mkdir(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared`, {
+                recursive: true
+            });
+            let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/element.js`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/element.js`, (new TextEncoder).encode(file));
+            }
+            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/urlpattern.min.js`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
+            }
+            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/element.d.ts`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/element.d.ts`, (new TextEncoder).encode(file));
+            }
+            return new Response('OK', {
+                status: 201
+            });
+        }
+        return new Response('Project package not found. Please checkout the project package before running this command.', {
+            status: 404
+        });
+    } catch (error) {
+        mod5.error('Failed to create package:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function createProject(config) {
+    let response = await mod14.createRepo({
+        repoName: '.' + config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN
+    });
+    if (response.status !== 201) return response;
+    response = await addUpdateFile({
+        repoName: '.' + config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN,
+        path: 'app.json',
+        content: getApplicationConfig(config.PROJECT_NAME)
+    });
+    if (response.status !== 201) return response;
+    response = await mod14.createRepo({
+        repoName: config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN
+    });
+    if (response.status !== 201) return response;
+    response = await addUpdateFile({
+        repoName: config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN,
+        path: 'client/index.html',
+        content: getIndexPageContent()
+    });
+    if (response.status !== 201) return response;
+    response = await addUpdateFile({
+        repoName: config.PROJECT_NAME,
+        host: config.PROJECT_HOST,
+        namespace: config.PROJECT_NAMESPACE,
+        authToken: config.PROJECT_AUTH_TOKEN,
+        path: 'server/datetime.ts',
+        content: getAPIEndpointContent()
+    });
+    return response;
+}
+async function createPackage(props) {
+    const projectName = mod14.project.name;
+    const response = await mod14.createRepo({
+        repoName: props.name,
+        host: mod14.project.host,
+        namespace: mod14.project.namespace,
+        authToken: mod14.project.authToken
+    });
+    if (response.status !== 201) return response;
+    if (!await exists(`${Deno.cwd()}/${mod14.project.folder}/.${projectName}`, {
+        isDirectory: true
+    })) await checkoutPackage('.' + projectName);
+    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(`${Deno.cwd()}/${mod14.project.folder}/.${projectName}/app.json`)));
+    appConfig.packages[props.name] = {};
+    await Deno.writeFile(Deno.cwd() + `/${mod14.project.folder}/.${projectName}/app.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
+    mod14.project.appConfig.packages[props.name] = {};
+    await checkoutPackage(props.name);
+    await Deno.mkdir(Deno.cwd() + `/${mod14.project.folder}/${props.name}/client`, {
+        recursive: true
+    });
+    await Deno.mkdir(Deno.cwd() + `/${mod14.project.folder}/${props.name}/server`, {
+        recursive: true
+    });
+    await Deno.mkdir(Deno.cwd() + `/${mod14.project.folder}/${props.name}/shared`, {
+        recursive: true
+    });
+    await Deno.mkdir(Deno.cwd() + `/${mod14.project.folder}/${props.name}/tests`, {
+        recursive: true
+    });
+    return {
+        status: 201
+    };
+}
+async function checkoutPackage(packageName) {
+    const packages = {};
+    packages['.' + mod14.project.name] = {};
+    Object.assign(packages, mod14.project.appConfig.packages);
+    for(const key in packages){
+        if (packageName === '*' || packageName === key) {
+            await mod14.cloneRepo({
+                repoName: key,
+                reference: packages[key].reference,
+                path: Deno.cwd() + `/${mod14.project.folder}/${packageName}`,
+                host: mod14.project.host,
+                namespace: mod14.project.namespace,
+                authToken: mod14.project.authToken
+            });
+        }
     }
 }
 async function addUpdateFile(props) {
@@ -24518,7 +26190,7 @@ async function addUpdateFile(props) {
         body: JSON.stringify({
             sha: sha,
             message: 'initial commit',
-            content: mod7.encode(content)
+            content: mod8.encode(content)
         })
     });
     if (!response.ok) {
@@ -24532,30 +26204,42 @@ async function addUpdateFile(props) {
         };
     }
 }
-async function installElement() {
-    if (await exists(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}`, {
-        isDirectory: true
-    })) {
-        await Deno.mkdir(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared`, {
-            recursive: true
-        });
-        let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/element.js`);
-        if (response.ok) {
-            const file = await response.text();
-            await Deno.writeFile(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared/element.js`, (new TextEncoder).encode(file));
+async function checkoutFile(location) {
+    const arrPath = location.split('/');
+    const repo = arrPath.shift();
+    const filePath = arrPath.join('/');
+    const config = mod14.getCurrentConfig();
+    const gitRepo = new GitRepoManager({
+        token: config.PROJECT_AUTH_TOKEN,
+        owner: config.PROJECT_NAMESPACE,
+        repo
+    });
+    const file = await gitRepo.getFile(filePath);
+    await Deno.writeFile(Deno.cwd() + `/${mod14.project.folder}/${repo}/${file.path}`, file.content);
+    const projectJSON = await getProjectConfig(config.PROJECT_CONFIG_NAME);
+    projectJSON.checkedoutFiles[filePath] = {
+        sha: file.sha,
+        encoding: file.encoding,
+        size: file.size
+    };
+    await Deno.writeTextFile(`${Deno.cwd()}/${config.PROJECT_CONFIG_NAME}/project.json`, JSON.stringify(projectJSON, null, '\t'));
+    return file;
+}
+async function getProjectConfig(workspace) {
+    const json = {
+        checkedoutFiles: {}
+    };
+    const defaultContent = JSON.stringify(json, null, '\t');
+    try {
+        const content = await Deno.readTextFile(`${Deno.cwd()}/${workspace}/project.json`);
+        return JSON.parse(content);
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) {
+            await Deno.writeTextFile(`${Deno.cwd()}/${workspace}/project.json`, defaultContent);
+            return json;
         }
-        response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/urlpattern.min.js`);
-        if (response.ok) {
-            const file = await response.text();
-            await Deno.writeFile(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
-        }
-        response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod12.getVersion()}/shared/element.d.ts`);
-        if (response.ok) {
-            const file = await response.text();
-            await Deno.writeFile(`${Deno.cwd()}/${mod12.project.folder}/${mod12.project.name}/shared/element.d.ts`, (new TextEncoder).encode(file));
-        }
-        return true;
-    } else return false;
+        throw error;
+    }
 }
 function getApplicationConfig(projectName) {
     const json = {
@@ -24605,7 +26289,7 @@ function getIndexPageContent() {
     return content;
 }
 function getAPIEndpointContent() {
-    const content = `export function onGET (ctx:any) {
+    const content = `export function onGET (ctx) {
     const date = new Date();
     return ctx.response.json({ datetime: date.toLocaleString() });
 }    
@@ -24727,10 +26411,10 @@ function matchRoute(routeStr, routeObjects) {
         params: {}
     };
 }
-const cmdArgs = parse6(Deno.args);
-await mod12.init({});
+const cmdArgs = parse9(Deno.args);
+await mod14.init({});
 const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || cmdArgs.httpPort || '80');
-mod6.info(`JSphere Application Server has started.`);
-serve(mod12.handleRequest, {
+mod5.info(`JSphere Application Server has started.`);
+serve(mod14.handleRequest, {
     port: serverPort
 });

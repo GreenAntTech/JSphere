@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.112';
+const JSPHERE_VERSION = 'v1.0.0-preview.114';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -843,10 +843,10 @@ const DENO_VERSION = '2.2.4';
                 await loadCmd(cmdArgs);
                 break;
             case 'reload':
-                await reloadCmd(cmdArgs);
+                await reloadCmd();
                 break;
             case 'create-project':
-                await createProjectCmd(cmdArgs);
+                await createProjectCmd();
                 break;
             case 'create-package':
                 await createPackageCmd(cmdArgs);
@@ -862,14 +862,14 @@ const DENO_VERSION = '2.2.4';
     }
 })();
 function helpCmd() {
-    info('checkout <package_name> [--port=<port_number>]');
-    info('current-config [--port=<port_number>]');
-    info('create-package <package_name> [--port=<port_number>]');
-    info('create-project <project_config_name> [--port=<port_number>]');
-    info('install-element [--port=<port_number>]');
-    info('load <project_config_name> [--port=<port_number>]');
-    info('reload [--port=<port_number>]');
-    info('start [--debug=<port_number>] [--reload] [--port=<port_number>]');
+    info('checkout <package_name>');
+    info('current-config');
+    info('create-package <package_name>');
+    info('create-project <project_config_name>');
+    info('install-element');
+    info('load <project_config_name>');
+    info('reload');
+    info('start [--httpPort=<port_number>] [--debugPort=<port_number>] [--reload]');
     info('version');
 }
 function versionCmd() {
@@ -897,8 +897,9 @@ async function getCurrentConfigCmd(cmdArgs) {
 }
 async function startCmd(cmdArgs) {
     try {
-        const httpPort = cmdArgs.httpPort || '80';
-        const debugPort = cmdArgs.debug || '9229';
+        const config = await getJSphereConfig();
+        const httpPort = cmdArgs.httpPort || config.httpPort || '80';
+        const debugPort = cmdArgs.debugPort || config.debugPort || '9229';
         const args = [];
         args.push('--allow-all');
         args.push('--no-check');
@@ -913,22 +914,29 @@ async function startCmd(cmdArgs) {
         const child = command.spawn();
         child.stdin.close();
         await child.status;
+        if (cmdArgs._[1]) await loadCmd({
+            _: [
+                '',
+                cmdArgs._[1]
+            ]
+        }, config);
     } catch (e) {
         error(e.message);
     }
 }
-async function loadCmd(cmdArgs) {
+async function loadCmd(cmdArgs, config) {
     try {
+        if (!config) config = await getJSphereConfig();
+        const port = config.httpPort || '80';
         const configName = cmdArgs._[1];
-        const port = cmdArgs.port || '80';
-        const config = await getProjectConfig(configName);
-        if (config) {
+        const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
+        if (projectConfig) {
             const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
                 headers: {
                     'content-type': 'application/json'
                 },
                 method: 'POST',
-                body: JSON.stringify(config)
+                body: JSON.stringify(projectConfig)
             });
             if (!response.ok) {
                 error(`ERROR: ${response.statusText}`);
@@ -939,9 +947,10 @@ async function loadCmd(cmdArgs) {
         error(e.message);
     }
 }
-async function reloadCmd(cmdArgs) {
+async function reloadCmd() {
     try {
-        const port = cmdArgs.port || '80';
+        const config = await getJSphereConfig();
+        const port = config.httpPort || '80';
         const response = await fetch(`http://localhost:${port}/@cmd/reload`, {
             method: 'GET'
         });
@@ -953,32 +962,45 @@ async function reloadCmd(cmdArgs) {
         error(e.message);
     }
 }
-async function createProjectCmd(cmdArgs) {
+async function createProjectCmd() {
     try {
-        const configName = cmdArgs._[1];
-        const port = cmdArgs.port || '80';
-        const config = await getProjectConfig(configName);
-        if (config) {
+        const config = await getJSphereConfig();
+        const port = config.httpPort || '80';
+        const projectName = prompt('PROJECT_NAME=');
+        const projectHost = prompt('PROJECT_HOST=', 'GitHub');
+        const projectNamespace = prompt('PROJECT_NAMESPACE=');
+        const projectAuthToken = prompt('PROJECT_AUTH_TOKEN=');
+        if (projectName && projectHost && projectNamespace && projectAuthToken) {
+            const projectConfig = {
+                PROJECT_CONFIG_NAME: projectName,
+                PROJECT_NAME: projectName,
+                PROJECT_HOST: projectHost,
+                PROJECT_NAMESPACE: projectNamespace,
+                PROJECT_AUTH_TOKEN: projectAuthToken
+            };
             const response = await fetch(`http://localhost:${port}/@cmd/createproject`, {
                 headers: {
                     'content-type': 'application/json'
                 },
                 method: 'POST',
-                body: JSON.stringify(config)
+                body: JSON.stringify(projectConfig)
             });
             if (!response.ok) {
                 error(`ERROR: ${response.statusText}`);
                 return;
             }
-        } else error('Configuration not found.');
+            config.configurations.push(projectConfig);
+            await Deno.writeTextFile(`${Deno.cwd()}/jsphere.json`, JSON.stringify(config, null, '\t'));
+        } else error('One or more environment variable value was not entered. Please run the command again.');
     } catch (e) {
         error(e.message);
     }
 }
 async function createPackageCmd(cmdArgs) {
     try {
+        const config = await getJSphereConfig();
+        const port = config.httpPort || '80';
         const name = cmdArgs._[1];
-        const port = cmdArgs.port || '80';
         const response = await fetch(`http://localhost:${port}/@cmd/createpackage`, {
             headers: {
                 'content-type': 'application/json'
@@ -1035,22 +1057,28 @@ async function installElementCmd() {
         error(e.message);
     }
 }
-async function getProjectConfig(configName) {
+async function getJSphereConfig() {
     try {
-        let config = {};
+        let config = {
+            httpPort: '80',
+            debugPort: '9229',
+            defaultConfiguration: '',
+            configurations: []
+        };
         if (await exists(`${Deno.cwd()}/jsphere.json`, {
             isFile: true
         })) {
             const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
             try {
                 config = JSON.parse(file);
+                return config;
             } catch (e) {
                 error(`ERROR: ${e.message}`);
                 return;
             }
-            const result = config.configurations.filter((obj)=>obj.PROJECT_CONFIG_NAME == configName);
-            if (result.length > 0) return result[0];
-            else return;
+        } else {
+            await Deno.writeTextFile(`${Deno.cwd()}/jsphere.json`, JSON.stringify(config, null, '\t'));
+            return config;
         }
     } catch (e) {
         error(e.message);
