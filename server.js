@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.117';
+const version = 'v1.0.0-preview.118';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25855,7 +25855,7 @@ class ResponseContext {
                     try {
                         controller.enqueue(data);
                     } catch (e) {
-                        console.error('Failed to push to stream:', e.message);
+                        mod5.error('Failed to push to stream:', e.message);
                         controller = null;
                         closed = true;
                         throw e;
@@ -25865,7 +25865,7 @@ class ResponseContext {
             cancel () {
                 closed = true;
                 controller = null;
-                console.log('Stream closed by client');
+                mod5.info('Stream closed by client');
             }
         });
         return new Response(rs, init);
