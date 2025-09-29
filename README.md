@@ -35,19 +35,23 @@ The workspace folder will also contain the JSphere server configuration file jsp
 
 ### Starting and Stopping the JSphere Application Server
 
-To start the JSphere application server enter the following:
+To start the JSphere application server
 ```
 js start
 ```
-You can start JSphere to listen on a specified HTTP port by passing the command argument --http-port=<port_number>
+To start the JSphere application server with a existing project configuration
+```
+js start my_project_config_name
+```
+To start the JSphere application server to listen on a specified HTTP port
 ```
 js start --http-port=8080
 ```
-You can start JSphere to listen on a specified debug port by passing the command argument --debug-port=<port_number>
+To start the JSphere application server to listen on a specified debug port
 ```
-js start --debug-port=8080
+js start --debug-port=9229
 ```
-You can force JSphere to reload cached files by passing the command argument --reload
+To start the JSphere application server and force it to reload cached files
 ```
 js start --reload
 ```
