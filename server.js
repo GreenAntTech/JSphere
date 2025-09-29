@@ -1,3 +1,59 @@
+(()=>{
+    const { Deno: Deno1 } = globalThis;
+    if (typeof Deno1?.build?.os === "string") {
+        return Deno1.build.os;
+    }
+    const { navigator } = globalThis;
+    if (navigator?.appVersion?.includes?.("Win")) {
+        return "windows";
+    }
+    return "linux";
+})();
+Deno.build.os === "windows";
+async function exists(path, options) {
+    try {
+        const stat = await Deno.stat(path);
+        if (options && (options.isReadable || options.isDirectory || options.isFile)) {
+            if (options.isDirectory && options.isFile) {
+                throw new TypeError("ExistsOptions.options.isDirectory and ExistsOptions.options.isFile must not be true together.");
+            }
+            if (options.isDirectory && !stat.isDirectory || options.isFile && !stat.isFile) {
+                return false;
+            }
+            if (options.isReadable) {
+                if (stat.mode === null) {
+                    return true;
+                }
+                if (Deno.uid() === stat.uid) {
+                    return (stat.mode & 0o400) === 0o400;
+                } else if (Deno.gid() === stat.gid) {
+                    return (stat.mode & 0o040) === 0o040;
+                }
+                return (stat.mode & 0o004) === 0o004;
+            }
+        }
+        return true;
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) {
+            return false;
+        }
+        if (error instanceof Deno.errors.PermissionDenied) {
+            if ((await Deno.permissions.query({
+                name: "read",
+                path
+            })).state === "granted") {
+                return !options?.isReadable;
+            }
+        }
+        throw error;
+    }
+}
+Deno.build.os === "windows";
+new Deno.errors.AlreadyExists("dest already exists.");
+Deno.build.os === "windows";
+const LF = "\n";
+const CRLF = "\r\n";
+Deno?.build.os === "windows" ? CRLF : LF;
 const osType = (()=>{
     const { Deno: Deno1 } = globalThis;
     if (typeof Deno1?.build?.os === "string") {
@@ -2159,62 +2215,6 @@ function populateMaps(extensions, types) {
 const extensions = Object.create(null);
 const types = Object.create(null);
 populateMaps(extensions, types);
-(()=>{
-    const { Deno: Deno1 } = globalThis;
-    if (typeof Deno1?.build?.os === "string") {
-        return Deno1.build.os;
-    }
-    const { navigator } = globalThis;
-    if (navigator?.appVersion?.includes?.("Win")) {
-        return "windows";
-    }
-    return "linux";
-})();
-Deno.build.os === "windows";
-async function exists(path, options) {
-    try {
-        const stat = await Deno.stat(path);
-        if (options && (options.isReadable || options.isDirectory || options.isFile)) {
-            if (options.isDirectory && options.isFile) {
-                throw new TypeError("ExistsOptions.options.isDirectory and ExistsOptions.options.isFile must not be true together.");
-            }
-            if (options.isDirectory && !stat.isDirectory || options.isFile && !stat.isFile) {
-                return false;
-            }
-            if (options.isReadable) {
-                if (stat.mode === null) {
-                    return true;
-                }
-                if (Deno.uid() === stat.uid) {
-                    return (stat.mode & 0o400) === 0o400;
-                } else if (Deno.gid() === stat.gid) {
-                    return (stat.mode & 0o040) === 0o040;
-                }
-                return (stat.mode & 0o004) === 0o004;
-            }
-        }
-        return true;
-    } catch (error) {
-        if (error instanceof Deno.errors.NotFound) {
-            return false;
-        }
-        if (error instanceof Deno.errors.PermissionDenied) {
-            if ((await Deno.permissions.query({
-                name: "read",
-                path
-            })).state === "granted") {
-                return !options?.isReadable;
-            }
-        }
-        throw error;
-    }
-}
-Deno.build.os === "windows";
-new Deno.errors.AlreadyExists("dest already exists.");
-Deno.build.os === "windows";
-const LF = "\n";
-const CRLF = "\r\n";
-Deno?.build.os === "windows" ? CRLF : LF;
 function getInstance(config, _utils) {
     return new Feature(config.appConfig.featureFlags);
 }
@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.115';
+const version = 'v1.0.0-preview.116';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26412,6 +26412,25 @@ function matchRoute(routeStr, routeObjects) {
     };
 }
 const cmdArgs = parse9(Deno.args);
+const configName = cmdArgs._[0];
+if (configName) {
+    if (await exists(`${Deno.cwd()}/jsphere.json`, {
+        isFile: true
+    })) {
+        const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
+        try {
+            const config = JSON.parse(file);
+            const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
+            if (projectConfig) {
+                for(const key in projectConfig){
+                    Deno.env.set(key, projectConfig[key]);
+                }
+            }
+        } catch (e) {
+            mod5.error(`Could not load the configration '${configName}'. While parsing jsphere.json - ${e.message}`);
+        }
+    } else mod5.error(`Could not load the configration '${configName}'. Missing jsphere.json file.`);
+}
 await mod14.init({});
 const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || cmdArgs.httpPort || '80');
 mod5.info(`JSphere Application Server has started.`);

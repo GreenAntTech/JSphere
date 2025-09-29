@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.115';
+const JSPHERE_VERSION = 'v1.0.0-preview.116';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -906,6 +906,7 @@ async function startCmd(cmdArgs) {
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${debugPort}`);
         args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
+        if (cmdArgs._[1]) args.push(cmdArgs._[1]);
         args.push('--httpPort=' + httpPort);
         const command = new Deno.Command('deno', {
             args,
@@ -914,12 +915,6 @@ async function startCmd(cmdArgs) {
         const child = command.spawn();
         child.stdin.close();
         await child.status;
-        if (cmdArgs._[1]) await loadCmd({
-            _: [
-                '',
-                cmdArgs._[1]
-            ]
-        }, config);
     } catch (e) {
         error(e.message);
     }
