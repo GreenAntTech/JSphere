@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.118';
+const JSPHERE_VERSION = 'v1.0.0-preview.119';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -924,20 +924,22 @@ async function loadCmd(cmdArgs, config) {
         if (!config) config = await getJSphereConfig();
         const port = config.httpPort || '80';
         const configName = cmdArgs._[1];
-        const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
-        if (projectConfig) {
-            const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
-                headers: {
-                    'content-type': 'application/json'
-                },
-                method: 'POST',
-                body: JSON.stringify(projectConfig)
-            });
-            if (!response.ok) {
-                error(`ERROR: ${response.statusText}`);
-                return;
-            }
-        } else error('ERROR: Configuration not found.');
+        if (Array.isArray(config.configurations)) {
+            const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
+            if (projectConfig) {
+                const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    body: JSON.stringify(projectConfig)
+                });
+                if (!response.ok) {
+                    error(`ERROR: ${response.statusText}`);
+                    return;
+                }
+            } else error(`Could not load the configration '${configName}'. Configuration not found.`);
+        } else error(`Could not load the configration '${configName}'. Configuration not found.`);
     } catch (e) {
         error(e.message);
     }
@@ -950,7 +952,7 @@ async function reloadCmd() {
             method: 'GET'
         });
         if (!response.ok) {
-            error(`ERROR: ${response.statusText}`);
+            error(`Could not reload the current configration. Server returned - ${response.statusText}`);
             return;
         }
     } catch (e) {
@@ -981,7 +983,7 @@ async function createProjectCmd() {
                 body: JSON.stringify(projectConfig)
             });
             if (!response.ok) {
-                error(`ERROR: ${response.statusText}`);
+                error(`Could not create project. Server returned - ${response.statusText}`);
                 return;
             }
             config.configurations.push(projectConfig);
@@ -1006,7 +1008,7 @@ async function createPackageCmd(cmdArgs) {
             })
         });
         if (!response.ok) {
-            error(response.statusText);
+            error(`Could not create package. Server returned - ${response.statusText}`);
             return;
         }
     } catch (e) {
@@ -1027,7 +1029,7 @@ async function checkoutCmd(cmdArgs) {
             })
         });
         if (!response.ok) {
-            error(response.statusText);
+            error(`Could not checkout package. Server returned - ${response.statusText}`);
             return;
         }
     } catch (e) {
@@ -1045,7 +1047,7 @@ async function installElementCmd() {
             body: JSON.stringify({})
         });
         if (!response.ok) {
-            error(response.statusText);
+            error(`Could not install element.js. Server returned - ${response.statusText}`);
             return;
         }
     } catch (e) {
@@ -1068,7 +1070,7 @@ async function getJSphereConfig() {
                 config = JSON.parse(file);
                 return config;
             } catch (e) {
-                error(`ERROR: ${e.message}`);
+                error(`Could not parse the JSphere configuration JSON - ${e.message}`);
                 return;
             }
         } else {

@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.118';
+const version = 'v1.0.0-preview.119';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26420,12 +26420,14 @@ if (configName) {
         const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
         try {
             const config = JSON.parse(file);
-            const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
-            if (projectConfig) {
-                for(const key in projectConfig){
-                    Deno.env.set(key, projectConfig[key]);
-                }
-            }
+            if (Array.isArray(config.configurations)) {
+                const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
+                if (projectConfig) {
+                    for(const key in projectConfig){
+                        Deno.env.set(key, projectConfig[key]);
+                    }
+                } else mod5.error(`Could not load the configration '${configName}'. Configuration not found.`);
+            } else mod5.error(`Could not load the configration '${configName}'. Configuration not found.`);
         } catch (e) {
             mod5.error(`Could not load the configration '${configName}'. While parsing jsphere.json - ${e.message}`);
         }
