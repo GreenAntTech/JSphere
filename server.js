@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.120';
+const version = 'v1.0.0-preview.121';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26081,15 +26081,18 @@ async function handleInstallElement(requestId) {
     }
 }
 async function createProject(config) {
-    mod5.error(`Creating .${config.PROJECT_NAME} repo...`);
+    mod5.info(`Creating .${config.PROJECT_NAME} repo...`);
     let response = await mod14.createRepo({
         repoName: '.' + config.PROJECT_NAME,
         host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN
     });
-    if (response.status !== 201) return response;
-    mod5.error(`Adding app.json file.`);
+    if (response.status !== 201) {
+        mod5.info(`Cound not create the .${config.PROJECT_NAME} repo: ${response.statusText}`);
+        return response;
+    }
+    mod5.info(`Adding app.json file.`);
     response = await addUpdateFile({
         repoName: '.' + config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26098,17 +26101,23 @@ async function createProject(config) {
         path: 'app.json',
         content: getApplicationConfig(config.PROJECT_NAME)
     });
-    if (response.status !== 201) return response;
-    mod5.error(`Created .${config.PROJECT_NAME} repo.`);
-    mod5.error(`Creating ${config.PROJECT_NAME} repo...`);
+    if (response.status !== 201) {
+        mod5.error(`Cound add the app.json file: ${response.statusText}`);
+        return response;
+    }
+    mod5.info(`Created .${config.PROJECT_NAME} repo.`);
+    mod5.info(`Creating ${config.PROJECT_NAME} repo...`);
     response = await mod14.createRepo({
         repoName: config.PROJECT_NAME,
         host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN
     });
-    if (response.status !== 201) return response;
-    mod5.error(`Adding client/index.html file.`);
+    if (response.status !== 201) {
+        mod5.info(`Cound not create the ${config.PROJECT_NAME} repo: ${response.statusText}`);
+        return response;
+    }
+    mod5.info(`Adding client/index.html file.`);
     response = await addUpdateFile({
         repoName: config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26117,8 +26126,11 @@ async function createProject(config) {
         path: 'client/index.html',
         content: getIndexPageContent()
     });
-    if (response.status !== 201) return response;
-    mod5.error(`Adding server/datetime.js file.`);
+    if (response.status !== 201) {
+        mod5.info(`Cound not add client/index.html: ${response.statusText}`);
+        return response;
+    }
+    mod5.info(`Adding server/datetime.js file.`);
     response = await addUpdateFile({
         repoName: config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26127,6 +26139,10 @@ async function createProject(config) {
         path: 'server/datetime.js',
         content: getAPIEndpointContent()
     });
+    if (response.status !== 201) {
+        mod5.info(`Cound not add server/datetime.js: ${response.statusText}`);
+        return response;
+    }
     mod5.error(`Created ${config.PROJECT_NAME} repo.`);
     return response;
 }
