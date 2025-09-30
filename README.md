@@ -1,9 +1,9 @@
 # JSphere
-JSphere is a lightweight and flexible web application server for Deno.
+JSphere is a lightweight and versatile web application server for Deno.
 
 JSphere decouples your application logic from the application's runtime environment, allowing for highly composable and scalable application architectures.
 
-JSphere ElementJS (element.js) is a lightweight JavaScript library for building composable and easily navigable web interfaces.  JSphere Element web interfaces can be rendered at the client or at the server allowing you flexible options for how hydration will occur at the client.
+JSphere's element.js is a lightweight JavaScript library for building composable and easily navigable web interfaces. Web interfaces built using element.js can be rendered at the client or at the server allowing you flexible hydration options at the client.
 
 ## Getting Started
 
@@ -67,6 +67,6 @@ The very first time you start JSphere in a workspace folder it will create a jsp
 To **stop** the JSphere application server press the key combination required by your operating system for stopping a process. For example, the key combination <kbd>Ctrl</kbd> + <kbd>C</kbd>
 
 ## Learn More ##
-- [The Basics]()
+- [The Basics](CREATE_PROJECT.md)
 - [Advance Stuff]()
 - [Blow Your Mind Stuff]()
