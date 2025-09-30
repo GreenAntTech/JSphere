@@ -24903,7 +24903,7 @@ async function handleRequest2(ctx) {
     if (url.pathname.startsWith('/@cmd/')) {
         const cmd = url.pathname.split('/@cmd/')[1];
         const requestId = crypto.randomUUID();
-        let accessAllowed = true;
+        let accessAllowed = false;
         mod5.info(`Command request: ${cmd}`, {
             requestId
         });
@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.119';
+const version = 'v1.0.0-preview.120';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26081,6 +26081,7 @@ async function handleInstallElement(requestId) {
     }
 }
 async function createProject(config) {
+    mod5.error(`Creating .${config.PROJECT_NAME} repo...`);
     let response = await mod14.createRepo({
         repoName: '.' + config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26088,6 +26089,7 @@ async function createProject(config) {
         authToken: config.PROJECT_AUTH_TOKEN
     });
     if (response.status !== 201) return response;
+    mod5.error(`Adding app.json file.`);
     response = await addUpdateFile({
         repoName: '.' + config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26097,6 +26099,8 @@ async function createProject(config) {
         content: getApplicationConfig(config.PROJECT_NAME)
     });
     if (response.status !== 201) return response;
+    mod5.error(`Created .${config.PROJECT_NAME} repo.`);
+    mod5.error(`Creating ${config.PROJECT_NAME} repo...`);
     response = await mod14.createRepo({
         repoName: config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26104,6 +26108,7 @@ async function createProject(config) {
         authToken: config.PROJECT_AUTH_TOKEN
     });
     if (response.status !== 201) return response;
+    mod5.error(`Adding client/index.html file.`);
     response = await addUpdateFile({
         repoName: config.PROJECT_NAME,
         host: config.PROJECT_HOST,
@@ -26113,14 +26118,16 @@ async function createProject(config) {
         content: getIndexPageContent()
     });
     if (response.status !== 201) return response;
+    mod5.error(`Adding server/datetime.js file.`);
     response = await addUpdateFile({
         repoName: config.PROJECT_NAME,
         host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN,
-        path: 'server/datetime.ts',
+        path: 'server/datetime.js',
         content: getAPIEndpointContent()
     });
+    mod5.error(`Created ${config.PROJECT_NAME} repo.`);
     return response;
 }
 async function createPackage(props) {
@@ -26251,7 +26258,7 @@ function getApplicationConfig(projectName) {
         routes: [
             {
                 route: "/api/datetime",
-                path: `/${projectName}/server/datetime.ts`
+                path: `/${projectName}/server/datetime.js`
             },
             {
                 route: "/*",
