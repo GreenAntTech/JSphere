@@ -24450,6 +24450,216 @@ const mod12 = {
     bundle: bundle1,
     transpile: transpile1
 };
+class GitRepoManager {
+    token;
+    owner;
+    repo;
+    branch;
+    baseUrl;
+    constructor(configOrToken, owner, repo, branch = 'main'){
+        if (typeof configOrToken === 'object') {
+            this.token = configOrToken.token;
+            this.owner = configOrToken.owner;
+            this.repo = configOrToken.repo;
+            this.branch = configOrToken.branch || 'main';
+        } else {
+            this.token = configOrToken;
+            this.owner = owner;
+            this.repo = repo;
+            this.branch = branch;
+        }
+        this.baseUrl = 'https://api.github.com';
+    }
+    async makeRequest(endpoint, method = 'GET', body = null) {
+        const url = `${this.baseUrl}/repos/${this.owner}/${this.repo}${endpoint}`;
+        const headers = {
+            'Authorization': `token ${this.token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        };
+        const config = {
+            method,
+            headers
+        };
+        if (body) {
+            config.body = JSON.stringify(body);
+        }
+        try {
+            const response = await fetch(url, config);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
+            }
+            return await response.json();
+        } catch (error) {
+            if (error instanceof Error) {
+                throw error;
+            }
+            throw new Error(`Network error: ${String(error)}`);
+        }
+    }
+    async getFileList(path = '') {
+        try {
+            const endpoint = `/contents/${path}?ref=${this.branch}`;
+            const response = await this.makeRequest(endpoint);
+            const items = Array.isArray(response) ? response : [
+                response
+            ];
+            return items.map((item)=>({
+                    name: item.name,
+                    path: item.path,
+                    type: item.type,
+                    size: item.size,
+                    sha: item.sha,
+                    downloadUrl: item.download_url
+                }));
+        } catch (error) {
+            throw new Error(`Failed to get file list: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async getFile(filePath) {
+        try {
+            const endpoint = `/contents/${filePath}?ref=${this.branch}`;
+            const response = await this.makeRequest(endpoint);
+            if (response.type !== 'file') {
+                throw new Error(`${filePath} is not a file`);
+            }
+            if (!response.content) {
+                throw new Error(`File ${filePath} has no content`);
+            }
+            return {
+                name: response.name,
+                path: response.path,
+                content: (new TextEncoder).encode(atob(response.content)),
+                sha: response.sha,
+                size: response.size,
+                encoding: response.encoding || 'base64'
+            };
+        } catch (error) {
+            throw new Error(`Failed to get file: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async commitFiles(files, commitMessage) {
+        try {
+            if (files.length === 0) {
+                throw new Error('No files provided to commit');
+            }
+            const refResponse = await this.makeRequest(`/git/refs/heads/${this.branch}`);
+            const currentCommitSha = refResponse.object.sha;
+            const commitResponse = await this.makeRequest(`/git/commits/${currentCommitSha}`);
+            const currentTreeSha = commitResponse.tree.sha;
+            const blobs = [];
+            for (const file of files){
+                const blobResponse = await this.makeRequest('/git/blobs', 'POST', {
+                    content: btoa(unescape(encodeURIComponent(file.content))),
+                    encoding: 'base64'
+                });
+                blobs.push({
+                    path: file.path,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: blobResponse.sha
+                });
+            }
+            const treeResponse = await this.makeRequest('/git/trees', 'POST', {
+                base_tree: currentTreeSha,
+                tree: blobs
+            });
+            const newCommitResponse = await this.makeRequest('/git/commits', 'POST', {
+                message: commitMessage,
+                tree: treeResponse.sha,
+                parents: [
+                    currentCommitSha
+                ]
+            });
+            await this.makeRequest(`/git/refs/heads/${this.branch}`, 'PATCH', {
+                sha: newCommitResponse.sha
+            });
+            return {
+                commitSha: newCommitResponse.sha,
+                message: commitMessage,
+                filesCommitted: files.length
+            };
+        } catch (error) {
+            throw new Error(`Failed to commit files: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async deleteFiles(filePaths, commitMessage) {
+        try {
+            if (filePaths.length === 0) {
+                throw new Error('No file paths provided to delete');
+            }
+            const filesToDelete = [];
+            const errors = [];
+            for (const filePath of filePaths){
+                try {
+                    const file = await this.getFile(filePath);
+                    filesToDelete.push({
+                        path: filePath,
+                        sha: file.sha
+                    });
+                } catch (error) {
+                    errors.push(`File ${filePath} not found: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+            if (filesToDelete.length === 0) {
+                throw new Error(`No files found to delete. Errors: ${errors.join(', ')}`);
+            }
+            const refResponse = await this.makeRequest(`/git/refs/heads/${this.branch}`);
+            const currentCommitSha = refResponse.object.sha;
+            const commitResponse = await this.makeRequest(`/git/commits/${currentCommitSha}`);
+            const currentTreeSha = commitResponse.tree.sha;
+            const treeItems = filesToDelete.map((file)=>({
+                    path: file.path,
+                    mode: '100644',
+                    type: 'blob',
+                    sha: null
+                }));
+            const treeResponse = await this.makeRequest('/git/trees', 'POST', {
+                base_tree: currentTreeSha,
+                tree: treeItems
+            });
+            const newCommitResponse = await this.makeRequest('/git/commits', 'POST', {
+                message: commitMessage,
+                tree: treeResponse.sha,
+                parents: [
+                    currentCommitSha
+                ]
+            });
+            await this.makeRequest(`/git/refs/heads/${this.branch}`, 'PATCH', {
+                sha: newCommitResponse.sha
+            });
+            return {
+                commitSha: newCommitResponse.sha,
+                message: commitMessage,
+                filesDeleted: filesToDelete.length,
+                deletedFiles: filesToDelete.map((f)=>f.path)
+            };
+        } catch (error) {
+            throw new Error(`Failed to delete files: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    async updateFile(filePath, content, commitMessage) {
+        return await this.commitFiles([
+            {
+                path: filePath,
+                content
+            }
+        ], commitMessage);
+    }
+    async deleteFile(filePath, commitMessage) {
+        return await this.deleteFiles([
+            filePath
+        ], commitMessage);
+    }
+    get repositoryInfo() {
+        return {
+            owner: this.owner,
+            repo: this.repo,
+            branch: this.branch
+        };
+    }
+}
 let watcher = null;
 function handleRequest(_ctx) {
     if (mod14.project.ready === false) {
@@ -25047,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.123';
+const version = 'v1.0.0-preview.124';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25767,7 +25977,12 @@ async function handleCreatePackage(ctx, requestId) {
 async function handleCheckout(ctx, requestId) {
     try {
         const params = ctx.request.data;
-        if ('.' + mod14.project.name === params.name || mod14.project.appConfig?.packages[params.name] || params.name === '*') {
+        if (params.name.includes('/')) {
+            await checkoutFile(params.name);
+            return new Response('OK', {
+                status: 200
+            });
+        } else if ('.' + mod14.project.name === params.name || mod14.project.appConfig?.packages[params.name] || params.name === '*') {
             await checkoutPackage(params.name);
             return new Response('OK', {
                 status: 200
@@ -26006,6 +26221,43 @@ async function addUpdateFile(props) {
         return {
             status: response.status
         };
+    }
+}
+async function checkoutFile(location) {
+    const arrPath = location.split('/');
+    const repo = arrPath.shift();
+    const filePath = arrPath.join('/');
+    const config = mod14.getCurrentConfig();
+    const gitRepo = new GitRepoManager({
+        token: config.PROJECT_AUTH_TOKEN,
+        owner: config.PROJECT_NAMESPACE,
+        repo
+    });
+    const file = await gitRepo.getFile(filePath);
+    await Deno.writeFile(Deno.cwd() + `/${mod14.project.folder}/${repo}/${file.path}`, file.content);
+    const projectJSON = await getProjectConfig(config.PROJECT_CONFIG_NAME);
+    projectJSON.checkedoutFiles[filePath] = {
+        sha: file.sha,
+        encoding: file.encoding,
+        size: file.size
+    };
+    await Deno.writeTextFile(`${Deno.cwd()}/${config.PROJECT_CONFIG_NAME}/project.json`, JSON.stringify(projectJSON, null, '\t'));
+    return file;
+}
+async function getProjectConfig(workspace) {
+    const json = {
+        checkedoutFiles: {}
+    };
+    const defaultContent = JSON.stringify(json, null, '\t');
+    try {
+        const content = await Deno.readTextFile(`${Deno.cwd()}/${workspace}/project.json`);
+        return JSON.parse(content);
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) {
+            await Deno.writeTextFile(`${Deno.cwd()}/${workspace}/project.json`, defaultContent);
+            return json;
+        }
+        throw error;
     }
 }
 function getApplicationConfig(projectName) {
