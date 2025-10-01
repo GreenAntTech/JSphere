@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.121';
+const JSPHERE_VERSION = 'v1.0.0-preview.122';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -964,14 +964,12 @@ async function createProjectCmd() {
         const config = await getJSphereConfig();
         const port = config.httpPort || '80';
         const projectName = prompt('PROJECT_NAME=');
-        const projectHost = prompt('PROJECT_HOST=', 'GitHub');
         const projectNamespace = prompt('PROJECT_NAMESPACE=');
         const projectAuthToken = prompt('PROJECT_AUTH_TOKEN=');
-        if (projectName && projectHost && projectNamespace && projectAuthToken) {
+        if (projectName && projectNamespace && projectAuthToken) {
             const projectConfig = {
                 PROJECT_CONFIG_NAME: projectName,
                 PROJECT_NAME: projectName,
-                PROJECT_HOST: projectHost,
                 PROJECT_NAMESPACE: projectNamespace,
                 PROJECT_AUTH_TOKEN: projectAuthToken
             };

@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.121';
+const version = 'v1.0.0-preview.122';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25315,7 +25315,7 @@ async function init1(config) {
         const checkoutProject = Boolean(Deno.env.get('CHECKOUT_PROJECT'));
         const watchForChanges = Boolean(Deno.env.get('WATCH_PROJECT_CHANGES'));
         const clearRuntimeCache = Boolean(Deno.env.get('CLEAR_RUNTIME_CACHE'));
-        const host = Deno.env.get('PROJECT_HOST') || 'GitHub';
+        const host = 'GitHub';
         const namespace = Deno.env.get('PROJECT_NAMESPACE');
         const projectName = Deno.env.get('PROJECT_NAME');
         const appConfig = Deno.env.get('PROJECT_APP_CONFIG') || 'app';
@@ -25495,7 +25495,7 @@ async function getPackageItem(itemPath) {
     const ref = project.appConfig.packages[packageKey].reference || 'main';
     let file = await getFile(project.folder + itemPath);
     if (file === null) {
-        const host = Deno.env.get('PROJECT_HOST') || 'GitHub';
+        const host = 'GitHub';
         const namespace = Deno.env.get('PROJECT_NAMESPACE');
         const authToken = Deno.env.get('PROJECT_AUTH_TOKEN');
         file = await getFileFromRepo(itemPath + (ref ? `?ref=${ref}` : ''), host, namespace, authToken);
@@ -26084,18 +26084,16 @@ async function createProject(config) {
     mod5.info(`Creating .${config.PROJECT_NAME} repo...`);
     let response = await mod14.createRepo({
         repoName: '.' + config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN
     });
     if (response.status !== 201) {
-        mod5.info(`Cound not create the .${config.PROJECT_NAME} repo: ${response.statusText}`);
+        mod5.error(`Cound not create the .${config.PROJECT_NAME} repo: ${response.statusText}`);
         return response;
     }
     mod5.info(`Adding app.json file.`);
     response = await addUpdateFile({
         repoName: '.' + config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN,
         path: 'app.json',
@@ -26109,41 +26107,38 @@ async function createProject(config) {
     mod5.info(`Creating ${config.PROJECT_NAME} repo...`);
     response = await mod14.createRepo({
         repoName: config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN
     });
     if (response.status !== 201) {
-        mod5.info(`Cound not create the ${config.PROJECT_NAME} repo: ${response.statusText}`);
+        mod5.error(`Cound not create the ${config.PROJECT_NAME} repo: ${response.statusText}`);
         return response;
     }
     mod5.info(`Adding client/index.html file.`);
     response = await addUpdateFile({
         repoName: config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN,
         path: 'client/index.html',
         content: getIndexPageContent()
     });
     if (response.status !== 201) {
-        mod5.info(`Cound not add client/index.html: ${response.statusText}`);
+        mod5.error(`Cound not add client/index.html: ${response.statusText}`);
         return response;
     }
     mod5.info(`Adding server/datetime.js file.`);
     response = await addUpdateFile({
         repoName: config.PROJECT_NAME,
-        host: config.PROJECT_HOST,
         namespace: config.PROJECT_NAMESPACE,
         authToken: config.PROJECT_AUTH_TOKEN,
         path: 'server/datetime.js',
         content: getAPIEndpointContent()
     });
     if (response.status !== 201) {
-        mod5.info(`Cound not add server/datetime.js: ${response.statusText}`);
+        mod5.error(`Cound not add server/datetime.js: ${response.statusText}`);
         return response;
     }
-    mod5.error(`Created ${config.PROJECT_NAME} repo.`);
+    mod5.info(`Created ${config.PROJECT_NAME} repo.`);
     return response;
 }
 async function createPackage(props) {
@@ -26183,6 +26178,7 @@ async function checkoutPackage(packageName) {
     const packages = {};
     packages['.' + mod14.project.name] = {};
     Object.assign(packages, mod14.project.appConfig.packages);
+    console.log('***** packages', packages);
     for(const key in packages){
         if (packageName === '*' || packageName === key) {
             await mod14.cloneRepo({
