@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.124';
+const version = 'v1.0.0-preview.125';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25975,6 +25975,7 @@ async function handleCreatePackage(ctx, requestId) {
     }
 }
 async function handleCheckout(ctx, requestId) {
+    debugger;
     try {
         const params = ctx.request.data;
         if (params.name.includes('/')) {
