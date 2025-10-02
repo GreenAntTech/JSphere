@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.126';
+const JSPHERE_VERSION = 'v1.0.0-preview.127';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1014,6 +1014,7 @@ async function createPackageCmd(cmdArgs) {
     }
 }
 async function checkoutCmd(cmdArgs) {
+    console.log('**** cmdARgs', cmdArgs);
     try {
         const name = cmdArgs._[1];
         const port = cmdArgs.port || '80';
@@ -1026,7 +1027,7 @@ async function checkoutCmd(cmdArgs) {
             },
             method: 'POST',
             body: JSON.stringify({
-                name
+                name: name
             })
         });
         if (!response.ok) {
