@@ -17,7 +17,7 @@ Before creating a JSphere project, you will need to obtain a **GitHub access tok
 Once you have the token, run the following command:
 
 ```bash
-js create project
+js create-project
 ```
 
 You will be prompted to provide:  
