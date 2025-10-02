@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.125';
+const version = 'v1.0.0-preview.126';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26179,13 +26179,12 @@ async function checkoutPackage(packageName) {
     const packages = {};
     packages['.' + mod14.project.name] = {};
     Object.assign(packages, mod14.project.appConfig.packages);
-    console.log('***** packages', packages);
     for(const key in packages){
         if (packageName === '*' || packageName === key) {
             await mod14.cloneRepo({
                 repoName: key,
                 reference: packages[key].reference,
-                path: Deno.cwd() + `/${mod14.project.folder}/${packageName}`,
+                path: Deno.cwd() + `/${mod14.project.folder}/${key}`,
                 host: mod14.project.host,
                 namespace: mod14.project.namespace,
                 authToken: mod14.project.authToken
