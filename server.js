@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.129';
+const version = 'v1.0.0-preview.130';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25975,6 +25975,7 @@ async function handleCreatePackage(ctx, requestId) {
     }
 }
 async function handleCheckout(ctx, requestId) {
+    debugger;
     try {
         const params = ctx.request.data;
         if (params.name.includes('/')) {
@@ -26179,7 +26180,7 @@ async function checkoutPackage(packageName) {
     packages['.' + mod14.project.name] = {};
     Object.assign(packages, mod14.project.appConfig.packages);
     for(const key in packages){
-        if (!packageName || packageName === key) {
+        if (packageName === '*' || packageName === key) {
             await mod14.cloneRepo({
                 repoName: key,
                 reference: packages[key].reference,
