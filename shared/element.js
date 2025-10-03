@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.136');
+console.log('elementJS:', 'v1.0.0-preview.137');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,

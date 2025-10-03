@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.136';
+const JSPHERE_VERSION = 'v1.0.0-preview.137';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -897,17 +897,22 @@ async function getCurrentConfigCmd(cmdArgs) {
 }
 async function startCmd(cmdArgs) {
     try {
-        const config = await getJSphereConfig();
-        const httpPort = cmdArgs['http-port'] || config.httpPort || '80';
-        const debugPort = cmdArgs['debug-port'] || config.debugPort || '9229';
+        const httpPort = cmdArgs['http-port'];
+        const debugPort = cmdArgs['debug-port'];
+        const defaultConfiguration = cmdArgs._[1];
+        const config = await getJSphereConfig({
+            httpPort,
+            debugPort,
+            defaultConfiguration
+        });
         const args = [];
         args.push('--allow-all');
         args.push('--no-check');
         if (cmdArgs.reload) args.push('--reload');
-        if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${debugPort}`);
+        if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${config.debugPort}`);
         args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
-        if (cmdArgs._[1]) args.push(cmdArgs._[1]);
-        args.push('--http-port=' + httpPort);
+        if (config.defaultConfiguration) args.push(config.defaultConfiguration);
+        args.push('--http-port=' + config.httpPort);
         const command = new Deno.Command('deno', {
             args,
             stdin: 'piped'
@@ -1052,8 +1057,9 @@ async function installElementCmd() {
         error(`Could not install element.js. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
-async function getJSphereConfig() {
+async function getJSphereConfig(props) {
     try {
+        if (props === undefined) props = {};
         let config = {};
         if (await exists(`${Deno.cwd()}/jsphere.json`, {
             isFile: true
@@ -1061,9 +1067,9 @@ async function getJSphereConfig() {
             const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
             try {
                 const current = JSON.parse(file);
-                config.httpPort = current.httpPort !== undefined ? current.httpPort : '80';
-                config.debugPort = current.debugPort !== undefined ? current.debugPort : '9229';
-                config.defaultConfiguration = current.defaultConfiguration !== undefined ? config.defaultConfiguration : '';
+                config.httpPort = props.httpPort || current.httpPort || '80';
+                config.debugPort = props.debugPort || current.debugPort || '9229';
+                config.defaultConfiguration = props.defaultConfiguration || current.defaultConfiguration || '';
                 config.configurations = Array.isArray(current.configurations) ? current.configurations : [];
             } catch (e) {
                 error(`Could not parse the JSphere configuration JSON - ${e.message}`);
