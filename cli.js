@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.135';
+const JSPHERE_VERSION = 'v1.0.0-preview.136';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1061,9 +1061,9 @@ async function getJSphereConfig() {
             const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
             try {
                 const current = JSON.parse(file);
-                if (current.httpPort === undefined) config.httpPort = '80';
-                if (current.debugPort === undefined) config.debugPort = '9229';
-                if (current.defaultConfiguration === undefined) config.defaultConfiguration = '';
+                config.httpPort = current.httpPort !== undefined ? current.httpPort : '80';
+                config.debugPort = current.debugPort !== undefined ? current.debugPort : '9229';
+                config.defaultConfiguration = current.defaultConfiguration !== undefined ? config.defaultConfiguration : '';
                 config.configurations = Array.isArray(current.configurations) ? current.configurations : [];
             } catch (e) {
                 error(`Could not parse the JSphere configuration JSON - ${e.message}`);
