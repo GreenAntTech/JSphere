@@ -47,9 +47,13 @@ To start the JSphere application server to listen on a specified HTTP port
 ```
 js start --http-port=8080
 ```
+To start the JSphere application server to listen on the default debug port
+```
+js start --debug
+```
 To start the JSphere application server to listen on a specified debug port
 ```
-js start --debug-port=9229
+js start --debug --debug-port=9119
 ```
 To start the JSphere application server and force it to reload cached files
 ```
@@ -58,7 +62,7 @@ js start --reload
 
 Once you have started JSphere you can open a browser and navigate to:
 ```
-http://localhost
+http://localhost[:port]
 ```
 
 **Note:**

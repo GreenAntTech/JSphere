@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.134';
+const version = 'v1.0.0-preview.135';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26433,7 +26433,6 @@ function matchRoute(routeStr, routeObjects) {
 const cmdArgs = parse9(Deno.args);
 const configName = cmdArgs._[0];
 let config = {};
-console.log('cmdArgs:', cmdArgs);
 if (configName) {
     if (await exists(`${Deno.cwd()}/jsphere.json`, {
         isFile: true

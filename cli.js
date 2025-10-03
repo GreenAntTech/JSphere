@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.134';
+const JSPHERE_VERSION = 'v1.0.0-preview.135';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -897,7 +897,6 @@ async function getCurrentConfigCmd(cmdArgs) {
 }
 async function startCmd(cmdArgs) {
     try {
-        console.log('cmdArgs:', cmdArgs);
         const config = await getJSphereConfig();
         const httpPort = cmdArgs['http-port'] || config.httpPort || '80';
         const debugPort = cmdArgs['debug-port'] || config.debugPort || '9229';
@@ -1055,27 +1054,31 @@ async function installElementCmd() {
 }
 async function getJSphereConfig() {
     try {
-        let config = {
-            httpPort: '80',
-            debugPort: '9229',
-            defaultConfiguration: '',
-            configurations: []
-        };
+        let config = {};
         if (await exists(`${Deno.cwd()}/jsphere.json`, {
             isFile: true
         })) {
             const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
             try {
-                config = JSON.parse(file);
-                return config;
+                const current = JSON.parse(file);
+                if (current.httpPort === undefined) config.httpPort = '80';
+                if (current.debugPort === undefined) config.debugPort = '9229';
+                if (current.defaultConfiguration === undefined) config.defaultConfiguration = '';
+                config.configurations = Array.isArray(current.configurations) ? current.configurations : [];
             } catch (e) {
                 error(`Could not parse the JSphere configuration JSON - ${e.message}`);
                 return;
             }
         } else {
-            await Deno.writeTextFile(`${Deno.cwd()}/jsphere.json`, JSON.stringify(config, null, '\t'));
-            return config;
+            config = {
+                httpPort: '80',
+                debugPort: '9229',
+                defaultConfiguration: '',
+                configurations: []
+            };
         }
+        await Deno.writeTextFile(`${Deno.cwd()}/jsphere.json`, JSON.stringify(config, null, '\t'));
+        return config;
     } catch (e) {
         error(e.message);
     }
