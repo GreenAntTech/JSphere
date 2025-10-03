@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.132';
+const JSPHERE_VERSION = 'v1.0.0-preview.133';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -892,11 +892,12 @@ async function getCurrentConfigCmd(cmdArgs) {
             for(const key in currentConfig)info(`${key}=${currentConfig[key]}`);
         } else info('No configuration is currently loaded.');
     } catch (e) {
-        error(e.message);
+        error(`Could not get current configuration. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function startCmd(cmdArgs) {
     try {
+        console.log('cmdArgs:', cmdArgs);
         const config = await getJSphereConfig();
         const httpPort = cmdArgs.httpPort || config.httpPort || '80';
         const debugPort = cmdArgs.debugPort || config.debugPort || '9229';
@@ -916,7 +917,7 @@ async function startCmd(cmdArgs) {
         child.stdin.close();
         await child.status;
     } catch (e) {
-        error(e.message);
+        error(`Could start JSphere server.\n${e.message}`);
     }
 }
 async function loadCmd(cmdArgs, config) {
@@ -941,7 +942,7 @@ async function loadCmd(cmdArgs, config) {
             } else error(`Could not load the configration '${configName}'. Configuration not found.`);
         } else error(`Could not load the configration '${configName}'. Configuration not found.`);
     } catch (e) {
-        error(e.message);
+        error(`Could not load project. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function reloadCmd() {
@@ -956,7 +957,7 @@ async function reloadCmd() {
             return;
         }
     } catch (e) {
-        error(e.message);
+        error(`Could not reload project. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function createProjectCmd() {
@@ -986,9 +987,9 @@ async function createProjectCmd() {
             }
             config.configurations.push(projectConfig);
             await Deno.writeTextFile(`${Deno.cwd()}/jsphere.json`, JSON.stringify(config, null, '\t'));
-        } else error('One or more environment variable value was not entered. Please run the command again.');
+        } else error('Could not create project. One or more environment variable value was not entered.');
     } catch (e) {
-        error(e.message);
+        error(`Could not create project. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function createPackageCmd(cmdArgs) {
@@ -1010,7 +1011,7 @@ async function createPackageCmd(cmdArgs) {
             return;
         }
     } catch (e) {
-        error(e.message);
+        error(`Could not create package. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function checkoutCmd(cmdArgs) {
@@ -1049,7 +1050,7 @@ async function installElementCmd() {
             return;
         }
     } catch (e) {
-        error(e.message);
+        error(`Could not install element.js. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function getJSphereConfig() {
