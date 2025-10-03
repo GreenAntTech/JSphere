@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.130';
+const JSPHERE_VERSION = 'v1.0.0-preview.131';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1027,11 +1027,11 @@ async function checkoutCmd(cmdArgs) {
             })
         });
         if (!response.ok) {
-            error(`Could not checkout package. Server returned - ${response.statusText}`);
+            error(`Could not checkout package(s). Server returned - ${response.statusText}`);
             return;
         }
     } catch (e) {
-        error(e.message);
+        error(`Could not checkout package(s). Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function installElementCmd() {
