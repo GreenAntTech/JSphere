@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.133';
+const version = 'v1.0.0-preview.134';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26432,6 +26432,7 @@ function matchRoute(routeStr, routeObjects) {
 }
 const cmdArgs = parse9(Deno.args);
 const configName = cmdArgs._[0];
+let config = {};
 console.log('cmdArgs:', cmdArgs);
 if (configName) {
     if (await exists(`${Deno.cwd()}/jsphere.json`, {
@@ -26439,7 +26440,7 @@ if (configName) {
     })) {
         const file = await Deno.readTextFile(`${Deno.cwd()}/jsphere.json`);
         try {
-            const config = JSON.parse(file);
+            config = JSON.parse(file);
             if (Array.isArray(config.configurations)) {
                 const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
                 if (projectConfig) {
@@ -26454,7 +26455,7 @@ if (configName) {
     } else mod5.error(`Could not load the configration '${configName}'. Missing jsphere.json file.`);
 }
 await mod14.init({});
-const serverPort = parseInt(Deno.env.get('SERVER_HTTP_PORT') || cmdArgs.httpPort || '80');
+const serverPort = parseInt(cmdArgs['http-port'] || config.httpPort || '80');
 mod5.info(`JSphere Application Server has started.`);
 serve(mod14.handleRequest, {
     port: serverPort

@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.133';
+const JSPHERE_VERSION = 'v1.0.0-preview.134';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -899,8 +899,8 @@ async function startCmd(cmdArgs) {
     try {
         console.log('cmdArgs:', cmdArgs);
         const config = await getJSphereConfig();
-        const httpPort = cmdArgs.httpPort || config.httpPort || '80';
-        const debugPort = cmdArgs.debugPort || config.debugPort || '9229';
+        const httpPort = cmdArgs['http-port'] || config.httpPort || '80';
+        const debugPort = cmdArgs['debug-port'] || config.debugPort || '9229';
         const args = [];
         args.push('--allow-all');
         args.push('--no-check');
@@ -917,7 +917,7 @@ async function startCmd(cmdArgs) {
         child.stdin.close();
         await child.status;
     } catch (e) {
-        error(`Could start JSphere server.\n${e.message}`);
+        error(`Could not start JSphere server.\n${e.message}`);
     }
 }
 async function loadCmd(cmdArgs, config) {
