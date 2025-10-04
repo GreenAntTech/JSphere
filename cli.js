@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.144';
+const JSPHERE_VERSION = 'v1.0.0-preview.145';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -914,6 +914,7 @@ async function startCmd(cmdArgs) {
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${config.debugPort}`);
         args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
+        console.log('projectConfiguration', projectConfiguration);
         if (projectConfiguration) args.push(projectConfiguration);
         args.push('--http-port=' + config.httpPort);
         const command = new Deno.Command('deno', {
@@ -1109,5 +1110,7 @@ function getProjectConfiguration(config) {
     const selectedIndex = prompt('Start with configuration:', defaultIndex.toString());
     console.log('names', names);
     console.log('selectedIndex', Number(selectedIndex));
-    return Number(selectedIndex) ? names[Number(selectedIndex)] : '';
+    const name = Number(selectedIndex) ? names[Number(selectedIndex)] : '';
+    console.log('name:', name);
+    return name;
 }
