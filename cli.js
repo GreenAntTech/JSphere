@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.137';
+const JSPHERE_VERSION = 'v1.0.0-preview.138';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -899,19 +899,22 @@ async function startCmd(cmdArgs) {
     try {
         const httpPort = cmdArgs['http-port'];
         const debugPort = cmdArgs['debug-port'];
-        const defaultConfiguration = cmdArgs._[1];
+        let projectConfiguration = cmdArgs._[1];
         const config = await getJSphereConfig({
             httpPort,
             debugPort,
-            defaultConfiguration
+            defaultConfiguration: projectConfiguration
         });
+        if (cmdArgs.list && !projectConfiguration) {
+            projectConfiguration = getProjectConfiguration(config);
+        }
         const args = [];
         args.push('--allow-all');
         args.push('--no-check');
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${config.debugPort}`);
         args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
-        if (config.defaultConfiguration) args.push(config.defaultConfiguration);
+        if (projectConfiguration) args.push(projectConfiguration);
         args.push('--http-port=' + config.httpPort);
         const command = new Deno.Command('deno', {
             args,
@@ -1088,4 +1091,20 @@ async function getJSphereConfig(props) {
     } catch (e) {
         error(e.message);
     }
+}
+function getProjectConfiguration(config) {
+    const projectConfigs = config.configurations;
+    const names = [];
+    let defaultIndex = 0;
+    for(let i = 0; i < projectConfigs.length; i++){
+        if (projectConfigs[i].PROJECT_CONFIG_NAME) {
+            const index = names.push(projectConfigs[i].PROJECT_CONFIG_NAME);
+            console.log(`${index} - ${names[index]}`);
+            if (config.defaultConfiguration === names[index]) {
+                defaultIndex = index;
+            }
+        }
+    }
+    const selectedIndex = prompt('Start with configuration:', defaultIndex.toString());
+    return Number(selectedIndex) ? names[Number(selectedIndex)] : '';
 }

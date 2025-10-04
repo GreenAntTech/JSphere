@@ -35,7 +35,7 @@ The workspace folder will also contain the JSphere server configuration file jsp
 
 ### Starting and Stopping the JSphere Application Server
 
-To start the JSphere application server
+To start the JSphere application server with default settings
 ```
 js start
 ```
@@ -66,7 +66,7 @@ http://localhost[:port]
 ```
 
 **Note:**
-The very first time you start JSphere in a workspace folder it will create a jsphere.json configuration file. This file will contain default entries for the server's HTTP port (80) and debug port (9229) if they are not specified as command arguments when starting the server.
+The very first time you start JSphere in a workspace folder it will create a jsphere.json configuration file. This file will contain default entries for the server's HTTP port, debug port and the default project configuration to use when the JSphere server is started.
 
 To **stop** the JSphere application server press the key combination required by your operating system for stopping a process. For example, the key combination <kbd>Ctrl</kbd> + <kbd>C</kbd>
 
