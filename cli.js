@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.141';
+const JSPHERE_VERSION = 'v1.0.0-preview.142';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1107,5 +1107,6 @@ function getProjectConfiguration(config) {
         }
     }
     const selectedIndex = prompt('Start with configuration:', defaultIndex.toString());
+    console.log('selectedIndex', Number(selectedIndex));
     return Number(selectedIndex) ? names[Number(selectedIndex)] : '';
 }
