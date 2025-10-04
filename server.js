@@ -25257,7 +25257,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.143';
+const version = 'v1.0.0-preview.144';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26434,6 +26434,7 @@ const cmdArgs = parse9(Deno.args);
 const configName = cmdArgs._[0];
 let config = {};
 if (configName) {
+    console.log('configName:', configName);
     if (await exists(`${Deno.cwd()}/jsphere.json`, {
         isFile: true
     })) {
