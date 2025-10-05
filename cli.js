@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.146';
+const JSPHERE_VERSION = 'v1.0.0-preview.147';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -914,7 +914,6 @@ async function startCmd(cmdArgs) {
         if (cmdArgs.reload) args.push('--reload');
         if (cmdArgs.debug) args.push(`--inspect=0.0.0.0:${config.debugPort}`);
         args.push(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${JSPHERE_VERSION}/server.js`);
-        console.log('projectConfiguration', projectConfiguration);
         if (projectConfiguration) args.push(projectConfiguration);
         args.push('--http-port=' + config.httpPort);
         const command = new Deno.Command('deno', {
@@ -1096,20 +1095,17 @@ async function getJSphereConfig(props) {
 function getProjectConfiguration(config) {
     const projectConfigs = config.configurations;
     const names = [];
+    let defaultIndex = 0;
     projectConfigs.sort((a, b)=>a.PROJECT_CONFIG_NAME.toUpperCase().localeCompare(b.PROJECT_CONFIG_NAME.toUpperCase()));
     for(let i = 0; i < projectConfigs.length; i++){
         if (projectConfigs[i].PROJECT_CONFIG_NAME) {
-            const index = names.push(projectConfigs[i].PROJECT_CONFIG_NAME);
-            console.log(`${index - 1} - ${names[index - 1]}`);
+            const index = names.push(projectConfigs[i].PROJECT_CONFIG_NAME) - 1;
+            console.log(`${index} - ${names[index]}`);
             if (config.defaultConfiguration === names[index]) {
-                index;
+                defaultIndex = index;
             }
         }
     }
-    const selectedIndex = prompt('Start with configuration:');
-    console.log('names', names);
-    console.log('selectedIndex', Number(selectedIndex));
-    const name = Number(selectedIndex) ? names[Number(selectedIndex)] : '';
-    console.log('name:', name);
-    return name;
+    const selectedIndex = prompt('Which project configuration would you like to use:', defaultIndex.toString());
+    return typeof Number(selectedIndex) === 'number' ? names[Number(selectedIndex)] : '';
 }
