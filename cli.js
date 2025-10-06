@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.147';
+const JSPHERE_VERSION = 'v1.0.0-preview.148';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -927,13 +927,16 @@ async function startCmd(cmdArgs) {
         error(`Could not start JSphere server.\n${e.message}`);
     }
 }
-async function loadCmd(cmdArgs, config) {
+async function loadCmd(cmdArgs) {
     try {
-        if (!config) config = await getJSphereConfig();
+        const config = await getJSphereConfig();
         const port = config.httpPort || '80';
-        const configName = cmdArgs._[1];
+        let projectConfiguration = cmdArgs._[1];
+        if (cmdArgs.list && !projectConfiguration) {
+            projectConfiguration = getProjectConfiguration(config);
+        }
         if (Array.isArray(config.configurations)) {
-            const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == configName);
+            const projectConfig = config.configurations.find((config)=>config.PROJECT_CONFIG_NAME == projectConfiguration);
             if (projectConfig) {
                 const response = await fetch(`http://localhost:${port}/@cmd/loadconfig`, {
                     headers: {
@@ -946,8 +949,8 @@ async function loadCmd(cmdArgs, config) {
                     error(`ERROR: ${response.statusText}`);
                     return;
                 }
-            } else error(`Could not load the configration '${configName}'. Configuration not found.`);
-        } else error(`Could not load the configration '${configName}'. Configuration not found.`);
+            } else error(`Could not load the configration '${projectConfiguration}'. Configuration not found.`);
+        } else error(`Could not load the configration '${projectConfiguration}'. Configuration not found.`);
     } catch (e) {
         error(`Could not load project. Please verify that the JSphere server is running.\n${e.message}`);
     }
