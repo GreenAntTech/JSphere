@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.151';
+const JSPHERE_VERSION = 'v1.0.0-preview.152';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1098,17 +1098,13 @@ async function getJSphereConfig(props) {
 function getProjectConfiguration(config) {
     const projectConfigs = config.configurations;
     const names = [];
-    let defaultIndex = 0;
     projectConfigs.sort((a, b)=>a.PROJECT_CONFIG_NAME.toUpperCase().localeCompare(b.PROJECT_CONFIG_NAME.toUpperCase()));
     for(let i = 0; i < projectConfigs.length; i++){
         if (projectConfigs[i].PROJECT_CONFIG_NAME) {
             const index = names.push(projectConfigs[i].PROJECT_CONFIG_NAME) - 1;
             console.log(`${index} - ${names[index]}`);
-            if (config.defaultConfiguration === names[index]) {
-                defaultIndex = index;
-            }
         }
     }
-    const selectedIndex = prompt('Which project configuration would you like to use:', defaultIndex.toString());
+    const selectedIndex = prompt('Which project configuration would you like to use:');
     return typeof Number(selectedIndex) === 'number' ? names[Number(selectedIndex)] : '';
 }
