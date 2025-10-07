@@ -97,7 +97,7 @@ The app.json file contains your project's application configuration and looks so
 	"packages": {
 		"myproject": {
 			"alias": "main"
-      "reference:: ""
+            "reference:: ""
 		}
 	},
 	"routes": [
