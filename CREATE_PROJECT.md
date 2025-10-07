@@ -68,3 +68,24 @@ js checkout <package_name>
 Please note:
 **Checking out packages is equivalent to doing a git clone of a repository. You will be able to edit and work with your package repo using git commands.**
 
+## Understanding a JSphere Project Structure
+
+As mentioned previously, a JSphere project is comprised of two or more packages (repos): A project config package, a main application package and any additional application support packages.
+
+```
+ROOT_PROJECT_FOLDER
+  :- .myproject
+       :- app.json
+  :- myproject
+       :- client
+       :- server
+       :- shared
+       :- tests
+  :- package3
+       :- client
+       :- server
+       :- shared
+       :- tests
+  :-
+  :-
+```
