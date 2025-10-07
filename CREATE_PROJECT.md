@@ -89,3 +89,31 @@ ROOT_PROJECT_FOLDER
   :-
   :-
 ```
+
+### The app.json File
+The app.json file contains your project's application configuration and looks something like this:
+```
+{
+	"packages": {
+		"myproject": {
+			"alias": "main"
+      "reference:: ""
+		}
+	},
+	"routes": [
+		{
+			"route": "/api/datetime",
+			"path": "/myproject/server/datetime.js"
+		},
+		{
+			"route": "/*",
+			"path": "/myproject/client/index.html"
+		}
+	],
+	"extensions": {},
+	"directives": [],
+	"settings": {},
+	"featureFlags": []
+}
+```
+
