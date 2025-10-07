@@ -91,7 +91,7 @@ ROOT_PROJECT_FOLDER
 ```
 
 ### The app.json File
-The app.json file contains your project's application configuration and looks something like this:
+The app.json file contains your project's application configuration and is a collection of properties like this:
 ```
 {
 	"packages": {
@@ -116,4 +116,5 @@ The app.json file contains your project's application configuration and looks so
 	"featureFlags": []
 }
 ```
+The **packages** property is a collection package objects that define the project's application. Each package object has an **alias** and **reference** property. 
 
