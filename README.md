@@ -1,7 +1,7 @@
 # JSphere
 JSphere is a lightweight and versatile web application server for Deno.
 
-JSphere decouples your application logic from the application's runtime environment, allowing for highly composable and scalable application architectures.
+JSphere's application package architecture allows for the development of highly composable and scalable applications.
 
 JSphere's element.js is a lightweight JavaScript library for building composable and easily navigable web interfaces. Web interfaces built using element.js can be rendered at the client or at the server allowing you flexible hydration options at the client.
 
@@ -23,7 +23,7 @@ To use the CLI tool commands you type:
 ```
 js <command> [arguments]
 ```
-To see a list of available commands type:
+To see the currently installed version and list of available commands type:
 ```
 js
 ```
@@ -39,9 +39,13 @@ To start the JSphere application server with default settings
 ```
 js start
 ```
-To start the JSphere application server with a existing project configuration
+To start the JSphere application server using a specified project configuration
 ```
 js start my_project_config_name
+```
+To start the JSphere application server using a project configuration from a list of configurations
+```
+js start --list
 ```
 To start the JSphere application server to listen on a specified HTTP port
 ```
