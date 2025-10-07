@@ -63,6 +63,7 @@ js checkout
 To checkout a specific package of the currently loaded project use the following CLI command:
 ```
 js checkout <package_name>
+```
 
 Please note:
 **Checking out packages is equivalent to doing a git clone of a repository. You will be able to edit and work with your package repo using git commands.
