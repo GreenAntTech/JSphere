@@ -41,11 +41,10 @@ To run your newly created project:
 ```
 js load <project_name>
 ```
-or
+or select the newly created project configuration from the list of existing project configurations:
 ```
 js load --list
 ```
-Then select the newly created project configuration from the list of project configurations
 
 After executing the `js load` command, open your browser and navigate to:
 
