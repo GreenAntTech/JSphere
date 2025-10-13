@@ -24991,6 +24991,13 @@ async function handleRequest2(ctx) {
                         });
                     }
                     return await handleInstallElement(requestId);
+                case 'installtypes':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleInstallTypes(requestId);
                 default:
                     return new Response('Command Not Found.', {
                         status: 404
@@ -25257,7 +25264,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.152';
+const version = 'v1.0.0-preview.153';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25749,17 +25756,30 @@ const mod14 = {
 };
 async function getServerContext(request) {
     const requestCtx = await getRequestContext(request);
-    const serverContext = {
-        request: requestCtx,
-        response: new ResponseContext(),
-        utils: new Utils(),
-        parser: new mod10.DOMParser(),
-        getPackageItem: async (path)=>{
-            const packageItem = await getPackageItem(path);
-            return packageItem;
+    const serverContext = {};
+    Object.defineProperties(serverContext, {
+        request: {
+            value: requestCtx
         },
-        user: {}
-    };
+        response: {
+            value: new ResponseContext()
+        },
+        utils: {
+            value: new Utils()
+        },
+        parser: {
+            value: new mod10.DOMParser()
+        },
+        getPackageItem: {
+            value: async (path)=>{
+                const packageItem = await getPackageItem(path);
+                return packageItem;
+            }
+        },
+        user: {
+            value: {}
+        }
+    });
     if (project.ready) {
         for(const prop in project.appConfig.extensions){
             serverContext[prop] = project.appConfig.extensions[prop].instance;
@@ -25975,7 +25995,6 @@ async function handleCreatePackage(ctx, requestId) {
     }
 }
 async function handleCheckout(ctx, requestId) {
-    debugger;
     try {
         const params = ctx.request.data;
         if (params.name.includes('/')) {
@@ -26065,6 +26084,34 @@ async function handleInstallElement(requestId) {
             if (response.ok) {
                 const file = await response.text();
                 await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/element.d.ts`, (new TextEncoder).encode(file));
+            }
+            return new Response('OK', {
+                status: 201
+            });
+        }
+        return new Response('Project package not found. Please checkout the project package before running this command.', {
+            status: 404
+        });
+    } catch (error) {
+        mod5.error('Failed to create package:', {
+            error: error.message,
+            requestId
+        });
+        throw error;
+    }
+}
+async function handleInstallTypes(requestId) {
+    try {
+        if (await exists(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}`, {
+            isDirectory: true
+        })) {
+            await Deno.mkdir(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/server`, {
+                recursive: true
+            });
+            const response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/server/jsphere.d.ts`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/server/jsphere.d.ts`, (new TextEncoder).encode(file));
             }
             return new Response('OK', {
                 status: 201

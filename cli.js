@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.152';
+const JSPHERE_VERSION = 'v1.0.0-preview.153';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -835,6 +835,9 @@ const DENO_VERSION = '2.2.4';
                 break;
             case 'install-element':
                 await installElementCmd();
+                break;
+            case 'install-types':
+                await installTypesCmd();
                 break;
             case 'start':
                 startCmd(cmdArgs);
@@ -1026,8 +1029,9 @@ async function createPackageCmd(cmdArgs) {
 }
 async function checkoutCmd(cmdArgs) {
     try {
+        const config = await getJSphereConfig();
         const name = cmdArgs._[1] || '*';
-        const port = cmdArgs.port || '80';
+        const port = config.httpPort || '80';
         const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
             headers: {
                 'content-type': 'application/json'
@@ -1047,7 +1051,8 @@ async function checkoutCmd(cmdArgs) {
 }
 async function installElementCmd() {
     try {
-        const port = cmdArgs.port || '80';
+        const config = await getJSphereConfig();
+        const port = config.httpPort || '80';
         const response = await fetch(`http://localhost:${port}/@cmd/installelement`, {
             headers: {
                 'content-type': 'application/json'
@@ -1061,6 +1066,25 @@ async function installElementCmd() {
         }
     } catch (e) {
         error(`Could not install element.js. Please verify that the JSphere server is running.\n${e.message}`);
+    }
+}
+async function installTypesCmd() {
+    try {
+        const config = await getJSphereConfig();
+        const port = config.httpPort || '80';
+        const response = await fetch(`http://localhost:${port}/@cmd/installtypes`, {
+            headers: {
+                'content-type': 'application/json'
+            },
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+        if (!response.ok) {
+            error(`Could not install jsphere.d.ts. Server returned - ${response.statusText}`);
+            return;
+        }
+    } catch (e) {
+        error(`Could not install jsphere.d.ts. Please verify that the JSphere server is running.\n${e.message}`);
     }
 }
 async function getJSphereConfig(props) {
