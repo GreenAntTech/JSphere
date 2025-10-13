@@ -25264,7 +25264,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.153';
+const version = 'v1.0.0-preview.154';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26223,6 +26223,7 @@ async function createPackage(props) {
     };
 }
 async function checkoutPackage(packageName) {
+    debugger;
     const packages = {};
     packages['.' + mod14.project.name] = {};
     Object.assign(packages, mod14.project.appConfig.packages);
