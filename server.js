@@ -25264,7 +25264,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.155';
+const version = 'v1.0.0-preview.156';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25997,12 +25997,14 @@ async function handleCreatePackage(ctx, requestId) {
 async function handleCheckout(ctx, requestId) {
     try {
         const params = ctx.request.data;
+        console.log('We are here. package name:', params);
+        debugger;
         if (params.name.includes('/')) {
             await checkoutFile(params.name);
             return new Response('OK', {
                 status: 200
             });
-        } else if ('.' + mod14.project.name === params.name || mod14.project.appConfig?.packages[params.name] || params.name === '*') {
+        } else if ('.' + mod14.project.name === params.name || mod14.project.appConfig?.packages[params.name] || params.name === '') {
             await checkoutPackage(params.name);
             return new Response('OK', {
                 status: 200
@@ -26223,13 +26225,11 @@ async function createPackage(props) {
     };
 }
 async function checkoutPackage(packageName) {
-    console.log('We are here. package name:', packageName);
-    debugger;
     const packages = {};
     packages['.' + mod14.project.name] = {};
     Object.assign(packages, mod14.project.appConfig.packages);
     for(const key in packages){
-        if (packageName === '*' || packageName === key) {
+        if (packageName === '' || packageName === key) {
             await mod14.cloneRepo({
                 repoName: key,
                 reference: packages[key].reference,

@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.155';
+const JSPHERE_VERSION = 'v1.0.0-preview.156';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {
@@ -1030,7 +1030,7 @@ async function createPackageCmd(cmdArgs) {
 async function checkoutCmd(cmdArgs) {
     try {
         const config = await getJSphereConfig();
-        const name = cmdArgs._[1] || '*';
+        const name = cmdArgs._[1] || '';
         const port = config.httpPort || '80';
         const response = await fetch(`http://localhost:${port}/@cmd/checkout`, {
             headers: {
