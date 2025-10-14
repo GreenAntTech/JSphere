@@ -25264,7 +25264,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.156';
+const version = 'v1.0.0-preview.157';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25997,8 +25997,6 @@ async function handleCreatePackage(ctx, requestId) {
 async function handleCheckout(ctx, requestId) {
     try {
         const params = ctx.request.data;
-        console.log('We are here. package name:', params);
-        debugger;
         if (params.name.includes('/')) {
             await checkoutFile(params.name);
             return new Response('OK', {
