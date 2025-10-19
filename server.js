@@ -24836,8 +24836,8 @@ class LRUCache {
         this.clear();
     }
 }
-function getInstance1(_config, _utils) {
-    return new LRUCache();
+function getInstance1(config, _utils) {
+    return new LRUCache(config.settings);
 }
 const mod13 = {
     getInstance: getInstance1
@@ -25046,10 +25046,10 @@ function handleRequest4(ctx) {
     }
 }
 async function handleRequest5(ctx) {
-    const folder = ctx.request.routePath.split('/')[2];
+    const pathname = ctx.request.routePath || ctx.request.url.pathname;
+    const folder = pathname.split('/')[2];
     if ((folder == 'client' || folder == 'shared' || folder == 'tests') && ctx.request.method == 'GET') {
         try {
-            const pathname = ctx.request.routePath;
             let item = mod14.project.packageItemCache.getPackageItem(pathname);
             if (!item || item.contentType === 'application/typescript; charset=utf-8') {
                 if (pathname.endsWith('.ts')) {
@@ -25057,10 +25057,9 @@ async function handleRequest5(ctx) {
                     const url = `http://127.0.0.1${port ? ':' + port : ''}${pathname}?ts=true&eTag=${mod14.project.currentCacheDTS}`;
                     const result1 = await mod12.transpile(url);
                     item = mod14.project.packageItemCache.getPackageItem(pathname);
-                    item.contentType = 'text/javascript';
-                    item.content = new TextEncoder().encode(result1.get(url));
+                    item.parsedContent = new TextEncoder().encode(result1.get(url));
                 } else {
-                    item = await mod14.getPackageItem(ctx.request.routePath);
+                    item = await mod14.getPackageItem(pathname);
                 }
             }
             if (item) {
@@ -25071,11 +25070,13 @@ async function handleRequest5(ctx) {
                         status: 304
                     });
                 } else {
-                    return new Response(item.content, {
+                    const content = pathname.endsWith('.ts') ? item.parsedContent : item.content;
+                    const contentType = pathname.endsWith('.ts') ? 'text/javascript' : item.contentType;
+                    return new Response(content, {
                         status: 200,
                         headers: {
                             'eTag': item.eTag,
-                            'content-type': item.contentType
+                            'content-type': contentType
                         }
                     });
                 }
@@ -25092,11 +25093,10 @@ async function handleRequest5(ctx) {
     }
 }
 async function handleRequest6(ctx) {
-    const folder = ctx.request.routePath.startsWith('/') ? ctx.request.routePath.split('/')[2] : ctx.request.routePath.split('/')[1];
+    const pathname = ctx.request.routePath;
+    const folder = pathname.split('/')[2];
     if (folder == 'server') {
         try {
-            let pathname = ctx.request.routePath;
-            if (!pathname.endsWith('.ts') && !pathname.endsWith('.js')) pathname += '.ts';
             const slash = pathname.startsWith('/');
             let module1;
             try {
@@ -25264,7 +25264,7 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.157';
+const version = 'v1.0.0-preview.158';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25278,11 +25278,9 @@ class PackageItemCache extends LRUCache {
         });
     }
     setPackageItem(path, item) {
-        debugger;
         this.set(path, item);
     }
     getPackageItem(path) {
-        debugger;
         return this.get(path);
     }
     invalidatePackage(packageName) {
@@ -25335,7 +25333,7 @@ async function init1(config) {
         if (file === null) {
             const repoFile = await getFileFromRepo(path + (reference ? `?ref=${reference}` : ''), host, namespace, authToken);
             if (repoFile === null) {
-                mod5.warning(`Could not find the application configuration file ${appConfig}.json.`);
+                mod5.warning(`Could not find the application configuration file: ${path}`);
                 mod5.warning('Attempted to locate file in the file system path:' + projectFolder + '/' + path);
                 mod5.warning('Attempted to locate file in the remote repo:' + namespace + '/' + path);
                 return;
@@ -25795,7 +25793,7 @@ async function getRequestContext(request) {
     const requestContext = {
         url,
         method: request.method,
-        routePath: url.pathname,
+        routePath: '',
         headers: request.headers,
         cookies: mod9.getCookies(request.headers),
         params: {},
@@ -26501,7 +26499,7 @@ if (configName) {
     } else mod5.error(`Could not load the configration '${configName}'. Missing jsphere.json file.`);
 }
 await mod14.init({});
-const serverPort = parseInt(cmdArgs['http-port'] || config.httpPort || '80');
+const serverPort = parseInt(cmdArgs['http-port'] || config.httpPort || Deno.env.get('SERVER_HTTP_PORT') || '80');
 mod5.info(`JSphere Application Server has started.`);
 serve(mod14.handleRequest, {
     port: serverPort
