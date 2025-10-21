@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Project Structure — JSphere</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#fff; --text:#111; --muted:#555; --border:#e5e5e5; --surface:#f7f7f9; --accent:#2196F3; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+    .container{max-width:980px;margin:0 auto;padding:1.25rem}
+    .site-header{border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+    .site-header .inner{display:flex;align-items:center;justify-content:space-between}
+    .logo{font-weight:700;text-decoration:none;color:var(--text)}
+    .nav a{text-decoration:none;color:var(--text);margin-left:1rem;padding:.5rem .25rem;border-bottom:2px solid transparent}
+    .nav a.active{color:var(--accent);border-color:var(--accent)}
+    h1{font-size:2rem;margin:1rem 0}
+    .section{padding:1.5rem 0}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem}
+    pre{background:#f4f4f4;border:1px solid var(--border);padding:1rem;border-radius:.5rem;overflow:auto}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container inner">
+      <a class="logo" href="index.html">JSphere</a>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="why.html">Why JSphere</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a class="active" href="project-structure.html" aria-current="page">Project Structure</a>
+        <a href="ship.html">Ship Features</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Project Structure</h1>
+    <p class="muted">A JSphere project is a configuration repo plus one or more application packages.</p>
+
+    <section class="section">
+      <div class="card">
+        <h2>Repo layout</h2>
+        <pre><code>ROOT_PROJECT_FOLDER (PROJECT_CONFIG_NAME)
+  ├─ .myproject             # Project config package (app.json lives here)
+  │   └─ app.json
+  ├─ myproject              # Main application package
+  │   ├─ client             # Browser assets (HTML, CSS, JS, images)
+  │   ├─ server             # Server endpoints (onGET/onPOST/etc.)
+  │   ├─ shared             # Shared runtime code
+  │   └─ tests              # Test scripts
+  └─ packageX               # Additional packages (optional)
+      ├─ client
+      ├─ server
+      ├─ shared
+      └─ tests</code></pre>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>The app.json config</h2>
+        <p><code>app.json</code> defines how JSphere serves your app: <code>packages</code>, <code>routes</code>, <code>extensions</code>, <code>directives</code>, <code>settings</code>, <code>featureFlags</code>.</p>
+        <pre><code class="language-json">{
+  "packages": {
+    "myproject": {
+      "alias": "main",
+      "reference": ""          // optional: branch/tag/commit
+    },
+    "my_auth_package": {
+      "alias": "auth"
+    }
+  },
+  "routes": [
+    { "route": "/api/datetime", "path": "/myproject/server/datetime.js" },
+    { "route": "/*",            "path": "/myproject/client/index.html" }
+  ],
+  "extensions": {
+    "db": {
+      "uri": "/path/to/extension/extension_name.ts",
+      "settings": {
+        "dbHostname": "neo4j+s://000000.databases.neo4j.io",
+        "dbDatabase": "myDB",
+        "dbUsername": "myusername",
+        "dbPassword": "@ENV:MY_DB_PASSWORD"
+      }
+    }
+  },
+  "directives": {
+    "request": ["/path/to/directive/request.ts"],
+    "response": ["/path/to/directive/response.ts"]
+  },
+  "settings": { "theme": "midnight" },
+  "featureFlags": ["FeatureFlag1"]
+}</code></pre>
+        <ul>
+          <li><strong>packages</strong>: repos with your code; <code>alias</code> is an alternate name; <code>reference</code> pins a branch/tag</li>
+          <li><strong>routes</strong>: map URL paths to resources; order from most specific to least specific</li>
+          <li><strong>extensions</strong>: add objects to the server context (env vars via <code>@ENV:NAME</code>)</li>
+          <li><strong>directives</strong>: request/response middleware</li>
+          <li><strong>settings</strong>: user settings, available at <code>ctx.settings</code></li>
+          <li><strong>featureFlags</strong>: enable features in client/server code</li>
+        </ul>
+        <p class="muted">You can keep multiple configs (e.g., <code>app.dev.json</code>) and select via <code>PROJECT_APP_CONFIG</code>.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>Routing examples</h2>
+        <pre><code class="language-json">{
+  "routes": [
+    { "route": "/api/contact",      "path": "/myproject/server/contact.ts" },
+    { "route": "/api/contact/:id",  "path": "/myproject/server/contact.ts" },
+    { "route": "/*",                "path": "/myproject/client/index.html" }
+  ]
+}</code></pre>
+        <p>Place server endpoint files under <code>/server/</code> and export methods like <code>onGET</code>, <code>onPOST</code>. Place client files under <code>/client/</code>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">© JSphere. Clear structure for fast development.</div>
+  </footer>
+</body>
+</html>
