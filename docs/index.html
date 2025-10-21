@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>JSphere — Ship features, not pipelines</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="JSphere: GitHub‑native runtime for building and shipping full‑stack web apps." />
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #111111;
+      --muted: #555555;
+      --border: #e5e5e5;
+      --surface: #f7f7f9;
+      --accent: #2196F3; /* switch to #4CAF50 for green */
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 980px; margin: 0 auto; padding: 1.25rem; }
+    .site-header { border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 10; }
+    .site-header .inner { display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-weight: 700; text-decoration: none; color: var(--text); }
+    .nav a { text-decoration: none; color: var(--text); margin-left: 1rem; padding: .5rem .25rem; border-bottom: 2px solid transparent; }
+    .nav a.active { color: var(--accent); border-color: var(--accent); }
+    .hero { padding: 3rem 0 2rem; }
+    .hero h1 { font-size: 2.25rem; margin: 0 0 .5rem; }
+    .hero p { color: var(--muted); margin: 0 0 1.25rem; }
+    .btns { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: .7rem 1rem; border-radius: .5rem; text-decoration: none; font-weight: 600; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .btn.secondary { color: var(--accent); border: 2px solid var(--accent); background: transparent; }
+    .section { padding: 1.75rem 0; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem 1.25rem; }
+    ul { margin: .5rem 0 0 1.25rem; }
+    footer { border-top: 1px solid var(--border); padding: 1.25rem 0; color: var(--muted); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container inner">
+      <a class="logo" href="index.html">JSphere</a>
+      <nav class="nav">
+        <a class="active" href="index.html" aria-current="page">Home</a>
+        <a href="why.html">Why JSphere</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="project-structure.html">Project Structure</a>
+        <a href="ship.html">Ship Features</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Ship features, not pipelines</h1>
+      <p>JSphere is a GitHub‑native runtime for full‑stack web apps. Serve client assets and server endpoints directly from your repos using a simple config file.</p>
+      <div class="btns">
+        <a class="btn primary" href="getting-started.html">Get Started</a>
+        <a class="btn secondary" href="why.html">Why JSphere</a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>What you get</h2>
+        <ul>
+          <li>GitHub‑native projects: config + one or more packages (repos)</li>
+          <li>Config‑first runtime: define routes, packages, extensions, directives in <code>app.json</code></li>
+          <li>Instant previews and rollbacks by switching Git references</li>
+          <li>Client and server in one place: <code>client/</code>, <code>server/</code>, <code>shared/</code>, <code>tests/</code></li>
+          <li>Lightweight shipping: update <code>reference</code> in config, reload, done</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Quick links</h2>
+      <ul>
+        <li><a href="getting-started.html">Getting Started</a></li>
+        <li><a href="project-structure.html">Project Structure</a></li>
+        <li><a href="ship.html">Ship Features</a></li>
+        <li><a href="why.html">Why JSphere</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">© JSphere. Built for rapid, GitHub‑native development.</div>
+  </footer>
+</body>
+</html>
+```
+
+### File: why.html (Why JSphere)
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Why JSphere — GitHub‑native web app runtime</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#fff; --text:#111; --muted:#555; --border:#e5e5e5; --surface:#f7f7f9; --accent:#2196F3; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+    .container{max-width:980px;margin:0 auto;padding:1.25rem}
+    .site-header{border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+    .site-header .inner{display:flex;align-items:center;justify-content:space-between}
+    .logo{font-weight:700;text-decoration:none;color:var(--text)}
+    .nav a{text-decoration:none;color:var(--text);margin-left:1rem;padding:.5rem .25rem;border-bottom:2px solid transparent}
+    .nav a.active{color:var(--accent);border-color:var(--accent)}
+    h1{font-size:2rem;margin:1rem 0}
+    .section{padding:1.5rem 0}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem}
+    ul{margin:.5rem 0 0 1.25rem}
+    footer{border-top:1px solid var(--border);padding:1.25rem 0;color:var(--muted)}
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container inner">
+      <a class="logo" href="index.html">JSphere</a>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a class="active" href="why.html" aria-current="page">Why JSphere</a>
+        <a href="getting-started.html">Getting Started</a>
+        <a href="project-structure.html">Project Structure</a>
+        <a href="ship.html">Ship Features</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Why JSphere</h1>
+    <p class="muted">GitHub as your runtime: deploy with Git references, not pipelines.</p>
+
+    <section class="section">
+      <div class="card">
+        <h2>Problems we solve</h2>
+        <ul>
+          <li>DevOps friction for simple deploys and previews</li>
+          <li>Multi‑repo coordination headaches</li>
+          <li>Slow rollbacks and environment drift</li>
+          <li>Redundant artifact/package infrastructure</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>GitHub‑native approach</h2>
+        <ul>
+          <li>Projects = config repo + one or more package repos</li>
+          <li><code>app.json</code> drives packages, routes, extensions, directives, settings, featureFlags</li>
+          <li>JSphere serves client files and server endpoints directly</li>
+          <li>Deploy by updating <code>packages.&lt;name&gt;.reference</code> to a branch/tag/commit</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>Real‑world scenarios</h2>
+        <ul>
+          <li><strong>Rapid prototyping</strong>: idea → working preview in hours</li>
+          <li><strong>Enterprise microservices</strong>: independent deploys, instant rollbacks</li>
+          <li><strong>Open‑source</strong>: feature branches are live testable, tags for releases</li>
+          <li><strong>Education/content</strong>: global updates by switching references</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>Benefits</h2>
+        <ul>
+          <li>Zero heavy pipeline overhead</li>
+          <li>Version control = deployment control</li>
+          <li>Instant collaboration and previews</li>
+          <li>Lower costs and simpler operations</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">© JSphere. GitHub‑native by design.</div>
+  </footer>
+</body>
+</html>
+```
+
+### File: getting-started.html (Getting Started)
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Getting Started — JSphere</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#fff; --text:#111; --muted:#555; --border:#e5e5e5; --surface:#f7f7f9; --accent:#2196F3; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+    .container{max-width:980px;margin:0 auto;padding:1.25rem}
+    .site-header{border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+    .site-header .inner{display:flex;align-items:center;justify-content:space-between}
+    .logo{font-weight:700;text-decoration:none;color:var(--text)}
+    .nav a{text-decoration:none;color:var(--text);margin-left:1rem;padding:.5rem .25rem;border-bottom:2px solid transparent}
+    .nav a.active{color:var(--accent);border-color:var(--accent)}
+    h1{font-size:2rem;margin:1rem 0}
+    .section{padding:1.5rem 0}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem}
+    pre{background:#f4f4f4;border:1px solid var(--border);padding:1rem;border-radius:.5rem;overflow:auto}
+    code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
+    .notice{color:var(--muted);font-size:.95rem}
+    .btn{display:inline-block;margin-top:.5rem;padding:.6rem .9rem;border-radius:.5rem;text-decoration:none;font-weight:600;color:#fff;background:var(--accent)}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container inner">
+      <a class="logo" href="index.html">JSphere</a>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="why.html">Why JSphere</a>
+        <a class="active" href="getting-started.html" aria-current="page">Getting Started</a>
+        <a href="project-structure.html">Project Structure</a>
+        <a href="ship.html">Ship Features</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Getting Started</h1>
+    <p class="notice">Prereqs: Deno installed; GitHub account + Personal Access Token (repo scope).</p>
+
+    <section class="section">
+      <div class="card">
+        <h2>1) Install the JSphere CLI</h2>
+        <pre><code>deno install -A -r https://raw.githubusercontent.com/GreenAntTech/JSphere/main/cli.ts
+js version</code></pre>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>2) Create your first project</h2>
+        <pre><code>js create-project</code></pre>
+        <p>Follow the prompts:</p>
+        <ul>
+          <li>Project name → e.g. <code>myproject</code></li>
+          <li>Project namespace → your GitHub account/org</li>
+          <li>Project auth token → your GitHub PAT</li>
+        </ul>
+        <p class="notice">This creates two repos: <code>.myproject</code> (config) and <code>myproject</code> (app), and adds an entry to your local <code>jsphere.json</code>.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>3) Start the server and load the project</h2>
+        <pre><code># start server (choose config with --list if needed)
+js start
+# or
+js start --list
+
+# load your project configuration
+js load myproject</code></pre>
+        <p>Open <code>http://localhost</code> to view the sample app.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>4) Checkout repos for local editing</h2>
+        <pre><code># checkout all packages of the loaded project
+js checkout
+
+# or checkout a single package
+js checkout myproject</code></pre>
+        <p>Make changes locally, then reload:</p>
+        <pre><code>js reload</code></pre>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>Next steps</h2>
+        <ul>
+          <li>Install element.js for client UI: <code>js install-element</code></li>
+          <li>Install TS definitions: <code>js install-types</code></li>
+          <li>Learn routing and APIs in <a href="project-structure.html">Project Structure</a></li>
+          <li>Try the shipping workflow: <a href="ship.html">Ship Features</a></li>
+        </ul>
+        <a class="btn" href="project-structure.html">Understand the Project Layout</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">© JSphere. You’re ready to build.</div>
+  </footer>
+</body>
+</html>
