@@ -214,6 +214,52 @@ export async function onGET(ctx: ServerContext): Promise<Response> {
     js start
     ```
 
+### 4. Running and Testing Your Extension
+
+To run and test your extension, you need to ensure JSphere is configured correctly and then access your API endpoint.
+
+1.  **Configure Environment Variables (Recommended for Development):**
+
+    For development and local testing, it's highly recommended to define your environment variables directly within the `jsphere.json` file. This centralizes your project's configuration and makes it easy to switch between different settings.
+
+    Open your `jsphere.json` file (it's created the first time you run `js start` in your workspace folder) and add a configuration entry for your project. If you already have one, ensure it includes your environment variable.
+
+    ```json
+    // jsphere.json (excerpt)
+    {
+      "httpPort": 80,
+      "defaultConfiguration": "myproject_dev",
+      "configurations": [
+        {
+          "PROJECT_CONFIG_NAME": "myproject_dev",
+          "PROJECT_HOST": "GitHub",
+          "PROJECT_NAMESPACE": "YourGitHubAccount",
+          "PROJECT_NAME": "myproject",
+          "PROJECT_APP_CONFIG": "app",
+          "PROJECT_REFERENCE": "",
+          "PROJECT_AUTH_TOKEN": "your_github_token",
+          "MY_DB_PASSWORD": "mysecretpassword_for_dev" // <--- Set your environment variable here
+        }
+      ]
+    }
+    ```
+    **Note:** For production deployments, environment variables like `MY_DB_PASSWORD` are typically set directly in the operating environment where the JSphere server is hosted, rather than in `jsphere.json`. This is because `jsphere.json` might be part of your version control, and sensitive credentials should ideally be managed outside of it in production.
+
+2.  **Load Your Project Configuration:**
+
+    Ensure your project configuration is loaded. Use the `js load` command, specifying the `PROJECT_CONFIG_NAME` you defined in `jsphere.json` (e.g., `myproject_dev`).
+
+    ```bash
+    js load myproject_dev
+    ```
+    (Replace `myproject_dev` with the actual `PROJECT_CONFIG_NAME` you used).
+
+3.  **Start the JSphere Server:**
+
+    ```bash
+    js start
+    ```
+
 4.  **Test with a Tool (e.g., cURL, Browser):**
 
     -   **GET Data:** Open your browser to `http://localhost[:port]/api/data` or `http://localhost[:port]/api/data/123` (the `:id` parameter isn't strictly used by our mock query but can be passed):
