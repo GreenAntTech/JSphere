@@ -24898,115 +24898,8 @@ async function handleRequest1(ctx) {
         }
     }
 }
+const td = new TextDecoder();
 async function handleRequest2(ctx) {
-    const url = new URL(ctx.request.url);
-    if (url.pathname.startsWith('/@cmd/')) {
-        const cmd = url.pathname.split('/@cmd/')[1];
-        const requestId = crypto.randomUUID();
-        let accessAllowed = false;
-        mod5.info(`Command request: ${cmd}`, {
-            requestId
-        });
-        const publicEndpoints = [
-            'ready',
-            'healthcheck'
-        ];
-        const isPublicEndpoint = publicEndpoints.includes(cmd);
-        if (!isPublicEndpoint && url.hostname !== 'localhost') {
-            const auth = ctx.request.headers.get('Authorization');
-            const token = Deno.env.get('SERVER_AUTH_TOKEN');
-            accessAllowed = auth && token ? auth === `token ${token}` : false;
-        }
-        if (accessAllowed || url.hostname === 'localhost') {
-            switch(cmd){
-                case 'ready':
-                    if (ctx.request.method !== 'GET') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return;
-                case 'healthcheck':
-                    if (ctx.request.method !== 'GET') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return new Response('OK', {
-                        status: 200
-                    });
-                case 'loadconfig':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleLoadConfig(ctx, requestId);
-                case 'reload':
-                    if (ctx.request.method !== 'GET') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleReload(requestId);
-                case 'currentconfig':
-                    if (ctx.request.method !== 'GET') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleCurrentConfig(requestId);
-                case 'createproject':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleCreateProject(ctx, requestId);
-                case 'createpackage':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleCreatePackage(ctx, requestId);
-                case 'checkout':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleCheckout(ctx, requestId);
-                case 'syncproject':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleSyncProject(requestId);
-                case 'installelement':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleInstallElement(requestId);
-                case 'installtypes':
-                    if (ctx.request.method !== 'POST') {
-                        return new Response('Method not allowed', {
-                            status: 405
-                        });
-                    }
-                    return await handleInstallTypes(requestId);
-                default:
-                    return new Response('Command Not Found.', {
-                        status: 404
-                    });
-            }
-        }
-    }
-}
-async function handleRequest3(ctx) {
     if (ctx.request.url.hostname == '127.0.0.1' && ctx.request.method == 'GET' && ctx.request.headers.get('user-agent')?.startsWith('Deno')) {
         try {
             const eTag = ctx.request.params.eTag;
@@ -25035,7 +24928,7 @@ async function handleRequest3(ctx) {
         }
     }
 }
-function handleRequest4(ctx) {
+function handleRequest3(ctx) {
     const extension = extname2(ctx.request.url.pathname);
     if (mod14.project.appConfig.routes && !lookup(extension)) {
         const route = matchRoute(ctx.request.url.pathname, mod14.project.appConfig.routes);
@@ -25045,7 +24938,7 @@ function handleRequest4(ctx) {
         }
     }
 }
-async function handleRequest5(ctx) {
+async function handleRequest4(ctx) {
     const pathname = ctx.request.routePath || ctx.request.url.pathname;
     const folder = pathname.split('/')[2];
     if ((folder == 'client' || folder == 'shared' || folder == 'tests') && ctx.request.method == 'GET') {
@@ -25092,7 +24985,7 @@ async function handleRequest5(ctx) {
         }
     }
 }
-async function handleRequest6(ctx) {
+async function handleRequest5(ctx) {
     const pathname = ctx.request.routePath;
     const folder = pathname.split('/')[2];
     if (folder == 'server') {
@@ -25264,7 +25157,115 @@ class Utils {
         return decString;
     };
 }
-const version = 'v1.0.0-preview.158';
+async function handleRequest6(ctx) {
+    const url = new URL(ctx.request.url);
+    if (url.pathname.startsWith('/@cmd/')) {
+        const cmd = url.pathname.split('/@cmd/')[1];
+        const requestId = crypto.randomUUID();
+        let accessAllowed = false;
+        mod5.info(`Command request: ${cmd}`, {
+            requestId
+        });
+        const publicEndpoints = [
+            'ready',
+            'healthcheck'
+        ];
+        const isPublicEndpoint = publicEndpoints.includes(cmd);
+        if (!isPublicEndpoint && url.hostname !== 'localhost') {
+            const auth = ctx.request.headers.get('Authorization');
+            const token = Deno.env.get('SERVER_AUTH_TOKEN');
+            accessAllowed = auth && token ? auth === `token ${token}` : false;
+        }
+        if (accessAllowed || url.hostname === 'localhost') {
+            switch(cmd){
+                case 'ready':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return;
+                case 'healthcheck':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return new Response('OK', {
+                        status: 200
+                    });
+                case 'loadconfig':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleLoadConfig(ctx, requestId);
+                case 'reload':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleReload(requestId);
+                case 'currentconfig':
+                    if (ctx.request.method !== 'GET') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCurrentConfig(requestId);
+                case 'createproject':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCreateProject(ctx, requestId);
+                case 'createpackage':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCreatePackage(ctx, requestId);
+                case 'checkout':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleCheckout(ctx, requestId);
+                case 'syncproject':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleSyncProject(requestId);
+                case 'installelement':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleInstallElement(requestId);
+                case 'installtypes':
+                    if (ctx.request.method !== 'POST') {
+                        return new Response('Method not allowed', {
+                            status: 405
+                        });
+                    }
+                    return await handleInstallTypes(requestId);
+                default:
+                    return new Response('Command Not Found.', {
+                        status: 404
+                    });
+            }
+        }
+    }
+}
+const version = 'v1.0.0-preview.160';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25317,8 +25318,8 @@ async function init1(config) {
             Deno.env.set(key, currentConfig[key]);
         }
         for(const key in project)delete project[key];
-        const checkoutProject = Boolean(Deno.env.get('CHECKOUT_PROJECT'));
-        const watchForChanges = Boolean(Deno.env.get('WATCH_PROJECT_CHANGES'));
+        const installProject = Boolean(Deno.env.get('PROJECT_INSTALL_ON_LOAD'));
+        const watchForChanges = Boolean(Deno.env.get('PROJECT_RELOAD_ON_CHANGES'));
         const clearRuntimeCache = Boolean(Deno.env.get('CLEAR_RUNTIME_CACHE'));
         const host = 'GitHub';
         const namespace = Deno.env.get('PROJECT_NAMESPACE');
@@ -25387,7 +25388,7 @@ async function init1(config) {
             child.stdin.close();
             await child.status;
         }
-        if (checkoutProject) {
+        if (installProject) {
             mod5.info(`Checking out project to: ${Deno.cwd()}/${project.folder}`);
             await Deno.remove(`${Deno.cwd()}/${project.folder}`, {
                 recursive: true
@@ -25438,7 +25439,7 @@ async function handleRequest7(request) {
     const serverContext = await getServerContext(request);
     if (serverContext.request.url.hostname != '127.0.0.1' || serverContext.request.url.hostname == '127.0.0.1' && serverContext.request.url.pathname.startsWith('/@cmd/')) {
         if (!response) response = handleRequest(serverContext);
-        if (!response) response = await handleRequest2(serverContext);
+        if (!response) response = await handleRequest6(serverContext);
         if (!response) response = await handleRequest1(serverContext);
         if (!response) {
             for (const path of project.appConfig.directives){
@@ -25451,18 +25452,19 @@ async function handleRequest7(request) {
                 directives.push(module1);
             }
         }
-        if (!response) response = handleRequest4(serverContext);
+        if (!response) response = handleRequest3(serverContext);
+        if (!response) response = await handleRequest4(serverContext);
         if (!response) response = await handleRequest5(serverContext);
-        if (!response) response = await handleRequest6(serverContext);
         while(directives.length > 0){
             const module1 = directives.pop();
             if (module1.onResponse) {
-                const directiveResponse = await module1.onResponse(serverContext, response);
+                serverContext.response.current = response;
+                const directiveResponse = await module1.onResponse(serverContext);
                 if (directiveResponse) response = directiveResponse;
             }
         }
     } else {
-        response = await handleRequest3(serverContext);
+        response = await handleRequest2(serverContext);
     }
     if (response) {
         if (serverContext.request.url.hostname != '127.0.0.1' && response.status == 200) {
@@ -25828,7 +25830,14 @@ async function getRequestContext(request) {
     return requestContext;
 }
 class ResponseContext {
+    response;
     constructor(){}
+    get current() {
+        return this.response;
+    }
+    set current(value) {
+        this.response = value;
+    }
     redirect = (url, status)=>{
         return Response.redirect(url, status);
     };
@@ -26018,40 +26027,54 @@ async function handleCheckout(ctx, requestId) {
 }
 async function handleSyncProject(requestId) {
     try {
+        const previewAppConfig = Deno.env.get('PROJECT_PREVIEW_APP_CONFIG');
+        const previewServer = Deno.env.get('PROJECT_PREVIEW_SERVER');
+        const previewAuthToken = Deno.env.get('PROJECT_PREVIEW_SERVER_AUTH_TOKEN');
         const projectPath = mod14.project.folder;
         const projectName = mod14.project.name;
-        const targetBranch = Deno.env.get('PROJECT_PREVIEW_BRANCH');
-        const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(Deno.cwd() + `/${projectPath}/.${projectName}/app.${targetBranch}.json`)));
-        const isWindows = Deno.build.os === "windows";
+        if (!previewAppConfig) return new Response('Bad Request', {
+            status: 400
+        });
+        if (!previewServer) return new Response('Bad Request', {
+            status: 400
+        });
+        if (!previewAuthToken) return new Response('Bad Request', {
+            status: 400
+        });
+        const packageItem = await mod14.getPackageItem(`/${projectPath}/.${projectName}/${previewAppConfig}.json`);
+        if (!packageItem) return new Response('Bad Request', {
+            status: 400
+        });
+        const appConfig = JSON.parse(td.decode(packageItem.content));
         if (typeof appConfig.packages == 'object') {
             for(const key in appConfig.packages){
-                const commands = [
-                    `cd ${projectPath}/${key}`,
-                    `git fetch origin`,
-                    `(git diff --quiet && git commit --allow-empty -m 'temp') || (git add -A && git add -u && git commit -m 'temp')`,
-                    `git checkout ${targetBranch}`,
-                    `git pull origin ${targetBranch}`,
-                    `git diff --name-only --diff-filter=A main ${targetBranch} | xargs -I{} sh -c 'git rm "{}" || echo "Could not remove {}"'`,
-                    `git commit -m "Remove files that exist in ${targetBranch} but not in main" || echo "No files to commit"`,
-                    `git merge -X theirs main -m 'Merge main into ${targetBranch} with conflicts resolved in favor of main'`,
-                    `git push origin ${targetBranch}`,
-                    `git checkout main`,
-                    `git reset HEAD~1`,
-                    `cd ../..`
-                ];
-                const fullCommand = commands.join(' && ');
-                const command = new Deno.Command(isWindows ? 'cmd' : 'sh', {
-                    args: [
-                        isWindows ? '/c' : '-c',
-                        fullCommand
-                    ]
-                });
-                await command.output();
+                const reference = appConfig.packages[key].reference;
+                if (!reference) continue;
+                if (!await exists(`${Deno.cwd()}/${projectPath}/${key}`, {
+                    isDirectory: true
+                })) continue;
+                await syncPackage(`${Deno.cwd()}/${projectPath}/${key}`, reference);
             }
         }
-        return new Response('OK', {
-            status: 200
-        });
+        try {
+            const response = await fetch(`https://${previewServer}/@cmd/reload`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `token ${previewAuthToken}`
+                }
+            });
+            if (!response.ok) {
+                mod5.warning(`Failed to relaod preview server ${previewServer}. Server returned: ${response.statusText}`);
+            }
+            return new Response('OK', {
+                status: 201
+            });
+        } catch (e) {
+            mod5.warning(`Failed to relaod preview server ${previewServer}. Error: ${e.message}`);
+            return new Response('OK', {
+                status: 200
+            });
+        }
     } catch (error) {
         mod5.error('Failed to sync project:', {
             error: error.message,
@@ -26199,7 +26222,7 @@ async function createPackage(props) {
     if (!await exists(`${Deno.cwd()}/${mod14.project.folder}/.${projectName}`, {
         isDirectory: true
     })) await checkoutPackage('.' + projectName);
-    const appConfig = JSON.parse((new TextDecoder).decode(await Deno.readFile(`${Deno.cwd()}/${mod14.project.folder}/.${projectName}/app.json`)));
+    const appConfig = JSON.parse(td.decode(await Deno.readFile(`${Deno.cwd()}/${mod14.project.folder}/.${projectName}/app.json`)));
     appConfig.packages[props.name] = {};
     await Deno.writeFile(Deno.cwd() + `/${mod14.project.folder}/.${projectName}/app.json`, (new TextEncoder).encode(JSON.stringify(appConfig, null, '\t')));
     mod14.project.appConfig.packages[props.name] = {};
@@ -26288,6 +26311,141 @@ async function checkoutFile(location) {
     };
     await Deno.writeTextFile(`${Deno.cwd()}/${config.PROJECT_CONFIG_NAME}/project.json`, JSON.stringify(projectJSON, null, '\t'));
     return file;
+}
+async function runGit(cwd, args, opts = {
+    allowFail: false,
+    piped: true
+}) {
+    const proc = new Deno.Command("git", {
+        args,
+        cwd,
+        stdout: opts.piped ? "piped" : "inherit",
+        stderr: opts.piped ? "piped" : "inherit"
+    });
+    const { code, stdout, stderr } = await proc.output();
+    if (code !== 0 && !opts.allowFail) {
+        throw new Error(`git ${args.join(" ")} failed: ${td.decode(stderr)}`);
+    }
+    return {
+        code,
+        out: td.decode(stdout),
+        err: td.decode(stderr)
+    };
+}
+async function syncPackage(repoPath, reference) {
+    await runGit(repoPath, [
+        "fetch",
+        "origin"
+    ]);
+    const { out: startBranchRaw } = await runGit(repoPath, [
+        "rev-parse",
+        "--abbrev-ref",
+        "HEAD"
+    ]);
+    const startBranch = startBranchRaw.trim();
+    const diff = await runGit(repoPath, [
+        "diff",
+        "--quiet"
+    ], {
+        allowFail: true,
+        piped: true
+    });
+    if (diff.code === 0) {
+        await runGit(repoPath, [
+            "commit",
+            "--allow-empty",
+            "-m",
+            "temp"
+        ]);
+    } else {
+        await runGit(repoPath, [
+            "add",
+            "-A"
+        ]);
+        await runGit(repoPath, [
+            "commit",
+            "-m",
+            "temp"
+        ]);
+    }
+    const coRef = await runGit(repoPath, [
+        "checkout",
+        reference
+    ], {
+        allowFail: true,
+        piped: true
+    });
+    if (coRef.code !== 0) {
+        await runGit(repoPath, [
+            "checkout",
+            "-b",
+            reference,
+            `origin/${reference}`
+        ]);
+    }
+    await runGit(repoPath, [
+        "pull",
+        "origin",
+        reference
+    ]);
+    const { out: addedOnly } = await runGit(repoPath, [
+        "diff",
+        "--name-only",
+        "--diff-filter=A",
+        "main",
+        reference
+    ]);
+    const files = addedOnly.split("\n").map((s)=>s.trim()).filter(Boolean);
+    for (const f of files){
+        await runGit(repoPath, [
+            "rm",
+            "--ignore-unmatch",
+            "--",
+            f
+        ], {
+            allowFail: true,
+            piped: true
+        });
+    }
+    const staged = await runGit(repoPath, [
+        "diff",
+        "--cached",
+        "--quiet"
+    ], {
+        allowFail: true,
+        piped: true
+    });
+    if (staged.code !== 0) {
+        await runGit(repoPath, [
+            "commit",
+            "-m",
+            `Remove files that exist in ${reference} but not in main`
+        ]);
+    }
+    await runGit(repoPath, [
+        "merge",
+        "-X",
+        "theirs",
+        "main",
+        "-m",
+        `Merge main into ${reference} with conflicts resolved in favor of main`
+    ]);
+    await runGit(repoPath, [
+        "push",
+        "origin",
+        reference
+    ]);
+    await runGit(repoPath, [
+        "checkout",
+        startBranch
+    ]);
+    await runGit(repoPath, [
+        "reset",
+        "HEAD~1"
+    ], {
+        allowFail: true,
+        piped: true
+    });
 }
 async function getProjectConfig(workspace) {
     const json = {
@@ -26499,7 +26657,7 @@ if (configName) {
     } else mod5.error(`Could not load the configration '${configName}'. Missing jsphere.json file.`);
 }
 await mod14.init({});
-const serverPort = parseInt(cmdArgs['http-port'] || config.httpPort || Deno.env.get('SERVER_HTTP_PORT') || '80');
+const serverPort = parseInt(cmdArgs['http-port'] || config.httpPort || Deno.env.get('JSPHERE_HTTP_PORT') || '80');
 mod5.info(`JSphere Application Server has started.`);
 serve(mod14.handleRequest, {
     port: serverPort
