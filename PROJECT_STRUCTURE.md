@@ -1,10 +1,10 @@
-## Understanding JSphere Project Structure
+# Understanding JSphere Project Structure
 
 Welcome back! Now that you've successfully created and run your first JSphere application, it's time to dive into how JSphere organizes your code. Understanding the project structure is crucial for efficient development, allowing you to quickly locate and manage your application's components.
 
 This section will explain the fundamental building blocks of a JSphere project, including packages, configuration files, and the purpose of different directories.
 
-### Pre-requisite Knowledge
+## Pre-requisite Knowledge
 
 Before we begin, it's helpful to have a basic understanding of:
 
@@ -12,7 +12,7 @@ Before we begin, it's helpful to have a basic understanding of:
 -   **File System Navigation:** Basic comfort with moving through directories and understanding file paths.
 -   **Web Development Fundamentals:** A grasp of how client-side (HTML, CSS, JavaScript) and server-side code interact.
 
-### The Core Concept: Packages (Git Repositories)
+## The Core Concept: Packages (Git Repositories)
 
 In JSphere, your entire project is built from one or more **packages**. Each package is essentially a separate Git repository. This modular approach allows for flexible development, where different parts of your application can be managed independently or shared across multiple projects.
 
@@ -21,13 +21,13 @@ Every JSphere project consists of at least two essential packages:
 1.  **Project Configuration Repository:** This package, named with a leading dot (e.g., `.myproject`), holds your project's main configuration file, `app.json`.
 2.  **Main Project Repository:** This package, named after your project (e.g., `myproject`), contains the actual source code for your application.
 
-### The `app.json` Configuration File
+## The `app.json` Configuration File
 
 The heart of your JSphere project's configuration lies within the `app.json` file, located in your project configuration repository. This JSON file defines how your application behaves, what packages it uses, how requests are routed, and much more.
 
 Here's a breakdown of its key properties:
 
-#### `packages`
+## `packages`
 
 This property defines all the Git repositories (packages) that make up your application.
 
@@ -50,7 +50,7 @@ This property defines all the Git repositories (packages) that make up your appl
 }
 ```
 
-#### `routes`
+## `routes`
 
 This is an array of objects that map incoming URL paths to specific resources within your packages. This is how JSphere knows which code to execute or which file to serve for a given request.
 
@@ -78,7 +78,7 @@ This is an array of objects that map incoming URL paths to specific resources wi
 }
 ```
 
-#### `extensions`
+## `extensions`
 
 This property allows you to define server context extensions, which are reusable modules that add functionality to the server's `ctx` (context) object. This is ideal for things like database connections, authentication clients, or external API integrations.
 
@@ -102,7 +102,7 @@ This property allows you to define server context extensions, which are reusable
 }
 ```
 
-#### `directives`
+## `directives`
 
 Directives are JSphere's implementation of middleware. They allow you to execute code before (`onRequest`) and/or after (`onResponse`) the main route handler, enabling global request/response manipulation, logging, authentication checks, and more.
 
@@ -119,7 +119,7 @@ Directives are JSphere's implementation of middleware. They allow you to execute
 }
 ```
 
-#### `settings`
+## `settings`
 
 A flexible object for storing any custom, user-defined settings for your application. These settings are accessible via `ctx.settings` in your server-side code.
 
@@ -132,7 +132,7 @@ A flexible object for storing any custom, user-defined settings for your applica
 }
 ```
 
-#### `featureFlags`
+## `featureFlags`
 
 An array of strings representing feature flags. These allow you to enable or disable specific features in your client or server-side code without deploying new versions.
 
@@ -142,7 +142,7 @@ An array of strings representing feature flags. These allow you to enable or dis
 }
 ```
 
-### Understanding Package Subfolders
+## Understanding Package Subfolders
 
 Within your application packages (like `myproject`), you'll typically find a consistent structure of subfolders, each serving a specific purpose:
 
@@ -178,7 +178,7 @@ ROOT_PROJECT_FOLDER
 -   **`tests`:**
     As the name suggests, this folder is where you'll store your unit, integration, and end-to-end test scripts for the package.
 
-### Multiple Configuration Files
+## Multiple Configuration Files
 
 JSphere allows for different `app.json` configurations based on the environment (development, staging, production, etc.). You can have files like:
 
@@ -188,7 +188,7 @@ JSphere allows for different `app.json` configurations based on the environment 
 
 The specific configuration file used is determined by the `PROJECT_APP_CONFIG` environment variable. If not specified, `app.json` is used by default. This enables seamless switching between environment-specific settings without changing your code.
 
-### How JSphere Serves Resources (Local vs. Remote)
+## How JSphere Serves Resources (Local vs. Remote)
 
 When you run your JSphere project, it initially accesses files remotely from GitHub. However, if you've "checked out" a package using `js checkout`, JSphere prioritizes your local file system.
 
