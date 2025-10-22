@@ -267,7 +267,7 @@ This reverse order for `onResponse` allows directives to wrap or modify response
 
 #### Stopping the Pipeline
 
--   If an `onRequest` function returns a `Response` object, the pipeline stops immediately, and that response is sent back to the client. No subsequent `onRequest` directives or the main route handler will execute. However, `onResponse` directives *will still execute* in reverse order, allowing them to potentially modify the error response.
+-   If an `onRequest` function returns a `Response` object, the pipeline stops immediately, and that response is sent back to the client. No subsequent `onRequest` directives or the main route handler will execute. However, `onResponse` directives *will still execute* in reverse order, **starting from the directive immediately preceding the one that returned the response.** This allows preceding directives to potentially modify the error response before it is sent to the client.
 
 #### Modifying the Request/Response
 
