@@ -1,4 +1,4 @@
-## Creating a New Project
+# Creating a New Project
 
 This section will guide you through the process of creating a new JSphere project, from obtaining a GitHub access token to understanding the initial project structure.
 
