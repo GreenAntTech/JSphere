@@ -1,4 +1,4 @@
-# Creating and Using Feature Flags in JSphere (Server-Side)
+# Creating and Using Feature Flags in JSphere
 
 This section will guide you through implementing and utilizing Feature Flags in your JSphere application's server-side code. You'll learn how to dynamically enable or disable features without deploying new versions of your application, providing powerful control over your application's rollout and experimentation.
 
