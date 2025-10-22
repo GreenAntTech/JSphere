@@ -27,7 +27,7 @@ The heart of your JSphere project's configuration lies within the `app.json` fil
 
 Here's a breakdown of its key properties:
 
-## `packages`
+### `packages`
 
 This property defines all the Git repositories (packages) that make up your application.
 
@@ -50,7 +50,7 @@ This property defines all the Git repositories (packages) that make up your appl
 }
 ```
 
-## `routes`
+### `routes`
 
 This is an array of objects that map incoming URL paths to specific resources within your packages. This is how JSphere knows which code to execute or which file to serve for a given request.
 
@@ -78,7 +78,7 @@ This is an array of objects that map incoming URL paths to specific resources wi
 }
 ```
 
-## `extensions`
+### `extensions`
 
 This property allows you to define server context extensions, which are reusable modules that add functionality to the server's `ctx` (context) object. This is ideal for things like database connections, authentication clients, or external API integrations.
 
@@ -102,7 +102,7 @@ This property allows you to define server context extensions, which are reusable
 }
 ```
 
-## `directives`
+### `directives`
 
 Directives are JSphere's implementation of middleware. They allow you to execute code before (`onRequest`) and/or after (`onResponse`) the main route handler, enabling global request/response manipulation, logging, authentication checks, and more.
 
@@ -119,7 +119,7 @@ Directives are JSphere's implementation of middleware. They allow you to execute
 }
 ```
 
-## `settings`
+### `settings`
 
 A flexible object for storing any custom, user-defined settings for your application. These settings are accessible via `ctx.settings` in your server-side code.
 
@@ -132,7 +132,7 @@ A flexible object for storing any custom, user-defined settings for your applica
 }
 ```
 
-## `featureFlags`
+### `featureFlags`
 
 An array of strings representing feature flags. These allow you to enable or disable specific features in your client or server-side code without deploying new versions.
 
