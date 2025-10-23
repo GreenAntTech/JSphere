@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.163');
+console.log('elementJS:', 'v1.0.0-preview.164');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -117,7 +117,7 @@ const registeredRoutes = {};
 const resourceCache = new Map();
 let intersectionObserver;
 (async function() {
-    if (!globalThis.URLPattern) await import('./urlpattern.min.js');
+    if (!globalThis.URLPattern) await import('./urlpattern.js');
     if (globalThis.location) registerAllowedOrigin(globalThis.location.origin);
 })();
 function createComponent(param1, param2) {
