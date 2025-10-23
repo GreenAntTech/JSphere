@@ -90,7 +90,7 @@ createComponent$('my-greeting', (el) => {
 *   `el.define$({...})`: This method is used to define the component's lifecycle methods and any custom properties or methods.
 *   `template$: (props) => /*html*/`...`: This defines our component's HTML.
     *   The `/*html*/` comment is a common IDE hint for syntax highlighting.
-    *   We've included inline `<style>` for simplicity in this example. In a real application, you might use the `onStyle$` method or link to an external CSS file.
+    *   We've included inline `<style>` for simplicity in this example. In a real application, you might use the `style$` method or link to an external CSS file.
     *   Notice the `el-id="message"` on the `<p>` tag and `el-id="greetButton"` on the `<button>`. These are crucial for accessing these specific elements from our JavaScript.
 
 ---
@@ -270,7 +270,7 @@ The `renderDocument$` function is the entry point for elementJS on the client si
 3.  **Scans for `el-is` attributes:** It then traverses the DOM, looking for all elements with an `el-is` attribute.
 4.  **Initiates component lifecycles:** For each found component (like our `my-greeting` instances), it begins their lifecycle:
     *   It first checks if the document was server-rendered (via `el-server-rendered`). If so, it proceeds directly to hydration.
-    *   If not server-rendered, or if it's a client-only component, it will call `onInit$`, `onStyle$`, `onTemplate$`, `onRender$`, and finally `onHydrate$`.
+    *   If not server-rendered, or if it's a client-only component, it will call `onInit$`, `style$`, `template$`, `onRender$`, and finally `onHydrate$`.
 5.  **Attaches Interactivity:** Crucially, it ensures that the `onHydrate$` methods of all components are called, making them interactive.
 
 By adding the `renderDocument$()` call, we explicitly tell elementJS to take control of the page and process all the components we've defined, bringing them to life in the browser.
