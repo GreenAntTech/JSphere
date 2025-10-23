@@ -215,7 +215,7 @@ createComponent$('my-greeting', (el) => {
 
 ---
 
-# Step 6: Using Your New Component in HTML (with `renderDocument$`)
+**Step 6: Using Your New Component in HTML (with `renderDocument$`)**
 
 Now that your component is defined, you can use it in any HTML file served by JSphere. The key is to ensure that `renderDocument$` is called to kickstart the elementJS process.
 
