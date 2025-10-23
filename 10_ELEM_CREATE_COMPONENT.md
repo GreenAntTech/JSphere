@@ -288,5 +288,3 @@ By adding the `renderDocument$()` call, we explicitly tell elementJS to take con
 ---
 
 By following these steps, you've created a functional elementJS component that demonstrates the basic flow of defining a template, rendering content, and adding client-side interactivity. This forms the foundation for building more complex and dynamic web applications with elementJS.
-
-Let me know if you'd like to move on to the next lifecycle method (`onInit$`) or explore other aspects of component creation!
