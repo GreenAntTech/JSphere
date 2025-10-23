@@ -148,7 +148,7 @@ createComponent$('my-greeting', (el) => {
 });
 ```
 
-*   `props`: The `onRender$` method receives an object (`props`) containing any attributes passed to your component in the HTML. For example, `<div el-is="my-greeting" name="Yohan"></div>` would pass `{ name: "Yohan" }` to `props`.
+*   `props`: The `onRender$` method receives an object (`props`) containing any attributes passed to your component in the HTML. For example, `<div el-is="my-greeting" data-name="Yohan"></div>` would pass `{ name: "Yohan" }` to `props`.
 *   `const { message } = el.children$;`: This is the recommended way to get references to your template's HTML elements. `el.children$` is an object where keys are `el-id` values and values are the corresponding HTML elements (or arrays of elements).
 
 ---
