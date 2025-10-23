@@ -122,16 +122,18 @@ export async function onGET(ctx: ServerContext): Promise<Response> {
 
 ### 3. Running and Testing Your Server-Side Feature Flags
 
-1.  **Load Your Project:** Ensure your project configuration is loaded.
+
+1.  **Start the JSphere Server:**
+    ```bash
+    js start
+    ```
+
+2.  **Load Your Project:** Ensure your project configuration is loaded.
     ```bash
     js load myproject
     ```
     (Replace `myproject` with your actual project name).
 
-2.  **Start the JSphere Server:**
-    ```bash
-    js start
-    ```
 
 3.  **Test with a Tool (e.g., cURL, Postman, Browser):**
 
@@ -166,7 +168,7 @@ export async function onGET(ctx: ServerContext): Promise<Response> {
     }
     ```
 
-    -   **Save `app.json`**. If `PROJECT_RELOAD_ON_CHANGES` is set to `true` in your `jsphere.json` or environment, JSphere will automatically reload. Otherwise, you might need to restart the `js start` command.
+    -   **Save `app.json`**. If `PROJECT_RELOAD_ON_CHANGES` is set to `true` in your `jsphere.json` or environment, JSphere will automatically reload. Otherwise, you might need to reload your project using the `js reload` command.
     -   Access the API again:
         ```bash
         curl http://localhost[:port]/api/data
@@ -183,7 +185,7 @@ export async function onGET(ctx: ServerContext): Promise<Response> {
         ```
         Check your server console for the log message: `Data API: Using standard API endpoint logic.`
 
-### Advanced Feature Flag Concepts (Server-Side)
+### Advanced Feature Flag Concepts
 
 #### Multiple Flags in Server-Side `ctx.feature.flag`
 
