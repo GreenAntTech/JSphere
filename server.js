@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.161';
+const version = 'v1.0.0-preview.163';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25374,8 +25374,8 @@ async function init1(config) {
             uri: 'jsphere://Feature',
             settings: {}
         };
-        if (!project.appConfig.settings) project.appConfig.settings = {};
         if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
+        project.appConfig.settings = getSettings(project.appConfig.settings || {});
         if (clearRuntimeCache) {
             mod5.info('Clearing runtime cache');
             const command = new Deno.Command('deno', {
@@ -26096,15 +26096,10 @@ async function handleInstallElement(requestId) {
                 const file = await response.text();
                 await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/element.js`, (new TextEncoder).encode(file));
             }
-            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/urlpattern.min.js`);
+            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/urlpattern.js`);
             if (response.ok) {
                 const file = await response.text();
                 await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
-            }
-            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/element.d.ts`);
-            if (response.ok) {
-                const file = await response.text();
-                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/element.d.ts`, (new TextEncoder).encode(file));
             }
             return new Response('OK', {
                 status: 201
@@ -26129,10 +26124,15 @@ async function handleInstallTypes(requestId) {
             await Deno.mkdir(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/server`, {
                 recursive: true
             });
-            const response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/server/jsphere.d.ts`);
+            let response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/server/jsphere.d.ts`);
             if (response.ok) {
                 const file = await response.text();
                 await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/server/jsphere.d.ts`, (new TextEncoder).encode(file));
+            }
+            response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/element.d.ts`);
+            if (response.ok) {
+                const file = await response.text();
+                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/element.d.ts`, (new TextEncoder).encode(file));
             }
             return new Response('OK', {
                 status: 201
