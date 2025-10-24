@@ -33,7 +33,7 @@ Let's create a simple "Hello World" component.
 **File:** `my-greeting.js` (e.g., in `my-project/client/components/controls/my-greeting/`)
 
 ```javascript
-import { createComponent$ } from "/my-project/client/shared/element.js"; // Adjust path as needed
+import { createComponent$ } from "/my-project/shared/element.js"; // Adjust path as needed
 
 createComponent$('my-greeting', (el) => {
     // Component logic will go here
@@ -54,7 +54,7 @@ Let's add a basic structure for our greeting.
 **File:** `my-greeting.js` (continued)
 
 ```javascript
-import { createComponent$ } from "/my-project/client/shared/element.js";
+import { createComponent$ } from "/my-project/shared/element.js";
 
 createComponent$('my-greeting', (el) => {
     el.define$({
@@ -107,7 +107,7 @@ Let's use `onRender$` to display a dynamic message.
 **File:** `my-greeting.js` (continued)
 
 ```javascript
-import { createComponent$ } from "/my-project/client/shared/element.js";
+import { createComponent$ } from "/my-project/shared/element.js";
 
 createComponent$('my-greeting', (el) => {
     el.define$({
@@ -165,7 +165,7 @@ Let's make our button interactive.
 **File:** `my-greeting.js` (continued)
 
 ```javascript
-import { createComponent$ } from "/my-project/client/shared/element.js";
+import { createComponent$ } from "/my-project/shared/element.js";
 
 createComponent$('my-greeting', (el) => {
     el.define$({
@@ -250,7 +250,7 @@ Now that your component is defined, you can use it in any HTML file served by JS
         This script should run after all component definitions are loaded.
     -->
     <script type="module">
-        import { renderDocument$ } from "/my-project/client/shared/element.js";
+        import { renderDocument$ } from "/my-project/shared/element.js";
 
         // Initialize elementJS on the client side
         renderDocument$();
