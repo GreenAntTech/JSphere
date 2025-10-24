@@ -136,7 +136,7 @@ createComponent$('my-greeting', (el) => {
                 <button el-id="greetButton">Say Hello</button>
             </div>
         `,
-        onRender$: async (props) => {
+        onRender$: (props) => {
             // Access elements using el.children$
             const { message } = el.children$;
 
@@ -194,12 +194,12 @@ createComponent$('my-greeting', (el) => {
                 <button el-id="greetButton">Say Hello</button>
             </div>
         `,
-        onRender$: async (props) => {
+        onRender$: (props) => {
             const { message } = el.children$;
             const name = props.name || 'World';
             message.textContent = `Hello, ${name}! Welcome to elementJS.`;
         },
-        onHydrate$: async (props) => {
+        onHydrate$: (props) => {
             const { greetButton, message } = el.children$;
             const name = props.name || 'World';
 
