@@ -48,7 +48,7 @@ This is the primary step to get the `elementJS` client-side runtime into your pr
     js install-element
     ```
 
-The server then downloads the latest versions of `element.js` and `urlpattern.js` files and places them into the `/client/shared` folder of your main application package (e.g., `my-project/client/shared`). This makes the `elementJS` framework available for your client-side components.
+The server then downloads the latest versions of `element.js` and `urlpattern.js` files and places them into the `/shared` folder of your main application package (e.g., `my-project/shared`). This makes the `elementJS` framework available for your client-side components.
 
 ## Step 5: Install TypeScript Definitions (Recommended)
 
