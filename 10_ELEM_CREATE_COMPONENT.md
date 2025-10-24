@@ -243,7 +243,7 @@ Now that your component is defined, you can use it in any HTML file served by JS
         The path to element.js might vary based on your JSphere project setup.
         Ensure element.js is loaded BEFORE your component definitions.
     -->
-    <script type="module" src="/my-project/client/components/controls/my-greeting/my-greeting.js"></script>
+    <script type="module" src="/my-project/client/my-greeting.js"></script>
 
     <!--
         CRITICAL: Call renderDocument$ to initialize elementJS and your components.
