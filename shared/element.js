@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.164');
+console.log('elementJS:', 'v1.0.0-preview.166');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -618,6 +618,17 @@ function initElementAsComponent(el, pageState) {
                             await el.onMessageReceived$(response.subject, response.data);
                         }
                     } else console.warn('Message not registered:', subject);
+                }
+            },
+            fetch$: {
+                value: async (input, options = {
+                    headers: {}
+                })=>{
+                    if (appContext.server) {
+                        input = `${location.protocol}//127.0.0.1:${location.port}${input}`;
+                        options.headers['element-server-request'] = 'true';
+                    }
+                    return await fetch(input, options);
                 }
             },
             hidden$: {

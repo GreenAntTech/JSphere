@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.164';
+const version = 'v1.0.0-preview.166';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25437,7 +25437,7 @@ async function handleRequest7(request) {
     let response;
     const directives = [];
     const serverContext = await getServerContext(request);
-    if (serverContext.request.url.hostname != '127.0.0.1' || serverContext.request.url.hostname == '127.0.0.1' && serverContext.request.url.pathname.startsWith('/@cmd/')) {
+    if (serverContext.request.url.hostname != '127.0.0.1' || serverContext.request.url.hostname == '127.0.0.1' && (serverContext.request.url.pathname.startsWith('/@cmd/') || serverContext.request.headers.has('element-server-request'))) {
         if (!response) response = handleRequest(serverContext);
         if (!response) response = await handleRequest6(serverContext);
         if (!response) response = await handleRequest1(serverContext);
