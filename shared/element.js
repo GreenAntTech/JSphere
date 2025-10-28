@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.166');
+console.log('elementJS:', 'v1.0.0-preview.167');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -148,6 +148,15 @@ function navigateTo(path) {
         globalThis.history.pushState({}, '', path);
         dispatchEvent(new Event('popstate'));
     }
+}
+async function elementFetch(input, options = {
+    headers: {}
+}) {
+    if (appContext.server) {
+        input = `${location.protocol}//127.0.0.1:${location.port}${input}`;
+        options.headers['element-server-request'] = 'true';
+    }
+    return await fetch(input, options);
 }
 function registerAllowedOrigin(uri) {
     registeredAllowedOrigins.push(uri);
@@ -608,16 +617,6 @@ function initElementAsComponent(el, pageState) {
                     const value = el.getAttribute('el-component-state');
                     if (value) return parseInt(value);
                     else return -1;
-                }
-            },
-            emitMessage$: {
-                value: async (subject, data)=>{
-                    if (registeredMessages[subject]) {
-                        const response = await registeredMessages[subject](data || {}, appContext.ctx);
-                        if (isValidMessage(response)) {
-                            await el.onMessageReceived$(response.subject, response.data);
-                        }
-                    } else console.warn('Message not registered:', subject);
                 }
             },
             fetch$: {
@@ -1156,4 +1155,4 @@ createComponent('link', (el, _pageState)=>{
         }
     });
 });
-export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
