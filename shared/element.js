@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.173');
+console.log('elementJS:', 'v1.0.0-preview.174');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -165,7 +165,7 @@ async function elementFetch(input, options = {
     headers: {}
 }) {
     if (appContext.server) {
-        input = `${location.protocol}//127.0.0.1:${location.port}${input}`;
+        input = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port}${input}`;
         options.headers['element-server-request'] = 'true';
     }
     return await fetch(input, options);
@@ -629,17 +629,6 @@ function initElementAsComponent(el, pageState) {
                     const value = el.getAttribute('el-component-state');
                     if (value) return parseInt(value);
                     else return -1;
-                }
-            },
-            fetch$: {
-                value: async (input, options = {
-                    headers: {}
-                })=>{
-                    if (appContext.server) {
-                        input = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port}${input}`;
-                        options.headers['element-server-request'] = 'true';
-                    }
-                    return await fetch(input, options);
                 }
             },
             hidden$: {
