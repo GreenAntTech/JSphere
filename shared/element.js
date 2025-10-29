@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.171');
+console.log('elementJS:', 'v1.0.0-preview.172');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -636,7 +636,7 @@ function initElementAsComponent(el, pageState) {
                     headers: {}
                 })=>{
                     if (appContext.server) {
-                        input = `${location.protocol}//127.0.0.1:${location.port}${input}`;
+                        input = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port}${input}`;
                         options.headers['element-server-request'] = 'true';
                     }
                     return await fetch(input, options);
