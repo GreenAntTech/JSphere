@@ -1,7 +1,8 @@
-console.log('elementJS:', 'v1.0.0-preview.170');
+console.log('elementJS:', 'v1.0.0-preview.171');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
+    documentElement: null,
     ctx: null
 };
 class Feature {
@@ -132,14 +133,14 @@ function createComponent(param1, param2) {
 function deviceSubscribesTo(subject) {
     registeredDeviceMessages[subject] = true;
 }
-function emitMessage(subject, data, target) {
+async function emitMessage(subject, data, target) {
     if (appContext.server) {
-        const el = document.documentElement.querySelector(`[el-active]`);
+        const el = appContext.documentElement.querySelector(`[el-active]`);
         if (el) {
             if (el.is$ && el.listensFor$(subject)) {
-                el.onMessageReceived$(subject, data);
+                await el.onMessageReceived$(subject, data);
             } else if (registeredMessages[subject]) {
-                registeredMessages[subject](data, appContext.ctx);
+                await registeredMessages[subject](data, appContext.ctx);
             }
         }
     } else {
@@ -348,7 +349,7 @@ async function renderDocument(config, ctx) {
         appContext.ctx = ctx;
         if (appContext.server) {
             setExtendedURL(ctx.request.url);
-            const el = await getDocumentElement(config);
+            const el = appContext.documentElement = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             initElementAsComponent(el, observe(config.pageState));
