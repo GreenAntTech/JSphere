@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.169');
+console.log('elementJS:', 'v1.0.0-preview.170');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -133,13 +133,24 @@ function deviceSubscribesTo(subject) {
     registeredDeviceMessages[subject] = true;
 }
 function emitMessage(subject, data, target) {
-    if (target === undefined) target = window;
-    if (data === undefined) data = {};
-    if (typeof target.postMessage != 'function') throw new Error('target: Must be a window object');
-    target.postMessage(JSON.stringify({
-        subject,
-        data
-    }));
+    if (appContext.server) {
+        const el = document.documentElement.querySelector(`[el-active]`);
+        if (el) {
+            if (el.is$ && el.listensFor$(subject)) {
+                el.onMessageReceived$(subject, data);
+            } else if (registeredMessages[subject]) {
+                registeredMessages[subject](data, appContext.ctx);
+            }
+        }
+    } else {
+        if (target === undefined) target = window;
+        if (data === undefined) data = {};
+        if (typeof target.postMessage != 'function') throw new Error('target: Must be a window object');
+        target.postMessage(JSON.stringify({
+            subject,
+            data
+        }));
+    }
 }
 function navigateTo(path) {
     if (path === undefined) globalThis.dispatchEvent(new Event('popstate'));
@@ -721,7 +732,9 @@ function initElementAsComponent(el, pageState) {
         });
     }
     async function onInit(props) {
+        el.setAttribute('el-active', '');
         await el.onInit$(props);
+        el.removeAttribute('el-active');
         el.componentState$ = 1;
     }
     async function onStyle(props) {
