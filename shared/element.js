@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.167');
+console.log('elementJS:', 'v1.0.0-preview.168');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -725,15 +725,7 @@ function initElementAsComponent(el, pageState) {
         el.componentState$ = 1;
     }
     async function onStyle(props) {
-        if (el.hasOwnProperty('theme$')) return;
-        const theme = el.getAttribute('el-theme') || '';
-        el.define$({
-            theme$: {
-                get: ()=>{
-                    return theme;
-                }
-            }
-        });
+        const theme = props.theme || '';
         const themeId = el.is$ + (theme ? '_' + theme : '');
         let css = el.style$(props);
         if (!css) return;
@@ -752,8 +744,8 @@ function initElementAsComponent(el, pageState) {
                 } else {
                     content = await getResource(path) || '';
                 }
-                content = content.replaceAll('[component]', `[el-theme='${themeId}']`);
-                el.setAttribute('el-theme', themeId);
+                content = content.replaceAll('[component]', `[data-theme='${themeId}']`);
+                el.setAttribute('data-theme', themeId);
                 if (el.ownerDocument.getElementById(themeId)) return;
                 const tag = el.ownerDocument.createElement('style');
                 tag.setAttribute('id', themeId);
@@ -767,9 +759,9 @@ function initElementAsComponent(el, pageState) {
                 el.ownerDocument.head.append(tag);
             }
         } else {
-            el.setAttribute('el-theme', themeId);
+            el.setAttribute('data-theme', themeId);
             if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-            css = css.replaceAll('[component]', `[el-theme='${themeId}']`);
+            css = css.replaceAll('[component]', `[data-theme='${themeId}']`);
             const tag = el.ownerDocument.createElement('style');
             tag.setAttribute('id', themeId);
             tag.textContent = css;
