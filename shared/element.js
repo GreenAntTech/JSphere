@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.174');
+console.log('elementJS:', 'v1.0.0-preview.175');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -432,7 +432,7 @@ function initElementAsComponent(el, pageState) {
                         if (el.renderAtClient$) return el.children$;
                         props = addPropsFromAttributes(el, props);
                         addMissingLifecycleMethods(el);
-                        if (el.use$) await loadDependencies(el.use$());
+                        if (el.use$) await loadDependencies(el.use$(props));
                         await onInit(props);
                         await onStyle(props);
                         await onTemplate(props);
@@ -441,7 +441,7 @@ function initElementAsComponent(el, pageState) {
                     } else if (docEl.hasAttribute('el-server-rendered')) {
                         props = addPropsFromAttributes(el, props);
                         addMissingLifecycleMethods(el);
-                        if (el.use$) await loadDependencies(el.use$());
+                        if (el.use$) await loadDependencies(el.use$(props));
                         if (el.is$ == 'document') {
                             await onPostRender();
                             await onHydrate(props);
@@ -458,7 +458,7 @@ function initElementAsComponent(el, pageState) {
                     } else if (docEl.hasAttribute('el-client-rendering')) {
                         props = addPropsFromAttributes(el, props);
                         addMissingLifecycleMethods(el);
-                        if (el.use$) await loadDependencies(el.use$());
+                        if (el.use$) await loadDependencies(el.use$(props));
                         await onInit(props);
                         await onStyle(props);
                         await onTemplate(props);
@@ -500,7 +500,7 @@ function initElementAsComponent(el, pageState) {
                         if (el.componentState$ === -1) {
                             el.componentState$ = 0;
                             addMissingLifecycleMethods(el);
-                            if (el.use$) await loadDependencies(el.use$());
+                            if (el.use$) await loadDependencies(el.use$(props));
                             await onInit(props);
                             await onStyle(props);
                             await onTemplate(props);
@@ -510,7 +510,7 @@ function initElementAsComponent(el, pageState) {
                         }
                         if (el.componentState$ === 0) {
                             addMissingLifecycleMethods(el);
-                            if (el.use$) await loadDependencies(el.use$());
+                            if (el.use$) await loadDependencies(el.use$(props));
                             await onInit(props);
                             await onStyle(props);
                             await onTemplate(props);
@@ -747,7 +747,7 @@ function initElementAsComponent(el, pageState) {
                 } else {
                     content = await getResource(path) || '';
                 }
-                content = content.replaceAll('[component]', `[data-theme='${themeId}']`);
+                content = content.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [data-theme='${themeId}'] $2`);
                 el.setAttribute('data-theme', themeId);
                 if (el.ownerDocument.getElementById(themeId)) return;
                 const tag = el.ownerDocument.createElement('style');
