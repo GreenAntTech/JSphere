@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.175');
+console.log('elementJS:', 'v1.0.0-preview.176');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -764,7 +764,7 @@ function initElementAsComponent(el, pageState) {
         } else {
             el.setAttribute('data-theme', themeId);
             if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-            css = css.replaceAll('[component]', `[data-theme='${themeId}']`);
+            css = css.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [data-theme='${themeId}'] $2`);
             const tag = el.ownerDocument.createElement('style');
             tag.setAttribute('id', themeId);
             tag.textContent = css;
