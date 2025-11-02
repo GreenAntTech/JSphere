@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.177');
+console.log('elementJS:', 'v1.0.0-preview.178');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -578,12 +578,6 @@ function initElementAsComponent(el, pageState) {
                     return el.getAttribute('el-is');
                 }
             },
-            index$: {
-                get: ()=>{
-                    const index = el.getAttribute('el-index');
-                    return index ? Number(index) : null;
-                }
-            },
             bind$: {
                 set: (value)=>{
                     if (!Array.isArray(value) || value.length !== 2) return;
@@ -629,40 +623,6 @@ function initElementAsComponent(el, pageState) {
                     const value = el.getAttribute('el-component-state');
                     if (value) return parseInt(value);
                     else return -1;
-                }
-            },
-            'insert$': {
-                value: async (element, action)=>{
-                    if (element.tagName === undefined) element.tagName = 'div';
-                    const component = el.ownerDocument.createElement(element.tagName);
-                    for(const prop in element){
-                        if (prop == 'tagName') continue;
-                        component.setAttribute(prop, element[prop]);
-                    }
-                    component.setAttribute('el-parent', el.parent$.id$);
-                    await loadDependencies([
-                        element['el-is']
-                    ]);
-                    initElementAsComponent(component, pageState);
-                    component.parent$ = el.parent$;
-                    addChild(el.parent$, component);
-                    switch(action){
-                        case 'prepend':
-                            el.prepend(component);
-                            break;
-                        case 'append':
-                            el.append(component);
-                            break;
-                        case 'before':
-                            el.before(component);
-                            break;
-                        case 'after':
-                            el.after(component);
-                            break;
-                        default:
-                            el.append(component);
-                    }
-                    return component;
                 }
             },
             hidden$: {
@@ -951,16 +911,6 @@ function setupIntersectionObserver() {
         threshold: 0
     });
 }
-function addChild(el, childElement) {
-    const elId = childElement.getAttribute('el-id');
-    if (el.children$[elId]) {
-        if (!Array.isArray(el.children$[elId])) el.children$[elId] = [
-            el.children$[elId],
-            childElement
-        ];
-        else el.children$[elId].push(childElement);
-    } else el.children$[elId] = childElement;
-}
 function setExtendedURL(url) {
     const searchParams = {};
     if (url.searchParams) url.searchParams.forEach((value, key)=>searchParams[key] = value);
@@ -1062,7 +1012,7 @@ createComponent('document', (el, _pageState)=>{
         }
     });
 });
-createComponent('list2', (el, pageState)=>{
+createComponent('list', (el, pageState)=>{
     const tagNameMap = {
         ul: 'li',
         ol: 'li',
@@ -1107,70 +1057,7 @@ createComponent('list2', (el, pageState)=>{
                 default:
                     el.append(component);
             }
-            return component;
-        }
-    });
-});
-createComponent('list', (el, pageState)=>{
-    const tagNameMap = {
-        ul: 'li',
-        ol: 'li',
-        thead: 'tr',
-        tbody: 'tr',
-        body: 'div',
-        main: 'div'
-    };
-    let idCount = 0;
-    el.define$({
-        template$: (_props)=>'',
-        onRender$: async (props)=>{
-            let items = [];
-            el.setAttribute('el-type', props.type);
-            if (typeof props.items == 'undefined') {
-                delete props.type;
-                await el.add$(props, 0);
-                items.push(props);
-            } else if (Array.isArray(props.items) && props.items.length > 0) {
-                items = props.items;
-                delete props.type;
-                delete props.items;
-                for(let i = 0; i < items.length; i++){
-                    const newProps = {
-                        ...props,
-                        ...items[i]
-                    };
-                    await el.add$(newProps, i);
-                }
-            }
-        },
-        onHydrate$: async (props)=>{
-            if (typeof props != 'object') props = {};
-            const items = el.children$.items || [];
-            for (const child of items){
-                const newProps = {
-                    ...props
-                };
-                await child.init$(newProps);
-            }
-        },
-        add$: async (props, index = 0)=>{
-            const type = el.getAttribute('el-type');
-            const tagName = tagNameMap[el.tagName.toLocaleLowerCase()] || el.tagName;
-            const component = el.ownerDocument.createElement(tagName);
-            component.setAttribute('el-is', type);
-            component.setAttribute('el-id', `${type}${idCount++}`);
-            component.setAttribute('el-parent', el.id$);
-            component.setAttribute('el-index', index.toString());
-            await loadDependencies([
-                type
-            ]);
-            initElementAsComponent(component, pageState);
-            component.parent$ = el;
-            component.componentState$ = 0;
-            if (!el.children$.items) el.children$.items = [];
-            el.children$.items.push(component);
-            el.append(component);
-            await component.init$(props);
+            await component.init$();
             return component;
         }
     });
