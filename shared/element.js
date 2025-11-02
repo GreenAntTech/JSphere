@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.176');
+console.log('elementJS:', 'v1.0.0-preview.177');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -631,6 +631,40 @@ function initElementAsComponent(el, pageState) {
                     else return -1;
                 }
             },
+            'insert$': {
+                value: async (element, action)=>{
+                    if (element.tagName === undefined) element.tagName = 'div';
+                    const component = el.ownerDocument.createElement(element.tagName);
+                    for(const prop in element){
+                        if (prop == 'tagName') continue;
+                        component.setAttribute(prop, element[prop]);
+                    }
+                    component.setAttribute('el-parent', el.parent$.id$);
+                    await loadDependencies([
+                        element['el-is']
+                    ]);
+                    initElementAsComponent(component, pageState);
+                    component.parent$ = el.parent$;
+                    addChild(el.parent$, component);
+                    switch(action){
+                        case 'prepend':
+                            el.prepend(component);
+                            break;
+                        case 'append':
+                            el.append(component);
+                            break;
+                        case 'before':
+                            el.before(component);
+                            break;
+                        case 'after':
+                            el.after(component);
+                            break;
+                        default:
+                            el.append(component);
+                    }
+                    return component;
+                }
+            },
             hidden$: {
                 set: (value)=>{
                     if (typeof value != 'boolean') return;
@@ -818,7 +852,7 @@ function initElementAsComponent(el, pageState) {
             await el.onHydrate$(props);
             if (el.componentState$ == 3) {
                 el.removeAttribute('el-hydration-delayed');
-                const components = el.querySelectorAll(':scope [el-hydration-delayed]');
+                const components = el.querySelectorAll(':scope > [el-hydration-delayed]');
                 for (const component of components)component.removeAttribute('el-hydration-delayed');
             }
             el.componentState$ = -1;
@@ -916,6 +950,16 @@ function setupIntersectionObserver() {
         rootMargin: '100px',
         threshold: 0
     });
+}
+function addChild(el, childElement) {
+    const elId = childElement.getAttribute('el-id');
+    if (el.children$[elId]) {
+        if (!Array.isArray(el.children$[elId])) el.children$[elId] = [
+            el.children$[elId],
+            childElement
+        ];
+        else el.children$[elId].push(childElement);
+    } else el.children$[elId] = childElement;
 }
 function setExtendedURL(url) {
     const searchParams = {};
@@ -1015,6 +1059,55 @@ createComponent('document', (el, _pageState)=>{
                 if (Array.isArray(child)) child.forEach(async (child)=>await child.init$(props));
                 else await child.init$(props);
             }
+        }
+    });
+});
+createComponent('list2', (el, pageState)=>{
+    const tagNameMap = {
+        ul: 'li',
+        ol: 'li',
+        thead: 'tr',
+        tbody: 'tr'
+    };
+    el.define$({
+        onHydrate$: async (props)=>{
+            for(const child in el.children$){
+                await el.children$[child].init$(props);
+            }
+        },
+        insert$: async (element, action, elId)=>{
+            if (element.tagName === undefined && tagNameMap[el.tagName] === undefined) element.tagName = 'div';
+            else element.tagName = tagNameMap[el.tagName];
+            const component = el.ownerDocument.createElement(element.tagName);
+            for(const prop in element){
+                if (prop == 'tagName') continue;
+                component.setAttribute(prop, element[prop]);
+            }
+            await loadDependencies([
+                element['el-is']
+            ]);
+            initElementAsComponent(component, pageState);
+            component.parent$ = el;
+            component.setAttribute('el-parent', el.id$);
+            el.children$[element['el-id']] = component;
+            component.componentState$ = 0;
+            switch(action){
+                case 'prepend':
+                    el.prepend(component);
+                    break;
+                case 'append':
+                    el.append(component);
+                    break;
+                case 'before':
+                    el.children$[elId].before(component);
+                    break;
+                case 'after':
+                    el.children$[elId].after(component);
+                    break;
+                default:
+                    el.append(component);
+            }
+            return component;
         }
     });
 });
