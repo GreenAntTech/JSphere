@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.180';
+const version = 'v1.0.0-preview.181';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
