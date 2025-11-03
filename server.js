@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.179';
+const version = 'v1.0.0-preview.180';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -26099,7 +26099,7 @@ async function handleInstallElement(requestId) {
             response = await fetch(`https://raw.githubusercontent.com/GreenAntTech/JSphere/${mod14.getVersion()}/shared/urlpattern.js`);
             if (response.ok) {
                 const file = await response.text();
-                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/urlpattern.min.js`, (new TextEncoder).encode(file));
+                await Deno.writeFile(`${Deno.cwd()}/${mod14.project.folder}/${mod14.project.name}/shared/urlpattern.js`, (new TextEncoder).encode(file));
             }
             return new Response('OK', {
                 status: 201
