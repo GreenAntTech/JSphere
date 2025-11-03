@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.178');
+console.log('elementJS:', 'v1.0.0-preview.179');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -189,9 +189,6 @@ function registerRoute(path, handler) {
         return;
     }
     registeredRoutes[path] = handler;
-}
-function registerServerDependencies(dependencies) {
-    Object.assign(registeredServerDependencies, dependencies);
 }
 function subscribeTo(subject, handler) {
     registeredMessages[subject] = handler;
@@ -561,10 +558,7 @@ function initElementAsComponent(el, pageState) {
                         childElement.parent$ = el;
                         const elId = childElement.id$;
                         if (childElement.is$ != 'component' && childElement.componentState$ !== 2) childElement.componentState$ = 0;
-                        if (childElement.parent$.is$ == 'list') {
-                            if (!el.children$.items) el.children$.items = [];
-                            el.children$.items.push(childElement);
-                        } else el.children$[elId] = childElement;
+                        el.children$[elId] = childElement;
                     }
                 }
             },
@@ -1030,7 +1024,7 @@ createComponent('list', (el, pageState)=>{
             else element.tagName = tagNameMap[el.tagName];
             const component = el.ownerDocument.createElement(element.tagName);
             for(const prop in element){
-                if (prop == 'tagName') continue;
+                if (prop == 'tagName' || prop == 'props') continue;
                 component.setAttribute(prop, element[prop]);
             }
             await loadDependencies([
@@ -1040,7 +1034,7 @@ createComponent('list', (el, pageState)=>{
             component.parent$ = el;
             component.setAttribute('el-parent', el.id$);
             el.children$[element['el-id']] = component;
-            component.componentState$ = 0;
+            component.componentState$ = el.componentState$ === -1 ? -1 : 0;
             switch(action){
                 case 'prepend':
                     el.prepend(component);
@@ -1057,7 +1051,7 @@ createComponent('list', (el, pageState)=>{
                 default:
                     el.append(component);
             }
-            await component.init$();
+            await component.init$(element.props);
             return component;
         }
     });
@@ -1130,4 +1124,4 @@ createComponent('link', (el, _pageState)=>{
         }
     });
 });
-export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
