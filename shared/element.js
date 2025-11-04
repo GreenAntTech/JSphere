@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.181');
+console.log('elementJS:', 'v1.0.0-preview.182');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -466,6 +466,9 @@ function initElementAsComponent(el, pageState) {
                             await onHydrate(props);
                             onHydrateOn('1');
                             docEl.removeAttribute('el-client-hydrating');
+                            for(const id in el.children$){
+                                el.children$[id].onLoaded$(props);
+                            }
                         }
                         return el.children$;
                     } else if (docEl.hasAttribute('el-client-hydrating')) {
@@ -1019,8 +1022,11 @@ createComponent('list', (el, pageState)=>{
                 await el.children$[child].init$(props);
             }
         },
+        clear$: ()=>{
+            el.innerHTML = '';
+        },
         insert$: async (element, action, elId)=>{
-            if (element.tagName === undefined && tagNameMap[el.tagName] === undefined) element.tagName = 'div';
+            if (element.tagName === undefined && tagNameMap[el.tagName.toLowerCase()] === undefined) element.tagName = 'div';
             else element.tagName = tagNameMap[el.tagName];
             const component = el.ownerDocument.createElement(element.tagName);
             for(const prop in element){
