@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.182');
+console.log('elementJS:', 'v1.0.0-preview.183');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -205,79 +205,169 @@ function useCaptions(name) {
     };
 }
 function observe(objectToObserve, config) {
-    const proxyCache = new WeakMap();
-    const listeners = new Set();
-    function makeObservable(obj, isRoot) {
-        if (!obj || typeof obj !== 'object') return obj;
-        if (proxyCache.has(obj)) return [
-            proxyCache.get(obj),
-            watch,
-            watchEffect,
-            computed
-        ];
-        const __root__ = {
-            watch,
-            watchEffect,
-            computed
-        };
-        const proxy = new Proxy(obj, {
+    const observablesCache = new WeakMap();
+    const watchList = new WeakMap();
+    let activeCompute = null;
+    function objectAccessor(parentTarget, parentKey) {
+        return {
             get (target, key, receiver) {
-                if (isRoot) __root__.proxy = proxy;
-                if (key === '__root__') return __root__;
                 if (key === '__proxy__') return true;
-                if (Array.isArray(target) && [
+                const value = Reflect.get(target, key, receiver);
+                if (activeCompute) {
+                    activeCompute.deps.add({
+                        root: receiver,
+                        key: key
+                    });
+                }
+                if (Array.isArray(value) && !value.__proxy__) {
+                    const proxiedValue = new Proxy(value, arrayAccessor(receiver, key));
+                    Reflect.set(target, key, proxiedValue, receiver);
+                    return proxiedValue;
+                } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
+                    const proxiedValue = new Proxy(value, objectAccessor());
+                    Reflect.set(target, key, proxiedValue, receiver);
+                    return proxiedValue;
+                }
+                return value;
+            },
+            set (target, key, value, receiver) {
+                if (value && value.__proxy__) return true;
+                const result = Reflect.set(target, key, value, receiver);
+                if (result) {
+                    const obj = watchList.get(parentTarget || receiver);
+                    if (obj && obj[parentKey || key]) {
+                        const listeners = obj[parentKey || key];
+                        listeners.forEach((listener)=>listener(target, parentKey || key));
+                    }
+                }
+                return result;
+            }
+        };
+    }
+    function arrayAccessor(parentTarget, parentKey) {
+        if (parentTarget === null) parentTarget = '__root__';
+        return {
+            get (target, key, receiver) {
+                if (key === '__proxy__') return true;
+                if (activeCompute) {
+                    activeCompute.deps.add({
+                        root: parentTarget,
+                        key: parentKey
+                    });
+                }
+                const mutatingMethods = [
                     'push',
                     'pop',
                     'shift',
                     'unshift',
                     'splice',
                     'replace'
-                ].includes(key)) {
+                ];
+                if (mutatingMethods.includes(key)) {
                     return function(...args) {
                         let result;
                         if (key === 'replace') {
                             result = target[args[0]];
                             target[args[0]] = args[1];
                         } else {
-                            result = target[key](...args);
+                            result = target[key].apply(target, args);
                         }
-                        listeners.forEach((listener)=>listener(proxy, 'mutated', undefined));
+                        const obj = watchList.get(parentTarget);
+                        if (obj && obj[parentKey]) {
+                            const listeners = obj[parentKey];
+                            listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                        }
                         return result;
                     };
                 }
                 const value = Reflect.get(target, key, receiver);
-                return value && value.__proxy__ ? value : makeObservable(value);
+                if (Array.isArray(value) && !value.__proxy__) {
+                    const proxiedValue = new Proxy(value, arrayAccessor(receiver, key));
+                    Reflect.set(target, key, proxiedValue, receiver);
+                    return proxiedValue;
+                } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
+                    const proxiedValue = new Proxy(value, objectAccessor(receiver, key));
+                    Reflect.set(target, key, proxiedValue, receiver);
+                    return proxiedValue;
+                }
+                return value;
             },
             set (target, key, value, receiver) {
+                if (value && value.__proxy__) return true;
                 const result = Reflect.set(target, key, value, receiver);
-                listeners.forEach((listener)=>listener(receiver, key, value));
+                if (result) {
+                    const obj = watchList.get(parentTarget);
+                    if (obj && obj[parentKey]) {
+                        const listeners = obj[parentKey];
+                        listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                    }
+                }
                 return result;
             }
-        });
-        proxyCache.set(obj, proxy);
+        };
+    }
+    function makeObservable(obj) {
+        if (!obj || typeof obj !== 'object') {
+            console.warn('Only objects can be observed. The following was provided:', obj);
+            return obj;
+        }
+        if (observablesCache.has(obj)) {
+            return [
+                observablesCache.get(obj),
+                watch,
+                compute
+            ];
+        }
+        const proxy = new Proxy(obj, objectAccessor());
+        observablesCache.set(obj, proxy);
         return proxy;
     }
-    const proxy = makeObservable(objectToObserve, true);
-    function watch(fn) {
-        listeners.add(fn);
-        fn(objectToObserve, '', undefined);
+    function watch(root, key, fn, { debounceTime = 0, throttleTime = 0 } = {}) {
+        if (key === null) key = '__root__';
+        let keys = watchList.get(root);
+        if (!keys) {
+            keys = {};
+            watchList.set(root, keys);
+        }
+        let listeners = keys[key];
+        if (!listeners) {
+            listeners = new Set();
+            keys[key] = listeners;
+        }
+        let effect = fn;
+        if (debounceTime) effect = debounce(fn, debounceTime);
+        if (throttleTime) effect = throttle(fn, throttleTime);
+        listeners.add(effect);
     }
-    function computed(fn) {
+    function compute(fn) {
         let cachedValue;
         let dirty = true;
-        const result = {
+        const deps = new Set();
+        const recompute = ()=>{
+            deps.forEach(({ root, key })=>{
+                const keys = watchList.get(root);
+                if (keys && keys[key]) keys[key].delete(markDirty);
+            });
+            deps.clear();
+            activeCompute = {
+                deps
+            };
+            cachedValue = fn();
+            activeCompute = null;
+            dirty = false;
+            deps.forEach(({ root, key })=>{
+                watch(root, key, markDirty);
+            });
+        };
+        function markDirty() {
+            dirty = true;
+        }
+        return {
             get value () {
-                if (dirty) {
-                    cachedValue = fn();
-                    dirty = false;
-                }
+                if (dirty) recompute();
                 return cachedValue;
             }
         };
-        watch(()=>{
-            dirty = true;
-        });
-        return result;
     }
     function debounce(fn, delay) {
         let timeout;
@@ -304,34 +394,24 @@ function observe(objectToObserve, config) {
             }
         };
     }
-    function watchEffect(fn, condition, { debounceTime = 0, throttleTime = 0 } = {}) {
-        let effect = fn;
-        if (debounceTime) effect = debounce(fn, debounceTime);
-        if (throttleTime) effect = throttle(fn, throttleTime);
-        watch((target, key, value)=>{
-            if (condition(target, key, value)) {
-                effect(target, key, value);
-            }
-        });
-    }
     function persistState() {
-        localStorage.setItem(config.key, JSON.stringify(objectToObserve));
+        localStorage.setItem(config.key, JSON.stringify(proxy));
     }
     function loadState() {
         const savedState = JSON.parse(localStorage.getItem(config.key) || '{}');
         if (savedState) {
-            Object.assign(objectToObserve, savedState);
+            Object.assign(proxy, savedState);
         }
     }
+    const proxy = makeObservable(objectToObserve);
     if (config && config.persist && config.key) {
         loadState();
-        watch(persistState);
+        watch(proxy, null, persistState);
     }
     return [
         proxy,
         watch,
-        watchEffect,
-        computed
+        compute
     ];
 }
 function runAt(props) {
@@ -1027,7 +1107,7 @@ createComponent('list', (el, pageState)=>{
         },
         insert$: async (element, action, elId)=>{
             if (element.tagName === undefined && tagNameMap[el.tagName.toLowerCase()] === undefined) element.tagName = 'div';
-            else element.tagName = tagNameMap[el.tagName];
+            else element.tagName = tagNameMap[el.tagName.toLowerCase()];
             const component = el.ownerDocument.createElement(element.tagName);
             for(const prop in element){
                 if (prop == 'tagName' || prop == 'props') continue;
@@ -1131,3 +1211,4 @@ createComponent('link', (el, _pageState)=>{
     });
 });
 export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { observe as observe };
