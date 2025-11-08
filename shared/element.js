@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.184');
+console.log('elementJS:', 'v1.0.0-preview.185');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -238,6 +238,10 @@ function observe(objectToObserve, config) {
                         const listeners = obj[parentKey || key];
                         listeners.forEach((listener)=>listener(target, parentKey || key));
                     }
+                    if (obj && obj['__root__']) {
+                        const listeners = obj['__root__'];
+                        listeners.forEach((listener)=>listener(target, null));
+                    }
                 }
                 return result;
             }
@@ -425,7 +429,7 @@ async function renderDocument(config, ctx) {
         appContext.ctx = ctx;
         const appState = observe({}, {
             persist: true,
-            key: appContext.ctx?.request.url.hostname
+            key: ctx ? ctx.request.url.hostname : globalThis.location.hostname
         });
         const pageState = observe(config.pageState);
         if (appContext.server) {
@@ -447,7 +451,10 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
-            if (el.hasAttribute('el-state')) Object.assign(config.pageState, JSON.parse(el.getAttribute('el-state')));
+            if (el.hasAttribute('el-state')) {
+                Object.assign(pageState, JSON.parse(el.getAttribute('el-state')));
+                el.removeAttribute('el-state');
+            }
             initElementAsComponent(el, appState, pageState);
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
@@ -486,7 +493,7 @@ async function getDocumentElement(config) {
 function initElementAsComponent(el, appState, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
-    let stateObject = observe({});
+    const stateObject = observe({});
     let childComponents = {};
     let parent;
     let boundValue;
@@ -960,7 +967,7 @@ function initElementAsComponent(el, appState, pageState) {
     if (type == 'component') el.setAttribute('el-is', 'component');
     if (registeredComponents[type]) {
         if (el.hasAttribute('el-state')) {
-            stateObject = JSON.parse(el.getAttribute('el-state') || '{}');
+            Object.assign(stateObject[0], JSON.parse(el.getAttribute('el-state')));
             el.removeAttribute('el-state');
         }
         registeredComponents[type](el);
