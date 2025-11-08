@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.183');
+console.log('elementJS:', 'v1.0.0-preview.184');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -99,10 +99,6 @@ globalThis.addEventListener('popstate', async ()=>{
         }
     }
 }, false);
-const appState = observe({}, {
-    persist: true,
-    key: 'appState'
-});
 const extendedURL = {};
 const feature = new Feature(getFeatureFlags());
 const registeredAllowedOrigins = [
@@ -189,6 +185,9 @@ function registerRoute(path, handler) {
         return;
     }
     registeredRoutes[path] = handler;
+}
+function registerServerDependencies(dependencies) {
+    Object.assign(registeredServerDependencies, dependencies);
 }
 function subscribeTo(subject, handler) {
     registeredMessages[subject] = handler;
@@ -424,16 +423,21 @@ async function renderDocument(config, ctx) {
         if (!config.pageState) config.pageState = {};
         validateInputs(config, ctx);
         appContext.ctx = ctx;
+        const appState = observe({}, {
+            persist: true,
+            key: appContext.ctx?.request.url.hostname
+        });
+        const pageState = observe(config.pageState);
         if (appContext.server) {
             setExtendedURL(ctx.request.url);
             const el = appContext.documentElement = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
-            initElementAsComponent(el, observe(config.pageState));
+            initElementAsComponent(el, appState, pageState);
             await el.init$();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
-                if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$));
+                if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$[0]));
             }
             el.setAttribute('el-state', JSON.stringify(config.pageState));
             el.setAttribute('el-server-rendered', 'true');
@@ -444,7 +448,7 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-id', 'document');
             if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
             if (el.hasAttribute('el-state')) Object.assign(config.pageState, JSON.parse(el.getAttribute('el-state')));
-            initElementAsComponent(el, observe(config.pageState));
+            initElementAsComponent(el, appState, pageState);
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
             await el.init$();
@@ -479,10 +483,10 @@ async function getDocumentElement(config) {
     }
     return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
 }
-function initElementAsComponent(el, pageState) {
+function initElementAsComponent(el, appState, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
-    const stateObject = {};
+    let stateObject = observe({});
     let childComponents = {};
     let parent;
     let boundValue;
@@ -637,7 +641,7 @@ function initElementAsComponent(el, pageState) {
                     for (const childElement of children){
                         if (!childElement.getAttribute('el-id')) childElement.setAttribute('el-id', `component${idCount++}`);
                         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
-                        initElementAsComponent(childElement, pageState);
+                        initElementAsComponent(childElement);
                         childElement.parent$ = el;
                         const elId = childElement.id$;
                         if (childElement.is$ != 'component' && childElement.componentState$ !== 2) childElement.componentState$ = 0;
@@ -708,12 +712,13 @@ function initElementAsComponent(el, pageState) {
                     if (value) {
                         let style = el.getAttribute('style');
                         if (!style) style = '';
+                        if (/\bdisplay\s*:\s*none\b/i.test(style)) return;
                         style += '; display: none';
                         el.setAttribute('style', style);
                     } else {
                         let style = el.getAttribute('style');
                         if (!style) style = '';
-                        style = style.replaceAll('; display: none', '');
+                        style = style.replace(/\bdisplay\s*:\s*none\s*;?/gi, '').replace(/;;+/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '').trim();
                         el.setAttribute('style', style);
                     }
                 },
@@ -777,6 +782,16 @@ function initElementAsComponent(el, pageState) {
                         await handler(data);
                     };
                     el.setAttribute('el-listening', 'true');
+                }
+            },
+            appState$: {
+                get: ()=>{
+                    return appState || el.ownerDocument.documentElement.appState$;
+                }
+            },
+            pageState$: {
+                get: ()=>{
+                    return pageState || el.ownerDocument.documentElement.pageState$;
                 }
             },
             state$: {
@@ -878,7 +893,6 @@ function initElementAsComponent(el, pageState) {
         el.initChildren$();
     }
     async function onHydrate(props) {
-        getServerState(el);
         if (el.hasAttribute('el-hydrate-on')) {
             el.componentState$ = 3;
             el.ownerDocument.documentElement.hydrateOnComponents$.push({
@@ -944,15 +958,13 @@ function initElementAsComponent(el, pageState) {
     }
     const type = el.getAttribute('el-is') || 'component';
     if (type == 'component') el.setAttribute('el-is', 'component');
-    if (registeredComponents[type]) registeredComponents[type](el, pageState);
-    else console.warn(`The component type '${type}' is not registered.`);
-}
-function getServerState(el) {
-    if (el.hasAttribute('el-state')) {
-        const stateObject = JSON.parse(el.getAttribute('el-state') || '{}');
-        Object.assign(el.state$, stateObject);
-        el.removeAttribute('el-state');
-    }
+    if (registeredComponents[type]) {
+        if (el.hasAttribute('el-state')) {
+            stateObject = JSON.parse(el.getAttribute('el-state') || '{}');
+            el.removeAttribute('el-state');
+        }
+        registeredComponents[type](el);
+    } else console.warn(`The component type '${type}' is not registered.`);
 }
 function addPropsFromAttributes(el, props) {
     const attrs = {};
@@ -1071,7 +1083,7 @@ async function loadDependencies(dependencies) {
         throw e;
     }
 }
-createComponent('document', (el, _pageState)=>{
+createComponent('document', (el)=>{
     el.define$({
         onRender$: async (props)=>{
             for(const id in el.children$){
@@ -1089,7 +1101,7 @@ createComponent('document', (el, _pageState)=>{
         }
     });
 });
-createComponent('list', (el, pageState)=>{
+createComponent('list', (el)=>{
     const tagNameMap = {
         ul: 'li',
         ol: 'li',
@@ -1116,7 +1128,7 @@ createComponent('list', (el, pageState)=>{
             await loadDependencies([
                 element['el-is']
             ]);
-            initElementAsComponent(component, pageState);
+            initElementAsComponent(component);
             component.parent$ = el;
             component.setAttribute('el-parent', el.id$);
             el.children$[element['el-id']] = component;
@@ -1142,7 +1154,7 @@ createComponent('list', (el, pageState)=>{
         }
     });
 });
-createComponent('component', (el, _pageState)=>{
+createComponent('component', (el)=>{
     el.define$({
         text$: {
             set: (value)=>{
@@ -1154,7 +1166,7 @@ createComponent('component', (el, _pageState)=>{
         }
     });
 });
-createComponent('link', (el, _pageState)=>{
+createComponent('link', (el)=>{
     let _onclick;
     el.define$({
         onRender$: (props)=>{
@@ -1210,5 +1222,5 @@ createComponent('link', (el, _pageState)=>{
         }
     });
 });
-export { appState as appState$, createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
 export { observe as observe };
