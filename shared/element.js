@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.185');
+console.log('elementJS:', 'v1.0.0-preview.186');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -99,6 +99,19 @@ globalThis.addEventListener('popstate', async ()=>{
         }
     }
 }, false);
+globalThis.addEventListener('storage', (event)=>{
+    if (event.storageArea === localStorage) {
+        if (event.key === 'elementJS_appState_' + globalThis.location.hostname) {
+            try {
+                const updatedAppState = JSON.parse(event.newValue || '{}');
+                Object.assign(globalThis.document.documentElement.appState$[0], updatedAppState);
+                console.log(`Tab received appState update:`, updatedAppState);
+            } catch (e) {
+                console.error('Failed to parse updated appState from storage event:', e);
+            }
+        }
+    }
+});
 const extendedURL = {};
 const feature = new Feature(getFeatureFlags());
 const registeredAllowedOrigins = [
@@ -231,16 +244,18 @@ function observe(objectToObserve, config) {
             },
             set (target, key, value, receiver) {
                 if (value && value.__proxy__) return true;
+                const oldValue = receiver[key];
+                if (value === oldValue) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
                     const obj = watchList.get(parentTarget || receiver);
                     if (obj && obj[parentKey || key]) {
                         const listeners = obj[parentKey || key];
-                        listeners.forEach((listener)=>listener(target, parentKey || key));
+                        listeners.forEach((listener)=>listener(value, oldValue));
                     }
                     if (obj && obj['__root__']) {
                         const listeners = obj['__root__'];
-                        listeners.forEach((listener)=>listener(target, null));
+                        listeners.forEach((listener)=>listener(value, oldValue));
                     }
                 }
                 return result;
@@ -297,12 +312,14 @@ function observe(objectToObserve, config) {
             },
             set (target, key, value, receiver) {
                 if (value && value.__proxy__) return true;
+                const oldValue = receiver[key];
+                if (value === oldValue) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
                     const obj = watchList.get(parentTarget);
                     if (obj && obj[parentKey]) {
                         const listeners = obj[parentKey];
-                        listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                        listeners.forEach((listener)=>listener(value, oldValue));
                     }
                 }
                 return result;
@@ -326,7 +343,7 @@ function observe(objectToObserve, config) {
         return proxy;
     }
     function watch(root, key, fn, { debounceTime = 0, throttleTime = 0 } = {}) {
-        if (key === null) key = '__root__';
+        if (key === null || key === '') key = '__root__';
         let keys = watchList.get(root);
         if (!keys) {
             keys = {};
@@ -374,23 +391,23 @@ function observe(objectToObserve, config) {
     }
     function debounce(fn, delay) {
         let timeout;
-        return function(target, key, value) {
+        return function(value, oldValue) {
             clearTimeout(timeout);
-            timeout = setTimeout(()=>fn(target, key, value), delay);
+            timeout = setTimeout(()=>fn(value, oldValue), delay);
         };
     }
     function throttle(fn, limit) {
         let lastFn;
         let lastRan;
-        return (target, key, value)=>{
+        return function(value, oldValue) {
             if (!lastRan) {
-                fn(target, key, value);
+                fn(value, oldValue);
                 lastRan = Date.now();
             } else {
                 clearTimeout(lastFn);
                 lastFn = setTimeout(()=>{
                     if (Date.now() - lastRan >= limit) {
-                        fn(target, key, value);
+                        fn(value, oldValue);
                         lastRan = Date.now();
                     }
                 }, limit - (Date.now() - lastRan));
@@ -409,7 +426,7 @@ function observe(objectToObserve, config) {
     const proxy = makeObservable(objectToObserve);
     if (config && config.persist && config.key) {
         loadState();
-        watch(proxy, null, persistState);
+        watch(proxy, '', persistState);
     }
     return [
         proxy,
@@ -429,7 +446,7 @@ async function renderDocument(config, ctx) {
         appContext.ctx = ctx;
         const appState = observe({}, {
             persist: true,
-            key: ctx ? ctx.request.url.hostname : globalThis.location.hostname
+            key: 'elementJS_appState_' + (ctx ? ctx.request.url.hostname : globalThis.location.hostname)
         });
         const pageState = observe(config.pageState);
         if (appContext.server) {
@@ -840,7 +857,8 @@ function initElementAsComponent(el, appState, pageState) {
                 } else {
                     content = await getResource(path) || '';
                 }
-                content = content.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [data-theme='${themeId}'] $2`);
+                if (theme) content = content.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'][data-theme='${theme}'] $2`);
+                else content = content.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'] $2`);
                 el.setAttribute('data-theme', themeId);
                 if (el.ownerDocument.getElementById(themeId)) return;
                 const tag = el.ownerDocument.createElement('style');
@@ -855,9 +873,9 @@ function initElementAsComponent(el, appState, pageState) {
                 el.ownerDocument.head.append(tag);
             }
         } else {
-            el.setAttribute('data-theme', themeId);
             if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-            css = css.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [data-theme='${themeId}'] $2`);
+            if (theme) css = css.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'][data-theme='${theme}'] $2`);
+            else css = css.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'] $2`);
             const tag = el.ownerDocument.createElement('style');
             tag.setAttribute('id', themeId);
             tag.textContent = css;
