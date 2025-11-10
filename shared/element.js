@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.186');
+console.log('elementJS:', 'v1.0.0-preview.187');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -857,8 +857,8 @@ function initElementAsComponent(el, appState, pageState) {
                 } else {
                     content = await getResource(path) || '';
                 }
-                if (theme) content = content.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'][data-theme='${theme}'] $2`);
-                else content = content.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'] $2`);
+                if (theme) content = content.replace('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
+                else content = content.replace('[component]', `[el-is='${el.is$}']`);
                 el.setAttribute('data-theme', themeId);
                 if (el.ownerDocument.getElementById(themeId)) return;
                 const tag = el.ownerDocument.createElement('style');
@@ -874,8 +874,8 @@ function initElementAsComponent(el, appState, pageState) {
             }
         } else {
             if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-            if (theme) css = css.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'][data-theme='${theme}'] $2`);
-            else css = css.replace(/(^|\})\s*(\.[^{\s]+)/g, `$1 [el-is='${el.is$}'] $2`);
+            if (theme) css = css.replace('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
+            else css = css.replace('[component]', `[el-is='${el.is$}']`);
             const tag = el.ownerDocument.createElement('style');
             tag.setAttribute('id', themeId);
             tag.textContent = css;
