@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.191');
+console.log('elementJS:', 'v1.0.0-preview.192');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -143,14 +143,13 @@ function deviceSubscribesTo(subject) {
     registeredDeviceMessages[subject] = true;
 }
 async function emitMessage(subject, data, target) {
-    if (appContext.server) {
-        const el = appContext.documentElement.querySelector(`[el-active]`);
-        if (el) {
-            if (el.is$ && el.listensFor$(subject)) {
-                await el.onMessageReceived$(subject, data);
-            } else if (registeredMessages[subject]) {
-                await registeredMessages[subject](data, appContext.ctx);
-            }
+    const docEl = appContext.server ? appContext.documentElement : document.documentElement;
+    const el = docEl.querySelector(`[el-active]`);
+    if (el) {
+        if (el.is$ && el.listensFor$(subject)) {
+            await el.onMessageReceived$(subject, data);
+        } else if (registeredMessages[subject]) {
+            await registeredMessages[subject](data, appContext.ctx);
         }
     } else {
         if (target === undefined) target = window;
