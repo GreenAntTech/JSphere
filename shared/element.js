@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.190');
+console.log('elementJS:', 'v1.0.0-preview.191');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -1002,6 +1002,7 @@ function addPropsFromAttributes(el, props) {
     return props;
 }
 function addMissingLifecycleMethods(el) {
+    if (typeof el.use$ == 'undefined') el.use$ = ()=>[];
     if (typeof el.style$ == 'undefined') el.style$ = ()=>{};
     if (typeof el.template$ == 'undefined') el.template$ = ()=>{};
     if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
@@ -1101,8 +1102,8 @@ async function loadDependencies(dependencies) {
                     if (!registeredComponents[dependency]) console.warn(`Dependency '${dependency}' not registered`);
                 } else return importModule(modulePath);
             }
-        });
-        await Promise.allSettled(imports);
+        }).filter((value)=>Boolean(value));
+        if (imports.length > 0) await Promise.allSettled(imports);
     } catch (e) {
         console.error('Failed to load dependencies:', e);
         throw e;
