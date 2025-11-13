@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.192');
+console.log('elementJS:', 'v1.0.0-preview.194');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -536,7 +536,7 @@ function initElementAsComponent(el, appState, pageState) {
                         if (el.renderAtClient$) return el.children$;
                         props = addPropsFromAttributes(el, props);
                         addMissingLifecycleMethods(el);
-                        if (el.use$) await loadDependencies(el.use$(props));
+                        await loadDependencies(el.use$(props));
                         await onInit(props);
                         await onStyle(props);
                         await onTemplate(props);
@@ -545,7 +545,7 @@ function initElementAsComponent(el, appState, pageState) {
                     } else if (docEl.hasAttribute('el-server-rendered')) {
                         props = addPropsFromAttributes(el, props);
                         addMissingLifecycleMethods(el);
-                        if (el.use$) await loadDependencies(el.use$(props));
+                        await loadDependencies(el.use$(props));
                         if (el.is$ == 'document') {
                             await onPostRender();
                             await onHydrate(props);
@@ -562,7 +562,7 @@ function initElementAsComponent(el, appState, pageState) {
                     } else if (docEl.hasAttribute('el-client-rendering')) {
                         props = addPropsFromAttributes(el, props);
                         addMissingLifecycleMethods(el);
-                        if (el.use$) await loadDependencies(el.use$(props));
+                        await loadDependencies(el.use$(props));
                         await onInit(props);
                         await onStyle(props);
                         await onTemplate(props);
@@ -607,7 +607,7 @@ function initElementAsComponent(el, appState, pageState) {
                         if (el.componentState$ === -1) {
                             el.componentState$ = 0;
                             addMissingLifecycleMethods(el);
-                            if (el.use$) await loadDependencies(el.use$(props));
+                            await loadDependencies(el.use$(props));
                             await onInit(props);
                             await onStyle(props);
                             await onTemplate(props);
@@ -617,7 +617,7 @@ function initElementAsComponent(el, appState, pageState) {
                         }
                         if (el.componentState$ === 0) {
                             addMissingLifecycleMethods(el);
-                            if (el.use$) await loadDependencies(el.use$(props));
+                            await loadDependencies(el.use$(props));
                             await onInit(props);
                             await onStyle(props);
                             await onTemplate(props);
@@ -910,6 +910,10 @@ function initElementAsComponent(el, appState, pageState) {
     }
     async function onRender(props) {
         await el.onRender$(props);
+        for(const id in el.children$){
+            const child = el.children$[id];
+            if (child.componentState$ === 0) await child.init$();
+        }
         el.componentState$ = 2;
     }
     async function onPostRender() {
@@ -925,6 +929,10 @@ function initElementAsComponent(el, appState, pageState) {
             });
         } else {
             await el.onHydrate$(props);
+            for(const id in el.children$){
+                const child = el.children$[id];
+                if (child.componentState$ === 0) await child.init$();
+            }
             if (el.componentState$ == 3) {
                 el.removeAttribute('el-hydration-delayed');
                 const components = el.querySelectorAll(':scope > [el-hydration-delayed]');
