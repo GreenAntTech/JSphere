@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.194');
+console.log('elementJS:', 'v1.0.0-preview.195');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -931,7 +931,7 @@ function initElementAsComponent(el, appState, pageState) {
             await el.onHydrate$(props);
             for(const id in el.children$){
                 const child = el.children$[id];
-                if (child.componentState$ === 0) await child.init$();
+                if (child.componentState$ === 2) await child.init$();
             }
             if (el.componentState$ == 3) {
                 el.removeAttribute('el-hydration-delayed');
