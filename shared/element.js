@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.195');
+console.log('elementJS:', 'v1.0.0-preview.196');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -512,7 +512,6 @@ function initElementAsComponent(el, appState, pageState) {
     const stateObject = observe({});
     let childComponents = {};
     let parent;
-    let boundValue;
     let hydrateOnCallback = ()=>{};
     if (!el.init$) {
         Object.defineProperties(el, {
@@ -680,34 +679,6 @@ function initElementAsComponent(el, appState, pageState) {
             is$: {
                 get: ()=>{
                     return el.getAttribute('el-is');
-                }
-            },
-            bind$: {
-                set: (value)=>{
-                    if (!Array.isArray(value) || value.length !== 2) return;
-                    const [observable, property] = boundValue = value;
-                    if (typeof observable[property] === 'undefined') el.boundValue$ = el.value$;
-                    else el.value$ = el.boundValue$;
-                    observable.__root__.watchEffect((target)=>{
-                        observable === target;
-                    }, ()=>{
-                        if (el.hasOwnProperty('value$')) el.value$ = el.boundValue$;
-                    });
-                }
-            },
-            boundValue$: {
-                set: (value)=>{
-                    if (boundValue) {
-                        const [observable, property] = boundValue;
-                        if (observable[property] !== value) observable[property] = value;
-                    }
-                },
-                get: ()=>{
-                    if (boundValue) {
-                        const [observable, property] = boundValue;
-                        return observable[property];
-                    }
-                    return undefined;
                 }
             },
             children$: {
@@ -912,7 +883,7 @@ function initElementAsComponent(el, appState, pageState) {
         await el.onRender$(props);
         for(const id in el.children$){
             const child = el.children$[id];
-            if (child.componentState$ === 0) await child.init$();
+            if (child.componentState$ === 0 && !child.hasAttribute('el-auto-init-off')) await child.init$();
         }
         el.componentState$ = 2;
     }
@@ -931,7 +902,7 @@ function initElementAsComponent(el, appState, pageState) {
             await el.onHydrate$(props);
             for(const id in el.children$){
                 const child = el.children$[id];
-                if (child.componentState$ === 2) await child.init$();
+                if (child.componentState$ === 2 && !child.hasAttribute('el-auto-init-off')) await child.init$();
             }
             if (el.componentState$ == 3) {
                 el.removeAttribute('el-hydration-delayed');
@@ -1254,6 +1225,31 @@ createComponent('link', (el)=>{
             }
         }
     });
+});
+createComponent('label', (el)=>{
+    const [pageState, watchPageState] = el.pageState$;
+    el.define$({
+        onRender$: (props)=>{
+            setCaption(props);
+        },
+        onHydrate$: (props)=>{
+            watchPageState(pageState, 'captionPack', ()=>{
+                setCaption(props);
+            });
+        }
+    });
+    function setCaption(props) {
+        const caption = useCaptions(pageState.captionPack);
+        if (props.params) {
+            try {
+                const paramsArray = JSON.parse(props.params);
+                el.textContent = caption(el.id$, ...paramsArray);
+            } catch (e) {
+                console.error("Error parsing data-params as JSON:", e);
+                el.textContent = caption(el.id$, props.params);
+            }
+        } else el.textContent = caption(el.id$);
+    }
 });
 export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
 export { observe as observe };
