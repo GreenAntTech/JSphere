@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.196');
+console.log('elementJS:', 'v1.0.0-preview.197');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -1226,7 +1226,7 @@ createComponent('link', (el)=>{
         }
     });
 });
-createComponent('label', (el)=>{
+createComponent('caption', (el)=>{
     const [pageState, watchPageState] = el.pageState$;
     el.define$({
         onRender$: (props)=>{
