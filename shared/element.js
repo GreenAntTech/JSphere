@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.197');
+console.log('elementJS:', 'v1.0.0-preview.198');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -293,6 +293,10 @@ function observe(objectToObserve, config) {
                         if (obj && obj[parentKey]) {
                             const listeners = obj[parentKey];
                             listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                        }
+                        if (obj && obj['__root__']) {
+                            const listeners = obj['__root__'];
+                            listeners.forEach((listener)=>listener(value, null));
                         }
                         return result;
                     };
