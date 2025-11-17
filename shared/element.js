@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.199');
+console.log('elementJS:', 'v1.0.0-preview.200');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -650,19 +650,19 @@ function initElementAsComponent(el, appState, pageState) {
                         if (head) {
                             if (head.hasAttribute('el-is')) children.push(head);
                             else {
-                                const components = head.querySelectorAll(':scope [el-is], [el-id]');
+                                const components = head.querySelectorAll(':scope [el-id]:not(:scope [el-is] *)');
                                 for (const component of components)children.push(component);
                             }
                         }
                         if (body) {
                             if (body.hasAttribute('el-is')) children.push(body);
                             else {
-                                const components = body.querySelectorAll(':scope [el-is], [el-id]');
+                                const components = body.querySelectorAll(':scope [el-id]:not(:scope [el-is] *)');
                                 for (const component of components)children.push(component);
                             }
                         }
                     } else {
-                        children = el.querySelectorAll(':scope [el-is], [el-id]');
+                        children = el.querySelectorAll(':scope [el-id]:not(:scope [el-is] *)');
                     }
                     for (const childElement of children){
                         if (!childElement.getAttribute('el-id')) childElement.setAttribute('el-id', `component${idCount++}`);
