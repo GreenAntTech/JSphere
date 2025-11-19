@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.203');
+console.log('elementJS:', 'v1.0.0-preview.204');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -1232,18 +1232,21 @@ createComponent('link', (el)=>{
 });
 createComponent('caption', (el)=>{
     const [pageState, watchPageState] = el.pageState$;
+    const [state] = el.state$;
     el.define$({
         onRender$: (props)=>{
             setCaption(props.params);
+            state.params = props.params;
         },
-        onHydrate$: (props)=>{
+        onHydrate$: ()=>{
             watchPageState(pageState, 'captionPack', ()=>{
-                setCaption(props.params);
+                setCaption(state.params);
             });
         },
         param$: {
             set: (value)=>{
                 setCaption(value);
+                state.params = value;
             }
         }
     });
