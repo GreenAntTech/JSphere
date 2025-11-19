@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.202');
+console.log('elementJS:', 'v1.0.0-preview.203');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -1234,23 +1234,31 @@ createComponent('caption', (el)=>{
     const [pageState, watchPageState] = el.pageState$;
     el.define$({
         onRender$: (props)=>{
-            setCaption(props);
+            setCaption(props.params);
         },
         onHydrate$: (props)=>{
             watchPageState(pageState, 'captionPack', ()=>{
-                setCaption(props);
+                setCaption(props.params);
             });
+        },
+        param$: {
+            set: (value)=>{
+                setCaption(value);
+            }
         }
     });
-    function setCaption(props) {
+    function setCaption(params) {
         const caption = useCaptions(pageState.captionPack);
-        if (props.params) {
-            try {
-                const paramsArray = JSON.parse(props.params);
-                el.textContent = caption(el.id$, ...paramsArray);
-            } catch (e) {
-                console.error("Error parsing data-params as JSON:", e);
-                el.textContent = caption(el.id$, props.params);
+        if (params) {
+            if (Array.isArray(params)) {
+                el.textContent = caption(el.id$, ...params);
+            } else {
+                try {
+                    const paramsArray = JSON.parse(params);
+                    el.textContent = caption(el.id$, ...paramsArray);
+                } catch (e) {
+                    el.textContent = caption(el.id$, params);
+                }
             }
         } else el.textContent = caption(el.id$);
     }
