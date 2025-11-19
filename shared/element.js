@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.201');
+console.log('elementJS:', 'v1.0.0-preview.202');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -209,7 +209,7 @@ function useCaptions(name) {
         let caption = registeredCaptions[name][value] || value;
         if (args && args.length > 0) {
             for(let i = 0; i < args.length; i++){
-                caption = caption.replaceAll('$' + (i + 1), args[i]);
+                caption = caption.replaceAll('{' + (i + 1) + '}', args[i]);
             }
         }
         return caption;
