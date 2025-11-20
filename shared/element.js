@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.204');
+console.log('elementJS:', 'v1.0.0-preview.205');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -206,7 +206,8 @@ function subscribeTo(subject, handler) {
 }
 function useCaptions(name) {
     return (value, ...args)=>{
-        let caption = registeredCaptions[name][value] || value;
+        const captionPack = registeredCaptions[name] || {};
+        let caption = captionPack[value] || value;
         if (args && args.length > 0) {
             for(let i = 0; i < args.length; i++){
                 caption = caption.replaceAll('{' + (i + 1) + '}', args[i]);
@@ -1231,6 +1232,7 @@ createComponent('link', (el)=>{
     });
 });
 createComponent('caption', (el)=>{
+    const [appState, watchAppState] = el.pageState$;
     const [pageState, watchPageState] = el.pageState$;
     const [state] = el.state$;
     el.define$({
@@ -1239,6 +1241,9 @@ createComponent('caption', (el)=>{
             state.params = props.params;
         },
         onHydrate$: ()=>{
+            watchAppState(appState, 'captionPack', ()=>{
+                setCaption(state.params);
+            });
             watchPageState(pageState, 'captionPack', ()=>{
                 setCaption(state.params);
             });
