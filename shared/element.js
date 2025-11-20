@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.205');
+console.log('elementJS:', 'v1.0.0-preview.206');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -1256,7 +1256,7 @@ createComponent('caption', (el)=>{
         }
     });
     function setCaption(params) {
-        const caption = useCaptions(pageState.captionPack);
+        const caption = useCaptions(appState.captionPack || pageState.captionPack);
         if (params) {
             if (Array.isArray(params)) {
                 el.textContent = caption(el.id$, ...params);
