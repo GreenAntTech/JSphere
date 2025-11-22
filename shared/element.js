@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.206');
+console.log('elementJS:', 'v1.0.0-preview.207');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -220,7 +220,7 @@ function observe(objectToObserve, config) {
     const observablesCache = new WeakMap();
     const watchList = new WeakMap();
     let activeCompute = null;
-    function objectAccessor(parentTarget, parentKey) {
+    function objectAccessor() {
         return {
             get (target, key, receiver) {
                 if (key === '__proxy__') return true;
@@ -248,14 +248,21 @@ function observe(objectToObserve, config) {
                 if (value === oldValue) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    const obj = watchList.get(parentTarget || receiver);
-                    if (obj && obj[parentKey || key]) {
-                        const listeners = obj[parentKey || key];
+                    let obj = watchList.get(receiver);
+                    if (obj && obj[key]) {
+                        const listeners = obj[key];
                         listeners.forEach((listener)=>listener(value, oldValue));
                     }
                     if (obj && obj['__root__']) {
                         const listeners = obj['__root__'];
                         listeners.forEach((listener)=>listener(value, oldValue));
+                    }
+                    if (receiver !== proxy) {
+                        obj = watchList.get(proxy);
+                        if (obj && obj['__root__']) {
+                            const listeners = obj['__root__'];
+                            listeners.forEach((listener)=>listener(value, oldValue));
+                        }
                     }
                 }
                 return result;
@@ -290,14 +297,21 @@ function observe(objectToObserve, config) {
                         } else {
                             result = target[key].apply(target, args);
                         }
-                        const obj = watchList.get(parentTarget);
+                        let obj = watchList.get(parentTarget);
                         if (obj && obj[parentKey]) {
                             const listeners = obj[parentKey];
-                            listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                            listeners.forEach((listener)=>listener(result));
                         }
                         if (obj && obj['__root__']) {
                             const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(null, null));
+                            listeners.forEach((listener)=>listener(result));
+                        }
+                        if (receiver !== proxy) {
+                            obj = watchList.get(proxy);
+                            if (obj && obj['__root__']) {
+                                const listeners = obj['__root__'];
+                                listeners.forEach((listener)=>listener(result));
+                            }
                         }
                         return result;
                     };
@@ -308,7 +322,7 @@ function observe(objectToObserve, config) {
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
                 } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, objectAccessor(receiver, key));
+                    const proxiedValue = new Proxy(value, objectAccessor());
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
                 }
@@ -517,6 +531,7 @@ function initElementAsComponent(el, appState, pageState) {
     const stateObject = observe({});
     let childComponents = {};
     let parent;
+    const binding = [];
     let hydrateOnCallback = ()=>{};
     if (!el.init$) {
         Object.defineProperties(el, {
@@ -686,6 +701,11 @@ function initElementAsComponent(el, appState, pageState) {
                     return el.getAttribute('el-is');
                 }
             },
+            bind$: {
+                get: ()=>{
+                    return binding;
+                }
+            },
             children$: {
                 get: ()=>{
                     return childComponents;
@@ -805,6 +825,21 @@ function initElementAsComponent(el, appState, pageState) {
                 }
             }
         });
+        if (el.hasAttribute('el-bind')) {
+            const path = el.getAttribute('el-bind');
+            const arrPath = path ? path.split('.') : [];
+            if (arrPath.length > 1) {
+                const key = arrPath[0] + '$';
+                binding[0] = el[key][0];
+                for(let i = 1; i < arrPath.length - 1; i++){
+                    const idx = parseInt(arrPath[i]);
+                    binding[0] = isNaN(idx) ? binding[0][arrPath[i]] : binding[0][idx];
+                }
+                const idx = parseInt(arrPath[arrPath.length - 1]);
+                binding[1] = isNaN(idx) ? arrPath[arrPath.length - 1] : idx;
+                binding[2] = el[key][1];
+            }
+        }
     }
     async function onInit(props) {
         el.setAttribute('el-active', '');
@@ -1232,7 +1267,7 @@ createComponent('link', (el)=>{
     });
 });
 createComponent('caption', (el)=>{
-    const [appState, watchAppState] = el.pageState$;
+    const [appState, watchAppState] = el.appState$;
     const [pageState, watchPageState] = el.pageState$;
     const [state] = el.state$;
     el.define$({
