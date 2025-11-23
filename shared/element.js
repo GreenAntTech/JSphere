@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.207');
+console.log('elementJS:', 'v1.0.0-preview.208');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -251,17 +251,17 @@ function observe(objectToObserve, config) {
                     let obj = watchList.get(receiver);
                     if (obj && obj[key]) {
                         const listeners = obj[key];
-                        listeners.forEach((listener)=>listener(value, oldValue));
+                        listeners.forEach((listener)=>listener(receiver, value, oldValue));
                     }
                     if (obj && obj['__root__']) {
                         const listeners = obj['__root__'];
-                        listeners.forEach((listener)=>listener(value, oldValue));
+                        listeners.forEach((listener)=>listener(receiver, value, oldValue));
                     }
                     if (receiver !== proxy) {
                         obj = watchList.get(proxy);
                         if (obj && obj['__root__']) {
                             const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(value, oldValue));
+                            listeners.forEach((listener)=>listener(receiver, value, oldValue));
                         }
                     }
                 }
@@ -300,17 +300,17 @@ function observe(objectToObserve, config) {
                         let obj = watchList.get(parentTarget);
                         if (obj && obj[parentKey]) {
                             const listeners = obj[parentKey];
-                            listeners.forEach((listener)=>listener(result));
+                            listeners.forEach((listener)=>listener(parentTarget));
                         }
                         if (obj && obj['__root__']) {
                             const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(result));
+                            listeners.forEach((listener)=>listener(parentTarget));
                         }
                         if (receiver !== proxy) {
                             obj = watchList.get(proxy);
                             if (obj && obj['__root__']) {
                                 const listeners = obj['__root__'];
-                                listeners.forEach((listener)=>listener(result));
+                                listeners.forEach((listener)=>listener(parentTarget));
                             }
                         }
                         return result;
@@ -376,6 +376,10 @@ function observe(objectToObserve, config) {
         if (debounceTime) effect = debounce(fn, debounceTime);
         if (throttleTime) effect = throttle(fn, throttleTime);
         listeners.add(effect);
+        effect(root[key]);
+        return ()=>{
+            listeners.delete(effect);
+        };
     }
     function compute(fn) {
         let cachedValue;
@@ -531,7 +535,7 @@ function initElementAsComponent(el, appState, pageState) {
     const stateObject = observe({});
     let childComponents = {};
     let parent;
-    const binding = [];
+    let bound = false;
     let hydrateOnCallback = ()=>{};
     if (!el.init$) {
         Object.defineProperties(el, {
@@ -702,8 +706,31 @@ function initElementAsComponent(el, appState, pageState) {
                 }
             },
             bind$: {
-                get: ()=>{
-                    return binding;
+                value: (fn)=>{
+                    if (bound) {
+                        return;
+                    } else {
+                        const path = el.getAttribute('data-bind');
+                        const arrPath = path ? path.split('.') : [];
+                        if (arrPath.length > 1) {
+                            const key = arrPath[0] + '$';
+                            let obj = el.parent$[key][0];
+                            for(let i = 1; i < arrPath.length - 1; i++){
+                                const idx = parseInt(arrPath[i]);
+                                obj = isNaN(idx) ? obj[arrPath[i]] : obj[idx];
+                            }
+                            const idx = parseInt(arrPath[arrPath.length - 1]);
+                            const property = isNaN(idx) ? arrPath[arrPath.length - 1] : idx;
+                            const watch = el.parent$[key][1];
+                            bound = true;
+                            if (typeof obj[property] === 'object') {
+                                for(const key in obj[property]){
+                                    watch(obj[property], key, fn);
+                                }
+                            }
+                            return watch(obj, property, fn);
+                        }
+                    }
                 }
             },
             children$: {
@@ -758,6 +785,12 @@ function initElementAsComponent(el, appState, pageState) {
             hydrateOnComponents$: {
                 get: ()=>{
                     return hydrateOnComponents;
+                }
+            },
+            on$: {
+                value: (event, ...args)=>{
+                    const method = el.getAttribute(`data-on-${event}`);
+                    if (method) el.addEventListener(event, ()=>el.parent$[method](args));
                 }
             },
             onMessageReceived$: {
@@ -825,21 +858,6 @@ function initElementAsComponent(el, appState, pageState) {
                 }
             }
         });
-        if (el.hasAttribute('el-bind')) {
-            const path = el.getAttribute('el-bind');
-            const arrPath = path ? path.split('.') : [];
-            if (arrPath.length > 1) {
-                const key = arrPath[0] + '$';
-                binding[0] = el[key][0];
-                for(let i = 1; i < arrPath.length - 1; i++){
-                    const idx = parseInt(arrPath[i]);
-                    binding[0] = isNaN(idx) ? binding[0][arrPath[i]] : binding[0][idx];
-                }
-                const idx = parseInt(arrPath[arrPath.length - 1]);
-                binding[1] = isNaN(idx) ? arrPath[arrPath.length - 1] : idx;
-                binding[2] = el[key][1];
-            }
-        }
     }
     async function onInit(props) {
         el.setAttribute('el-active', '');
