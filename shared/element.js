@@ -1,4 +1,5 @@
-console.log('elementJS:', 'v1.0.0-preview.208');
+console.log('elementJS:', 'v1.0.0-preview.209');
+let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -251,17 +252,17 @@ function observe(objectToObserve, config) {
                     let obj = watchList.get(receiver);
                     if (obj && obj[key]) {
                         const listeners = obj[key];
-                        listeners.forEach((listener)=>listener(receiver, value, oldValue));
+                        listeners.forEach((listener)=>listener(receiver, key));
                     }
                     if (obj && obj['__root__']) {
                         const listeners = obj['__root__'];
-                        listeners.forEach((listener)=>listener(receiver, value, oldValue));
+                        listeners.forEach((listener)=>listener(receiver, key));
                     }
                     if (receiver !== proxy) {
                         obj = watchList.get(proxy);
                         if (obj && obj['__root__']) {
                             const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(receiver, value, oldValue));
+                            listeners.forEach((listener)=>listener(receiver, key));
                         }
                     }
                 }
@@ -270,7 +271,6 @@ function observe(objectToObserve, config) {
         };
     }
     function arrayAccessor(parentTarget, parentKey) {
-        if (parentTarget === null) parentTarget = '__root__';
         return {
             get (target, key, receiver) {
                 if (key === '__proxy__') return true;
@@ -292,25 +292,25 @@ function observe(objectToObserve, config) {
                     return function(...args) {
                         let result;
                         if (key === 'replace') {
-                            result = target[args[0]];
-                            target[args[0]] = args[1];
+                            target[args[0]];
+                            result = target[args[0]] = args[1];
                         } else {
                             result = target[key].apply(target, args);
                         }
                         let obj = watchList.get(parentTarget);
                         if (obj && obj[parentKey]) {
                             const listeners = obj[parentKey];
-                            listeners.forEach((listener)=>listener(parentTarget));
+                            listeners.forEach((listener)=>listener(parentTarget, parentKey));
                         }
                         if (obj && obj['__root__']) {
                             const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(parentTarget));
+                            listeners.forEach((listener)=>listener(parentTarget, parentKey));
                         }
                         if (receiver !== proxy) {
                             obj = watchList.get(proxy);
                             if (obj && obj['__root__']) {
                                 const listeners = obj['__root__'];
-                                listeners.forEach((listener)=>listener(parentTarget));
+                                listeners.forEach((listener)=>listener(parentTarget, parentKey));
                             }
                         }
                         return result;
@@ -334,10 +334,15 @@ function observe(objectToObserve, config) {
                 if (value === oldValue) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    const obj = watchList.get(parentTarget);
+                    let obj = watchList.get(parentTarget);
                     if (obj && obj[parentKey]) {
                         const listeners = obj[parentKey];
-                        listeners.forEach((listener)=>listener(value, oldValue));
+                        listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                    }
+                    obj = watchList.get(parentTarget[parentKey]);
+                    if (obj && obj[key]) {
+                        const listeners = obj[key];
+                        listeners.forEach((listener)=>listener(parentTarget, parentKey));
                     }
                 }
                 return result;
@@ -350,17 +355,13 @@ function observe(objectToObserve, config) {
             return obj;
         }
         if (observablesCache.has(obj)) {
-            return [
-                observablesCache.get(obj),
-                watch,
-                compute
-            ];
+            return observablesCache.get(obj);
         }
         const proxy = new Proxy(obj, objectAccessor());
         observablesCache.set(obj, proxy);
         return proxy;
     }
-    function watch(root, key, fn, { debounceTime = 0, throttleTime = 0 } = {}) {
+    function watch(root, key, fn, el) {
         if (key === null || key === '') key = '__root__';
         let keys = watchList.get(root);
         if (!keys) {
@@ -372,16 +373,20 @@ function observe(objectToObserve, config) {
             listeners = new Set();
             keys[key] = listeners;
         }
-        let effect = fn;
-        if (debounceTime) effect = debounce(fn, debounceTime);
-        if (throttleTime) effect = throttle(fn, throttleTime);
-        listeners.add(effect);
-        effect(root[key]);
+        const listener = (object, key)=>{
+            if (el && !el.parentElement) {
+                listeners.delete(listener);
+                return;
+            }
+            fn(object, key);
+        };
+        listeners.add(listener);
+        listener(root, key);
         return ()=>{
-            listeners.delete(effect);
+            listeners.delete(listener);
         };
     }
-    function compute(fn) {
+    function compute(fn, el) {
         let cachedValue;
         let dirty = true;
         const deps = new Set();
@@ -398,7 +403,7 @@ function observe(objectToObserve, config) {
             activeCompute = null;
             dirty = false;
             deps.forEach(({ root, key })=>{
-                watch(root, key, markDirty);
+                watch(root, key, markDirty, el);
             });
         };
         function markDirty() {
@@ -408,31 +413,6 @@ function observe(objectToObserve, config) {
             get value () {
                 if (dirty) recompute();
                 return cachedValue;
-            }
-        };
-    }
-    function debounce(fn, delay) {
-        let timeout;
-        return function(value, oldValue) {
-            clearTimeout(timeout);
-            timeout = setTimeout(()=>fn(value, oldValue), delay);
-        };
-    }
-    function throttle(fn, limit) {
-        let lastFn;
-        let lastRan;
-        return function(value, oldValue) {
-            if (!lastRan) {
-                fn(value, oldValue);
-                lastRan = Date.now();
-            } else {
-                clearTimeout(lastFn);
-                lastFn = setTimeout(()=>{
-                    if (Date.now() - lastRan >= limit) {
-                        fn(value, oldValue);
-                        lastRan = Date.now();
-                    }
-                }, limit - (Date.now() - lastRan));
             }
         };
     }
@@ -658,7 +638,6 @@ function initElementAsComponent(el, appState, pageState) {
             },
             initChildren$: {
                 value: ()=>{
-                    let idCount = 0;
                     let children;
                     el.children$ = {};
                     if (el.componentState$ === 2) {
@@ -685,7 +664,8 @@ function initElementAsComponent(el, appState, pageState) {
                         children = el.querySelectorAll(':scope [el-id]');
                     }
                     for (const childElement of children){
-                        if (!childElement.getAttribute('el-id')) childElement.setAttribute('el-id', `component${idCount++}`);
+                        childElement.setAttribute('id', `el${++idCount}`);
+                        if (!childElement.getAttribute('el-id')) childElement.setAttribute('el-id', `el${idCount}`);
                         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
                         initElementAsComponent(childElement);
                         childElement.parent$ = el;
@@ -693,6 +673,11 @@ function initElementAsComponent(el, appState, pageState) {
                         if (childElement.is$ != 'component' && childElement.componentState$ !== 2) childElement.componentState$ = 0;
                         el.children$[elId] = childElement;
                     }
+                }
+            },
+            uId$: {
+                get: ()=>{
+                    return el.getAttribute('id');
                 }
             },
             id$: {
@@ -714,21 +699,23 @@ function initElementAsComponent(el, appState, pageState) {
                         const arrPath = path ? path.split('.') : [];
                         if (arrPath.length > 1) {
                             const key = arrPath[0] + '$';
+                            const watch = el.parent$[key][1];
+                            const newWatch = (obj, key, fn)=>{
+                                watch(obj, key, fn, el);
+                            };
                             let obj = el.parent$[key][0];
                             for(let i = 1; i < arrPath.length - 1; i++){
-                                const idx = parseInt(arrPath[i]);
-                                obj = isNaN(idx) ? obj[arrPath[i]] : obj[idx];
+                                obj = obj[arrPath[i]];
                             }
-                            const idx = parseInt(arrPath[arrPath.length - 1]);
-                            const property = isNaN(idx) ? arrPath[arrPath.length - 1] : idx;
-                            const watch = el.parent$[key][1];
+                            const property = arrPath[arrPath.length - 1];
                             bound = true;
                             if (typeof obj[property] === 'object') {
                                 for(const key in obj[property]){
-                                    watch(obj[property], key, fn);
+                                    newWatch(obj[property], key, fn);
                                 }
+                            } else {
+                                return newWatch(obj, property, fn);
                             }
-                            return watch(obj, property, fn);
                         }
                     }
                 }
