@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.209');
+console.log('elementJS:', 'v1.0.0-preview.210');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -217,27 +217,26 @@ function useCaptions(name) {
         return caption;
     };
 }
-function observe(objectToObserve, config) {
+function observe(objectToObserve, name, config) {
     const observablesCache = new WeakMap();
-    const watchList = new WeakMap();
+    const watchList = {};
     let activeCompute = null;
-    function objectAccessor() {
+    function objectAccessor(path) {
         return {
             get (target, key, receiver) {
                 if (key === '__proxy__') return true;
                 const value = Reflect.get(target, key, receiver);
                 if (activeCompute) {
                     activeCompute.deps.add({
-                        root: receiver,
-                        key: key
+                        path
                     });
                 }
                 if (Array.isArray(value) && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, arrayAccessor(receiver, key));
+                    const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
                 } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, objectAccessor());
+                    const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
                 }
@@ -246,40 +245,20 @@ function observe(objectToObserve, config) {
             set (target, key, value, receiver) {
                 if (value && value.__proxy__) return true;
                 const oldValue = receiver[key];
-                if (value === oldValue) return true;
+                if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    let obj = watchList.get(receiver);
-                    if (obj && obj[key]) {
-                        const listeners = obj[key];
-                        listeners.forEach((listener)=>listener(receiver, key));
-                    }
-                    if (obj && obj['__root__']) {
-                        const listeners = obj['__root__'];
-                        listeners.forEach((listener)=>listener(receiver, key));
-                    }
-                    if (receiver !== proxy) {
-                        obj = watchList.get(proxy);
-                        if (obj && obj['__root__']) {
-                            const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(receiver, key));
-                        }
-                    }
+                    const listeners = watchList[path];
+                    if (listeners) listeners.forEach((listener)=>listener(receiver, key));
                 }
                 return result;
             }
         };
     }
-    function arrayAccessor(parentTarget, parentKey) {
+    function arrayAccessor(path, parentTarget, parentKey) {
         return {
             get (target, key, receiver) {
                 if (key === '__proxy__') return true;
-                if (activeCompute) {
-                    activeCompute.deps.add({
-                        root: parentTarget,
-                        key: parentKey
-                    });
-                }
                 const mutatingMethods = [
                     'push',
                     'pop',
@@ -289,6 +268,11 @@ function observe(objectToObserve, config) {
                     'replace'
                 ];
                 if (mutatingMethods.includes(key)) {
+                    if (activeCompute) {
+                        activeCompute.deps.add({
+                            path
+                        });
+                    }
                     return function(...args) {
                         let result;
                         if (key === 'replace') {
@@ -297,32 +281,25 @@ function observe(objectToObserve, config) {
                         } else {
                             result = target[key].apply(target, args);
                         }
-                        let obj = watchList.get(parentTarget);
-                        if (obj && obj[parentKey]) {
-                            const listeners = obj[parentKey];
-                            listeners.forEach((listener)=>listener(parentTarget, parentKey));
-                        }
-                        if (obj && obj['__root__']) {
-                            const listeners = obj['__root__'];
-                            listeners.forEach((listener)=>listener(parentTarget, parentKey));
-                        }
-                        if (receiver !== proxy) {
-                            obj = watchList.get(proxy);
-                            if (obj && obj['__root__']) {
-                                const listeners = obj['__root__'];
-                                listeners.forEach((listener)=>listener(parentTarget, parentKey));
-                            }
-                        }
+                        const parentPath = path.split('.');
+                        parentPath.pop();
+                        const listeners = watchList[parentPath.join('.')];
+                        if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey));
                         return result;
                     };
                 }
+                if (activeCompute) {
+                    activeCompute.deps.add({
+                        path
+                    });
+                }
                 const value = Reflect.get(target, key, receiver);
                 if (Array.isArray(value) && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, arrayAccessor(receiver, key));
+                    const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
                 } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, objectAccessor());
+                    const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
                 }
@@ -331,19 +308,11 @@ function observe(objectToObserve, config) {
             set (target, key, value, receiver) {
                 if (value && value.__proxy__) return true;
                 const oldValue = receiver[key];
-                if (value === oldValue) return true;
+                if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    let obj = watchList.get(parentTarget);
-                    if (obj && obj[parentKey]) {
-                        const listeners = obj[parentKey];
-                        listeners.forEach((listener)=>listener(parentTarget, parentKey));
-                    }
-                    obj = watchList.get(parentTarget[parentKey]);
-                    if (obj && obj[key]) {
-                        const listeners = obj[key];
-                        listeners.forEach((listener)=>listener(parentTarget, parentKey));
-                    }
+                    const listeners = watchList[path];
+                    if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key));
                 }
                 return result;
             }
@@ -357,33 +326,33 @@ function observe(objectToObserve, config) {
         if (observablesCache.has(obj)) {
             return observablesCache.get(obj);
         }
-        const proxy = new Proxy(obj, objectAccessor());
+        const proxy = new Proxy(obj, objectAccessor(name));
         observablesCache.set(obj, proxy);
         return proxy;
     }
-    function watch(root, key, fn, el) {
-        if (key === null || key === '') key = '__root__';
-        let keys = watchList.get(root);
-        if (!keys) {
-            keys = {};
-            watchList.set(root, keys);
-        }
-        let listeners = keys[key];
+    function watch(root, path, fn, el) {
+        let listeners = watchList[path];
         if (!listeners) {
             listeners = new Set();
-            keys[key] = listeners;
+            watchList[path] = listeners;
         }
         const listener = (object, key)=>{
             if (el && !el.parentElement) {
-                listeners.delete(listener);
+                delete watchList[path];
                 return;
             }
             fn(object, key);
         };
         listeners.add(listener);
-        listener(root, key);
+        let obj = root;
+        const arrPath = path.split('.');
+        for(let i = 1; i < arrPath.length - 1; i++){
+            obj = obj[arrPath[i]];
+        }
+        const property = arrPath.pop();
+        listener(obj, property);
         return ()=>{
-            listeners.delete(listener);
+            delete watchList[path];
         };
     }
     function compute(fn, el) {
@@ -391,9 +360,9 @@ function observe(objectToObserve, config) {
         let dirty = true;
         const deps = new Set();
         const recompute = ()=>{
-            deps.forEach(({ root, key })=>{
-                const keys = watchList.get(root);
-                if (keys && keys[key]) keys[key].delete(markDirty);
+            deps.forEach(({ path })=>{
+                const listeners = watchList[path];
+                if (listeners) listeners.delete(markDirty);
             });
             deps.clear();
             activeCompute = {
@@ -402,8 +371,8 @@ function observe(objectToObserve, config) {
             cachedValue = fn();
             activeCompute = null;
             dirty = false;
-            deps.forEach(({ root, key })=>{
-                watch(root, key, markDirty, el);
+            deps.forEach(({ path })=>{
+                watch(proxy, path, markDirty, el);
             });
         };
         function markDirty() {
@@ -428,7 +397,7 @@ function observe(objectToObserve, config) {
     const proxy = makeObservable(objectToObserve);
     if (config && config.persist && config.key) {
         loadState();
-        watch(proxy, '', persistState);
+        watch(proxy, 'appState', persistState);
     }
     return [
         proxy,
@@ -446,11 +415,11 @@ async function renderDocument(config, ctx) {
         if (!config.pageState) config.pageState = {};
         validateInputs(config, ctx);
         appContext.ctx = ctx;
-        const appState = observe({}, {
+        const appState = observe({}, 'appState', {
             persist: true,
             key: 'elementJS_appState_' + (ctx ? ctx.request.url.hostname : globalThis.location.hostname)
         });
-        const pageState = observe(config.pageState);
+        const pageState = observe(config.pageState, 'pageState');
         if (appContext.server) {
             setExtendedURL(ctx.request.url);
             const el = appContext.documentElement = await getDocumentElement(config);
@@ -512,7 +481,7 @@ async function getDocumentElement(config) {
 function initElementAsComponent(el, appState, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
-    const stateObject = observe({});
+    const stateObject = observe({}, 'state');
     let childComponents = {};
     let parent;
     let bound = false;
@@ -664,7 +633,7 @@ function initElementAsComponent(el, appState, pageState) {
                         children = el.querySelectorAll(':scope [el-id]');
                     }
                     for (const childElement of children){
-                        childElement.setAttribute('id', `el${++idCount}`);
+                        if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
                         if (!childElement.getAttribute('el-id')) childElement.setAttribute('el-id', `el${idCount}`);
                         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
                         initElementAsComponent(childElement);
@@ -696,27 +665,16 @@ function initElementAsComponent(el, appState, pageState) {
                         return;
                     } else {
                         const path = el.getAttribute('data-bind');
+                        if (path === null) return;
                         const arrPath = path ? path.split('.') : [];
-                        if (arrPath.length > 1) {
-                            const key = arrPath[0] + '$';
-                            const watch = el.parent$[key][1];
-                            const newWatch = (obj, key, fn)=>{
-                                watch(obj, key, fn, el);
-                            };
-                            let obj = el.parent$[key][0];
-                            for(let i = 1; i < arrPath.length - 1; i++){
-                                obj = obj[arrPath[i]];
-                            }
-                            const property = arrPath[arrPath.length - 1];
-                            bound = true;
-                            if (typeof obj[property] === 'object') {
-                                for(const key in obj[property]){
-                                    newWatch(obj[property], key, fn);
-                                }
-                            } else {
-                                return newWatch(obj, property, fn);
-                            }
-                        }
+                        const stateProp = arrPath[0] + '$';
+                        const watch = el.parent$[stateProp][1];
+                        const newWatch = (obj, path, fn)=>{
+                            watch(obj, path, fn, el);
+                        };
+                        const obj = el.parent$[stateProp][0];
+                        bound = true;
+                        return newWatch(obj, path, fn);
                     }
                 }
             },
@@ -1131,6 +1089,27 @@ async function loadDependencies(dependencies) {
         console.error('Failed to load dependencies:', e);
         throw e;
     }
+}
+function deepEqual(a, b) {
+    if (a === b) return true;
+    if (a === null || b === null) return a === b;
+    if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return false;
+        for(let i = 0; i < a.length; i++){
+            if (!deepEqual(a[i], b[i])) return false;
+        }
+        return true;
+    }
+    if (typeof a === "object" && typeof b === "object") {
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        for (const key of keysA){
+            if (!deepEqual(a[key], b[key])) return false;
+        }
+        return true;
+    }
+    return false;
 }
 createComponent('document', (el)=>{
     el.define$({
