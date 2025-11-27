@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.211');
+console.log('elementJS:', 'v1.0.0-preview.212');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -998,8 +998,8 @@ function addPropsFromAttributes(el, props) {
 }
 function addMissingLifecycleMethods(el) {
     if (typeof el.use$ == 'undefined') el.use$ = ()=>[];
-    if (typeof el.style$ == 'undefined') el.style$ = ()=>{};
-    if (typeof el.template$ == 'undefined') el.template$ = ()=>{};
+    if (typeof el.onStyle$ == 'undefined') el.onStyle$ = ()=>{};
+    if (typeof el.onTemplate$ == 'undefined') el.onTemplate$ = ()=>{};
     if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
     if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
     if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
