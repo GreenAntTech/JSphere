@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.210');
+console.log('elementJS:', 'v1.0.0-preview.211');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -522,13 +522,12 @@ function initElementAsComponent(el, appState, pageState) {
                             await onPostRender();
                             await onHydrate(props);
                             onHydrateOn('0');
+                            await onReady(props);
                             docEl.removeAttribute('el-server-rendered');
-                            for(const id in el.children$){
-                                el.children$[id].onLoaded$(props);
-                            }
                         } else {
                             await onPostRender();
                             await onHydrate(props);
+                            await onReady(props);
                         }
                         return el.children$;
                     } else if (docEl.hasAttribute('el-client-rendering')) {
@@ -544,23 +543,24 @@ function initElementAsComponent(el, appState, pageState) {
                             docEl.setAttribute('el-client-hydrating', 'true');
                             await onHydrate(props);
                             onHydrateOn('1');
+                            await onReady(props);
                             docEl.removeAttribute('el-client-hydrating');
-                            for(const id in el.children$){
-                                el.children$[id].onLoaded$(props);
-                            }
                         }
                         return el.children$;
                     } else if (docEl.hasAttribute('el-client-hydrating')) {
                         props = addPropsFromAttributes(el, props);
                         await onHydrate(props);
+                        await onReady(props);
                         return el.children$;
                     } else if (el.getAttribute('el-hydration-delayed') == '0') {
                         props = addPropsFromAttributes(el, props);
                         if (el.componentState$ === 2) {
                             await onPostRender();
                             await onHydrate(props);
+                            await onReady(props);
                         } else if (el.componentState$ === 3) {
                             await onHydrate(props);
+                            await onReady(props);
                         }
                         return el.children$;
                     } else if ([
@@ -570,8 +570,10 @@ function initElementAsComponent(el, appState, pageState) {
                         props = addPropsFromAttributes(el, props);
                         if (el.componentState$ === 2) {
                             await onHydrate(props);
+                            await onReady(props);
                         } else if (el.componentState$ === 3) {
                             await onHydrate(props);
+                            await onReady(props);
                         }
                         return el.children$;
                     } else {
@@ -586,6 +588,7 @@ function initElementAsComponent(el, appState, pageState) {
                             await onRender(props);
                             await onHydrate(props);
                             onHydrateOn('2');
+                            await onReady(props);
                         }
                         if (el.componentState$ === 0) {
                             addMissingLifecycleMethods(el);
@@ -600,6 +603,7 @@ function initElementAsComponent(el, appState, pageState) {
                             await onRender(props);
                         } else if (el.componentState$ === 2 || el.componentState$ === 3) {
                             await onHydrate(props);
+                            await onReady(props);
                         }
                         return el.children$;
                     }
@@ -672,9 +676,16 @@ function initElementAsComponent(el, appState, pageState) {
                         const newWatch = (obj, path, fn)=>{
                             watch(obj, path, fn, el);
                         };
-                        const obj = el.parent$[stateProp][0];
+                        const state = el.parent$[stateProp][0];
+                        let obj = state;
+                        for(let i = 1; i < arrPath.length - 1; i++){
+                            obj = obj[arrPath[i]];
+                        }
                         bound = true;
-                        return newWatch(obj, path, fn);
+                        return [
+                            obj,
+                            newWatch(state, path, fn)
+                        ];
                     }
                 }
             },
@@ -813,7 +824,7 @@ function initElementAsComponent(el, appState, pageState) {
     async function onStyle(props) {
         const theme = props.theme || '';
         const themeId = el.is$ + (theme ? '_' + theme : '');
-        let css = el.style$(props);
+        let css = el.onStyle$(props);
         if (!css) return;
         if (css.endsWith('.css')) {
             const path = css;
@@ -857,7 +868,7 @@ function initElementAsComponent(el, appState, pageState) {
     }
     async function onTemplate(props) {
         let content;
-        const template = el.template$(props);
+        const template = el.onTemplate$(props);
         if (template && template.startsWith('/')) {
             const url = template;
             if (appContext.server) {
@@ -886,7 +897,7 @@ function initElementAsComponent(el, appState, pageState) {
         await el.onRender$(props);
         for(const id in el.children$){
             const child = el.children$[id];
-            if (child.componentState$ === 0 && !child.hasAttribute('el-auto-init-off')) await child.init$();
+            if (child.componentState$ === 0) await child.init$();
         }
         el.componentState$ = 2;
     }
@@ -905,7 +916,7 @@ function initElementAsComponent(el, appState, pageState) {
             await el.onHydrate$(props);
             for(const id in el.children$){
                 const child = el.children$[id];
-                if (child.componentState$ === 2 && !child.hasAttribute('el-auto-init-off')) await child.init$();
+                if (child.componentState$ === 2) await child.init$();
             }
             if (el.componentState$ == 3) {
                 el.removeAttribute('el-hydration-delayed');
@@ -914,6 +925,9 @@ function initElementAsComponent(el, appState, pageState) {
             }
             el.componentState$ = -1;
         }
+    }
+    async function onReady(props) {
+        await el.onReady$(props);
     }
     function onHydrateOn(state) {
         const hydrateOnComponents = el.ownerDocument.documentElement.hydrateOnComponents$;
@@ -989,7 +1003,7 @@ function addMissingLifecycleMethods(el) {
     if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
     if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
     if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
-    if (typeof el.onLoaded$ == 'undefined') el.onLoaded$ = ()=>{};
+    if (typeof el.onReady$ == 'undefined') el.onReady$ = ()=>{};
 }
 function sanitize(code) {
     const sanitizedCode = code.replaceAll(/\?eTag=[a-zA-Z0-9:]+[\"]/g, '\"').replaceAll(/\?eTag=[a-zA-Z0-9:]+[\']/g, '\'');
