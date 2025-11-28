@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.212');
+console.log('elementJS:', 'v1.0.0-preview.213');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -248,7 +248,7 @@ function observe(objectToObserve, name, config) {
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    const listeners = watchList[path];
+                    const listeners = watchList[`${path}.${key}`];
                     if (listeners) listeners.forEach((listener)=>listener(receiver, key));
                 }
                 return result;
@@ -482,6 +482,7 @@ function initElementAsComponent(el, appState, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
     const stateObject = observe({}, 'state');
+    let props = {};
     let childComponents = {};
     let parent;
     let bound = false;
@@ -502,11 +503,11 @@ function initElementAsComponent(el, appState, pageState) {
                 }
             },
             init$: {
-                value: async (props)=>{
+                value: async (obj)=>{
                     const docEl = el.ownerDocument.documentElement;
                     if (appContext.server) {
                         if (el.renderAtClient$) return el.children$;
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         addMissingLifecycleMethods(el);
                         await loadDependencies(el.use$(props));
                         await onInit(props);
@@ -515,7 +516,7 @@ function initElementAsComponent(el, appState, pageState) {
                         await onRender(props);
                         return el.children$;
                     } else if (docEl.hasAttribute('el-server-rendered')) {
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         addMissingLifecycleMethods(el);
                         await loadDependencies(el.use$(props));
                         if (el.is$ == 'document') {
@@ -531,7 +532,7 @@ function initElementAsComponent(el, appState, pageState) {
                         }
                         return el.children$;
                     } else if (docEl.hasAttribute('el-client-rendering')) {
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         addMissingLifecycleMethods(el);
                         await loadDependencies(el.use$(props));
                         await onInit(props);
@@ -548,12 +549,12 @@ function initElementAsComponent(el, appState, pageState) {
                         }
                         return el.children$;
                     } else if (docEl.hasAttribute('el-client-hydrating')) {
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         await onHydrate(props);
                         await onReady(props);
                         return el.children$;
                     } else if (el.getAttribute('el-hydration-delayed') == '0') {
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         if (el.componentState$ === 2) {
                             await onPostRender();
                             await onHydrate(props);
@@ -567,7 +568,7 @@ function initElementAsComponent(el, appState, pageState) {
                         '1',
                         '2'
                     ].includes(el.getAttribute('el-hydration-delayed'))) {
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         if (el.componentState$ === 2) {
                             await onHydrate(props);
                             await onReady(props);
@@ -577,7 +578,7 @@ function initElementAsComponent(el, appState, pageState) {
                         }
                         return el.children$;
                     } else {
-                        props = addPropsFromAttributes(el, props);
+                        props = addPropsFromAttributes(el, obj);
                         if (el.componentState$ === -1) {
                             el.componentState$ = 0;
                             addMissingLifecycleMethods(el);
@@ -668,8 +669,8 @@ function initElementAsComponent(el, appState, pageState) {
                     if (bound) {
                         return;
                     } else {
-                        const path = el.getAttribute('data-bind');
-                        if (path === null) return;
+                        const path = props.bind;
+                        if (path === null || path === undefined) return;
                         const arrPath = path ? path.split('.') : [];
                         const stateProp = arrPath[0] + '$';
                         const watch = el.parent$[stateProp][1];
@@ -746,7 +747,8 @@ function initElementAsComponent(el, appState, pageState) {
             on$: {
                 value: (event, ...args)=>{
                     const method = el.getAttribute(`data-on-${event}`);
-                    if (method) el.addEventListener(event, ()=>el.parent$[method](args));
+                    if (typeof method == 'string') el.addEventListener(event, ()=>el.parent$[method](args));
+                    else if (typeof method == 'function') el.addEventListener(event, ()=>method(args));
                 }
             },
             onMessageReceived$: {
@@ -998,9 +1000,9 @@ function addPropsFromAttributes(el, props) {
 }
 function addMissingLifecycleMethods(el) {
     if (typeof el.use$ == 'undefined') el.use$ = ()=>[];
+    if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
     if (typeof el.onStyle$ == 'undefined') el.onStyle$ = ()=>{};
     if (typeof el.onTemplate$ == 'undefined') el.onTemplate$ = ()=>{};
-    if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
     if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
     if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
     if (typeof el.onReady$ == 'undefined') el.onReady$ = ()=>{};
