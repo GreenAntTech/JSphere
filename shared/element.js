@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.213');
+console.log('elementJS:', 'v1.0.0-preview.214');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -746,7 +746,7 @@ function initElementAsComponent(el, appState, pageState) {
             },
             on$: {
                 value: (event, ...args)=>{
-                    const method = el.getAttribute(`data-on-${event}`);
+                    const method = props[`on-${event}`];
                     if (typeof method == 'string') el.addEventListener(event, ()=>el.parent$[method](args));
                     else if (typeof method == 'function') el.addEventListener(event, ()=>method(args));
                 }
