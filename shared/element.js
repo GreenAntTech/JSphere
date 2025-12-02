@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.215');
+console.log('elementJS:', 'v1.0.0-preview.216');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -433,6 +433,7 @@ async function renderDocument(config, ctx) {
             }
             el.setAttribute('el-state', JSON.stringify(config.pageState));
             el.setAttribute('el-server-rendered', 'true');
+            el.setAttribute('el-id-count', idCount.toString());
             return el;
         } else {
             const el = document.documentElement;
