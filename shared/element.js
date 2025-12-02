@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.214');
+console.log('elementJS:', 'v1.0.0-preview.215');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -438,9 +438,14 @@ async function renderDocument(config, ctx) {
             const el = document.documentElement;
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
-            if (!el.hasAttribute('el-server-rendered')) el.setAttribute('el-client-rendering', 'true');
+            if (el.hasAttribute('el-server-rendered')) {
+                idCount = parseInt(el.getAttribute('el-id-count'));
+                el.removeAttribute('el-id-count');
+            } else {
+                el.setAttribute('el-client-rendering', 'true');
+            }
             if (el.hasAttribute('el-state')) {
-                Object.assign(pageState, JSON.parse(el.getAttribute('el-state')));
+                Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
                 el.removeAttribute('el-state');
             }
             initElementAsComponent(el, appState, pageState);
@@ -482,6 +487,12 @@ function initElementAsComponent(el, appState, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
     const stateObject = observe({}, 'state');
+    const tagNameMap = {
+        ul: 'li',
+        ol: 'li',
+        thead: 'tr',
+        tbody: 'tr'
+    };
     let props = {};
     let childComponents = {};
     let parent;
@@ -742,6 +753,44 @@ function initElementAsComponent(el, appState, pageState) {
             hydrateOnComponents$: {
                 get: ()=>{
                     return hydrateOnComponents;
+                }
+            },
+            insert$: {
+                value: async (element, action, elId)=>{
+                    if (element.tagName === undefined && tagNameMap[el.tagName.toLowerCase()] === undefined) element.tagName = 'div';
+                    else element.tagName = tagNameMap[el.tagName.toLowerCase()];
+                    const component = el.ownerDocument.createElement(element.tagName);
+                    for(const prop in element){
+                        if (prop == 'tagName' || prop == 'props') continue;
+                        component.setAttribute(prop, element[prop]);
+                    }
+                    await loadDependencies([
+                        element['el-is']
+                    ]);
+                    initElementAsComponent(component);
+                    component.setAttribute('id', `el${++idCount}`);
+                    component.parent$ = el;
+                    component.setAttribute('el-parent', el.id$);
+                    el.children$[element['el-id']] = component;
+                    component.componentState$ = el.componentState$ === -1 ? -1 : 0;
+                    switch(action){
+                        case 'prepend':
+                            el.prepend(component);
+                            break;
+                        case 'append':
+                            el.append(component);
+                            break;
+                        case 'before':
+                            el.children$[elId].before(component);
+                            break;
+                        case 'after':
+                            el.children$[elId].after(component);
+                            break;
+                        default:
+                            el.append(component);
+                    }
+                    if (!el.ownerDocument.documentElement.hasAttribute('el-component-state')) await component.init$(element.props);
+                    return component;
                 }
             },
             on$: {
