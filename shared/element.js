@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.216');
+console.log('elementJS:', 'v1.0.0-preview.217');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -790,7 +790,7 @@ function initElementAsComponent(el, appState, pageState) {
                         default:
                             el.append(component);
                     }
-                    if (!el.ownerDocument.documentElement.hasAttribute('el-component-state')) await component.init$(element.props);
+                    if (el.componentState$ === -1) await component.init$(element.props);
                     return component;
                 }
             },
@@ -816,7 +816,6 @@ function initElementAsComponent(el, appState, pageState) {
             },
             remove$: {
                 value: ()=>{
-                    delete el.parent$.children$[el.id$];
                     el.parent$.removeChild(el);
                 }
             },
