@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.217');
+console.log('elementJS:', 'v1.0.0-preview.218');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -249,7 +249,7 @@ function observe(objectToObserve, name, config) {
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
                     const listeners = watchList[`${path}.${key}`];
-                    if (listeners) listeners.forEach((listener)=>listener(receiver, key));
+                    if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
                 }
                 return result;
             }
@@ -274,9 +274,9 @@ function observe(objectToObserve, name, config) {
                         });
                     }
                     return function(...args) {
-                        let result;
+                        let result, oldValue;
                         if (key === 'replace') {
-                            target[args[0]];
+                            oldValue = target[args[0]];
                             result = target[args[0]] = args[1];
                         } else {
                             result = target[key].apply(target, args);
@@ -284,7 +284,7 @@ function observe(objectToObserve, name, config) {
                         const parentPath = path.split('.');
                         parentPath.pop();
                         const listeners = watchList[parentPath.join('.')];
-                        if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey));
+                        if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
                         return result;
                     };
                 }
@@ -312,7 +312,7 @@ function observe(objectToObserve, name, config) {
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
                     const listeners = watchList[path];
-                    if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key));
+                    if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
                 }
                 return result;
             }
@@ -336,12 +336,12 @@ function observe(objectToObserve, name, config) {
             listeners = new Set();
             watchList[path] = listeners;
         }
-        const listener = (object, key)=>{
+        const listener = (object, key, oldValue)=>{
             if (el && !el.parentElement) {
                 delete watchList[path];
                 return;
             }
-            fn(object, key);
+            fn(object, key, oldValue);
         };
         listeners.add(listener);
         let obj = root;
@@ -350,7 +350,7 @@ function observe(objectToObserve, name, config) {
             obj = obj[arrPath[i]];
         }
         const property = arrPath.pop();
-        listener(obj, property);
+        listener(obj, property, obj[property]);
         return ()=>{
             delete watchList[path];
         };
@@ -1194,59 +1194,6 @@ createComponent('document', (el)=>{
         }
     });
 });
-createComponent('list', (el)=>{
-    const tagNameMap = {
-        ul: 'li',
-        ol: 'li',
-        thead: 'tr',
-        tbody: 'tr'
-    };
-    el.define$({
-        onHydrate$: async (props)=>{
-            for(const child in el.children$){
-                await el.children$[child].init$(props);
-            }
-        },
-        clear$: ()=>{
-            el.innerHTML = '';
-        },
-        insert$: async (element, action, elId)=>{
-            if (element.tagName === undefined && tagNameMap[el.tagName.toLowerCase()] === undefined) element.tagName = 'div';
-            else element.tagName = tagNameMap[el.tagName.toLowerCase()];
-            const component = el.ownerDocument.createElement(element.tagName);
-            for(const prop in element){
-                if (prop == 'tagName' || prop == 'props') continue;
-                component.setAttribute(prop, element[prop]);
-            }
-            await loadDependencies([
-                element['el-is']
-            ]);
-            initElementAsComponent(component);
-            component.parent$ = el;
-            component.setAttribute('el-parent', el.id$);
-            el.children$[element['el-id']] = component;
-            component.componentState$ = el.componentState$ === -1 ? -1 : 0;
-            switch(action){
-                case 'prepend':
-                    el.prepend(component);
-                    break;
-                case 'append':
-                    el.append(component);
-                    break;
-                case 'before':
-                    el.children$[elId].before(component);
-                    break;
-                case 'after':
-                    el.children$[elId].after(component);
-                    break;
-                default:
-                    el.append(component);
-            }
-            await component.init$(element.props);
-            return component;
-        }
-    });
-});
 createComponent('component', (el)=>{
     el.define$({
         text$: {
@@ -1325,10 +1272,10 @@ createComponent('caption', (el)=>{
             state.params = props.params;
         },
         onHydrate$: ()=>{
-            watchAppState(appState, 'captionPack', ()=>{
+            watchAppState(appState, 'appState.captionPack', ()=>{
                 setCaption(state.params);
             });
-            watchPageState(pageState, 'captionPack', ()=>{
+            watchPageState(pageState, 'pageState.captionPack', ()=>{
                 setCaption(state.params);
             });
         },
