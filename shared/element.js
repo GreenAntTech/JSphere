@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.218');
+console.log('elementJS:', 'v1.0.0-preview.219');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -537,6 +537,15 @@ function initElementAsComponent(el, appState, pageState) {
                             onHydrateOn('0');
                             await onReady(props);
                             docEl.removeAttribute('el-server-rendered');
+                        } else if (el.componentState$ === -1) {
+                            el.componentState$ = 0;
+                            await onInit(props);
+                            await onStyle(props);
+                            await onTemplate(props);
+                            await onRender(props);
+                            await onHydrate(props);
+                            onHydrateOn('2');
+                            await onReady(props);
                         } else {
                             await onPostRender();
                             await onHydrate(props);
@@ -562,8 +571,21 @@ function initElementAsComponent(el, appState, pageState) {
                         return el.children$;
                     } else if (docEl.hasAttribute('el-client-hydrating')) {
                         props = addPropsFromAttributes(el, obj);
-                        await onHydrate(props);
-                        await onReady(props);
+                        if (el.componentState$ === -1 || el.componentState$ === 0) {
+                            el.componentState$ = 0;
+                            addMissingLifecycleMethods(el);
+                            await onInit(props);
+                            await onStyle(props);
+                            await onTemplate(props);
+                            await onRender(props);
+                            await onHydrate(props);
+                            onHydrateOn('1');
+                            await onReady(props);
+                        } else {
+                            await onHydrate(props);
+                            onHydrateOn('1');
+                            await onReady(props);
+                        }
                         return el.children$;
                     } else if (el.getAttribute('el-hydration-delayed') == '0') {
                         props = addPropsFromAttributes(el, obj);
