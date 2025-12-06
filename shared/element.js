@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.219');
+console.log('elementJS:', 'v1.0.0-preview.220');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -248,7 +248,9 @@ function observe(objectToObserve, name, config) {
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    const listeners = watchList[`${path}.${key}`];
+                    let listeners = watchList[`${path}.${key}`];
+                    if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
+                    listeners = watchList[path.split('.')[0]];
                     if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
                 }
                 return result;
@@ -281,9 +283,9 @@ function observe(objectToObserve, name, config) {
                         } else {
                             result = target[key].apply(target, args);
                         }
-                        const parentPath = path.split('.');
-                        parentPath.pop();
-                        const listeners = watchList[parentPath.join('.')];
+                        let listeners = watchList[path];
+                        if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
+                        listeners = watchList[path.split('.')[0]];
                         if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
                         return result;
                     };
@@ -311,7 +313,9 @@ function observe(objectToObserve, name, config) {
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
-                    const listeners = watchList[path];
+                    let listeners = watchList[path];
+                    if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
+                    listeners = watchList[path.split('.')[0]];
                     if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
                 }
                 return result;
