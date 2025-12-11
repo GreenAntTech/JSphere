@@ -78,7 +78,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 *   **Purpose**: To provide CSS rules that are scoped to your component. This is a powerful feature for maintaining style encapsulation.
 *   **Return Value**: A string containing CSS, or a relative path to a `.css` file.
     *   Use the `[el]` token in your CSS selectors; `elementJS` will replace it with the appropriate component selector (e.g., `[el-is="your-component"]` or `[el-is="your-component"][data-theme="blue"]`) to ensure styles are applied only to your component instances.
-*   **Arguments**: `props` - allows you to dynamically generate styles based on component's data-theme attribute or them property.
+*   **Arguments**: `props` - allows you to dynamically generate styles based on component's data-theme attribute or theme property.
 *   **Example**:
     ```javascript
     onStyle$: (props) => `
