@@ -52,6 +52,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 
 *   **When it runs**: Very early in the component's setup, before `onInit$`.
 *   **Purpose**: To declare any external JavaScript modules (dependencies) that your component needs. `elementJS` will ensure these modules are loaded before the component proceeds to `onInit$`.
+*   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Return Value**: An array of strings, where each string is the name of a registered dependency (e.g., a module that subscribes to a set of events or registers  a set of captions).
 *   **Example**:
     ```javascript
@@ -78,7 +79,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 *   **Purpose**: To provide CSS rules that are scoped to your component. This is a powerful feature for maintaining style encapsulation.
 *   **Return Value**: A string containing CSS, or a relative path to a `.css` file.
     *   Use the `[el]` token in your CSS selectors; `elementJS` will replace it with the appropriate component selector (e.g., `[el-is="your-component"]` or `[el-is="your-component"][data-theme="blue"]`) to ensure styles are applied only to your component instances.
-*   **Arguments**: `props` - allows you to dynamically generate styles based on component's data-theme attribute or theme property.
+*   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Example**:
     ```javascript
     onStyle$: (props) => `
@@ -98,7 +99,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 *   **Purpose**: To provide the HTML structure for your component. This is where you define the visual layout and any child components.
 *   **Return Value**: A string containing HTML, or a relative path to an HTML file.
     *   **Crucially**: If `onTemplate$` is *not* provided and the component is attached to a <head or <body element, `elementJS` will use the component's existing `innerHTML` as its template. This allows the component to augment the existing static HTML of the <head or <body element.
-*   **Arguments**: `props` - allows you to dynamically generate HTML based on component properties.
+*   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Child Components**: You declare child components using `el-is="child-component-name"` attributes within your HTML template.
 *   **Example**:
     ```javascript
@@ -114,7 +115,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 
 *   **When it runs**: After `onTemplate$` (meaning the component's HTML is now in the DOM) and before `onHydrate$`.
 *   **Purpose**: To programmatically render or update child components, or perform any final DOM manipulations that don't involve adding interactivity.
-*   **Arguments**: `props`.
+*   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Child Component Interaction**: This is typically where you would call `await childElement.init$(childProps)` to pass data to child components and ensure they are fully rendered based on that data.
 *   **Example**:
     ```javascript
@@ -128,7 +129,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 
 *   **When it runs**: After `onRender$`. This is the phase where the component becomes interactive.
 *   **Purpose**: To attach event listeners, set up reactive bindings, or perform any actions that make the component responsive to user input or state changes. This phase is crucial for client-side interactivity, especially after server-side rendering.
-*   **Arguments**: `props`.
+*   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Key Actions**:
     *   `el.addEventListener('event', handler)`: Attaching standard DOM event listeners.
     *   `el.on$('event', ...args)`: Using the `elementJS` abstraction for event handling, which implicitly calls parent methods or dynamically assigned handlers.
@@ -149,7 +150,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 
 *   **When it runs**: After `onHydrate$`. This is the final lifecycle method in the initial component setup sequence.
 *   **Purpose**: To perform any actions that should occur only after the component and its children are fully rendered and interactive. This can be logging, final third-party library initializations, or dispatching an event indicating the component is fully ready.
-*   **Arguments**: `props`.
+*   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Example**:
     ```javascript
     onReady$: (props) => {
