@@ -48,7 +48,7 @@ createComponent$('my-component', (el) => {
 
 The lifecycle methods are executed in a specific order, as dictated by the `el.init$` method (which is called by `renderDocument$` or a parent component).
 
-#### a. `use$()`: Declaring External Dependencies
+#### a. `use$(props)`: Declaring External Dependencies
 
 *   **When it runs**: Very early in the component's setup, before `onInit$`.
 *   **Purpose**: To declare any external JavaScript modules (dependencies) that your component needs. `elementJS` will ensure these modules are loaded before the component proceeds to `onInit$`.
@@ -60,7 +60,7 @@ The lifecycle methods are executed in a specific order, as dictated by the `el.i
 
 #### b. `onInit$(props)`: Initializing Component Data
 
-*   **When it runs**: After `use$` and before `onStyle$`. It's the first method to receive `props`.
+*   **When it runs**: After `use$` and before `onStyle$`.
 *   **Purpose**: Ideal for setting up initial component state, fetching data (e.g., via `emitMessage$`), or performing any one-time setup that doesn't involve DOM manipulation.
 *   **Arguments**: `props` - an object containing properties passed to the component (e.g., from `data-*` attributes or `parent.child.init$(props)` calls).
 *   **Example**:
