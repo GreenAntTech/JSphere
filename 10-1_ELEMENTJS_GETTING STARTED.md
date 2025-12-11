@@ -1,11 +1,3 @@
-Hello Yohan,
-
-Thank you for providing the updated `elementJS` source code! Having the latest implementation is invaluable for accurately describing component creation and its lifecycle methods.
-
-Based on the provided `elementJS` source and our previous discussions, here's a comprehensive explanation of how to create a component and its lifecycle methods. This will be an excellent foundation for your documentation, emphasizing the framework's blend of standard web development practices with powerful reactive features.
-
----
-
 ## Creating Components and Understanding Their Lifecycle in elementJS
 
 **elementJS** empowers you to build modular and reactive user interfaces by defining reusable components. These components are essentially augmented HTML elements that encapsulate their own behavior, styling, and structure, all while maintaining a close relationship with standard web technologies.
