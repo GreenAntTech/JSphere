@@ -822,7 +822,7 @@ const LF = "\n";
 const CRLF = "\r\n";
 Deno?.build.os === "windows" ? CRLF : LF;
 const cmdArgs = parse(Deno.args);
-const JSPHERE_VERSION = 'v1.0.0-preview.222';
+const JSPHERE_VERSION = 'v1.0.0-preview.223';
 const DENO_VERSION = '2.2.4';
 (async function() {
     try {

@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.222');
+console.log('elementJS:', 'v1.0.0-preview.223');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
