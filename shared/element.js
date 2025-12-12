@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.220');
+console.log('elementJS:', 'v1.0.0-preview.222');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -100,19 +100,6 @@ globalThis.addEventListener('popstate', async ()=>{
         }
     }
 }, false);
-globalThis.addEventListener('storage', (event)=>{
-    if (event.storageArea === localStorage) {
-        if (event.key === 'elementJS_appState_' + globalThis.location.hostname) {
-            try {
-                const updatedAppState = JSON.parse(event.newValue || '{}');
-                Object.assign(globalThis.document.documentElement.appState$[0], updatedAppState);
-                console.log(`Tab received appState update:`, updatedAppState);
-            } catch (e) {
-                console.error('Failed to parse updated appState from storage event:', e);
-            }
-        }
-    }
-});
 const extendedURL = {};
 const feature = new Feature(getFeatureFlags());
 const registeredAllowedOrigins = [
@@ -171,11 +158,14 @@ function navigateTo(path) {
     }
 }
 async function elementFetch(input, options = {
-    headers: {}
+    headers: []
 }) {
     if (appContext.server) {
-        input = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port}${input}`;
-        options.headers['element-server-request'] = 'true';
+        input = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port || '80'}${input}`;
+        options.headers.push([
+            'element-server-request',
+            'true'
+        ]);
     }
     return await fetch(input, options);
 }
@@ -966,6 +956,12 @@ function initElementAsComponent(el, appState, pageState) {
             el.innerHTML = sanitize(content);
         } else if (template == '') {
             el.innerHTML = template;
+        } else if (![
+            'HTML',
+            'HEAD',
+            'BODY'
+        ].includes(el.tagName)) {
+            el.innerHTML = '';
         }
         await getDependencies(el);
         el.initChildren$();
