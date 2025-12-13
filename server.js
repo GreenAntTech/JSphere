@@ -25214,7 +25214,7 @@ async function handleRequest6(ctx) {
                             status: 405
                         });
                     }
-                    return await handleCurrentConfig(requestId);
+                    return handleCurrentConfig(requestId);
                 case 'createproject':
                     if (ctx.request.method !== 'POST') {
                         return new Response('Method not allowed', {
@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.223';
+const version = 'v1.0.0-preview.224';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
