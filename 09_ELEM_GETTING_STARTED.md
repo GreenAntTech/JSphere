@@ -64,6 +64,6 @@ The server downloads the `jsphere.d.ts` file and places it into the `/server` fo
 
 ## Verification
 
-After completing these steps, you should find the `element.js` and `urlpattern.js` files within your main project package's `client/shared` directory, and the `jsphere.d.ts` file in your project root or a designated types folder.
+After completing these steps, you should find the `element.js` and `urlpattern.js` files within your main project package's `/shared` directory, and the `jsphere.d.ts` file in the root of your main project package's folder.
 
-You can now begin developing `elementJS` components within your JSphere project, importing `element.js` from its new location.
+You can now begin developing `elementJS` components within your JSphere project, importing `element.js` from its installed location.
