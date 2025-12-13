@@ -60,7 +60,7 @@ If you are using TypeScript for your `elementJS` development (which is highly re
     js install-types
     ```
 
-The server downloads the `jsphere.d.ts` file and places it into the `/server` folder of your main application package (e.g., `my-project/server`)., providing type definitions for the `ServerContext`.
+The server downloads the `jsphere.d.ts` file and places it into the `/server` folder of your main application package (e.g., `my-project/server`)., providing type definitions for the `ServerContext`. It aslo downloads the `element.d.ts file and places it into the `/shared` folder of the you main application package (e.g., `my-project/shared`).
 
 ## Verification
 
