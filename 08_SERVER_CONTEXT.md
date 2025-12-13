@@ -497,16 +497,34 @@ if (configItem && configItem.content) {
 
 ### `ctx.cache` - Caching Extension
 
-If you have configured a cache extension in your `app.json`, it will be available as `ctx.cache`. This provides a simple key-value store for frequently accessed data, reducing database load or external API calls.
+The ctx.cache object provides a LRU cache for frequently accessed data, reducing file/database load or external API calls. You can specify default settings in the app.json file.
 
 ```json
 // File: .myproject/app.json (excerpt)
 {
     "extensions": {
         "cache": {
-            "uri": "https://esm.sh/gh/greenanttech/jsphere/extensions/cache.ts",
             "settings": {
-                "ttl": 3600 // Default time-to-live for cache entries in seconds
+                "maxSize": 100 * 1024 * 1024, // Default max size of the cache in kilobytes e.g. 100MB
+                "ttl": 30 * 60 * 1000, // Default time-to-live for cache entries in milliseconds e.g. 30 minutes
+                "cleanupInterval": 5 * 60 * 1000, // Default cleanup interval in milliseconds e.g. 5 minutes
+                "enableMetrics": true // ctx.cache.getMetrics()
+            }
+        }
+    }
+}
+```
+
+You can override the default cache with your own implementation
+
+```json
+// File: .myproject/app.json (excerpt)
+{
+    "extensions": {
+        "cache": {
+            "uri": "/myproject/server/extensions/cache.ts",
+            "settings": {
+                "ttl": 3600 // Default time-to-live for cache entries in milliseconds
             }
         }
     }
@@ -516,35 +534,27 @@ If you have configured a cache extension in your `app.json`, it will be availabl
 ```typescript
 // In your server-side code (e.g., in an onGET for fetching user profile)
 // This code would be inside an onGET function.
-if (ctx.cache) { // Always check if the extension is available
-    const cacheKey = `user:${ctx.user.id}:profile`;
+const cacheKey = `user:${ctx.user.id}:profile`;
 
-    // Try to get data from cache
-    let userProfile = await ctx.cache.get(cacheKey);
+// Try to get data from cache
+let userProfile = await ctx.cache.get(cacheKey);
 
-    if (!userProfile) {
-        // Cache miss: fetch from source (e.g., database)
-        userProfile = await fetchUserProfileFromDatabase(ctx.user.id);
-        if (userProfile) {
-            // Store in cache for 5 minutes (300 seconds)
-            await ctx.cache.set(cacheKey, userProfile, 300);
-        }
+if (!userProfile) {
+    // Cache miss: fetch from source (e.g., database)
+    userProfile = await fetchUserProfileFromDatabase(ctx.user.id);
+    if (userProfile) {
+        // Store in cache for 5 minutes (300 seconds)
+        await ctx.cache.set(cacheKey, userProfile, 300);
     }
-    return ctx.response.json({ profile: userProfile });
-} else {
-    // Handle case where cache is not configured
-    console.warn('Cache extension not available.');
-    // Fallback to direct database fetch
-    const userProfile = await fetchUserProfileFromDatabase(ctx.user.id);
-    return ctx.response.json({ profile: userProfile });
 }
+return ctx.response.json({ profile: userProfile });
 ```
 
 ---
 
 ### `ctx.feature` - Feature Flag Extension
 
-The `ctx.feature` object, if configured, provides a powerful way to implement conditional logic based on feature flags defined in `app.json`.
+The `ctx.feature` object provides a powerful way to implement conditional logic based on feature flags defined in `app.json`.
 
 ```json
 // File: .myproject/app.json (excerpt)
