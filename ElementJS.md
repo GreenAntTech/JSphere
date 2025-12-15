@@ -2,9 +2,9 @@
 
 **The primary goal of `elementJS` is to empower web developers to build high-performance, maintainable, and highly interactive web applications by augmenting standard HTML, CSS, and JavaScript with a lightweight, intuitive, and flexible component-based reactivity system, all while minimizing abstraction from the core web platform.**
 
-Let's break down why each part of that statement is crucial:
+Let's break down why each part of the above statement:
 
-1.  **"To empower web developers..."**: This speaks directly to `elementJS`'s focus on developer ergonomics, ease of understanding, and leveraging existing skills. We want developers to feel capable and productive.
+1.  **"To empower web developers..."**: We want developers to feel capable and productive, therefore, we prioritized `elementJS`'s focus on developer ergonomics, ease of understanding, and leveraging existing skills.
 
 2.  **"...to build high-performance, maintainable, and highly interactive web applications..."**: This covers the desired outcomes for any modern web framework: applications that are fast, easy to update, and engaging for users. Use it to build single page applications or use it serverside with `JSphere` to build SSR applications or combine both together.
 
