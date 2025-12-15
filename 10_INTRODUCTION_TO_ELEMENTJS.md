@@ -18,11 +18,11 @@ Unlike many modern frameworks that introduce layers of abstraction like JSX, Vir
 
 You're familiar with the benefits of component-based architecture and reactive state. `elementJS` offers these same core advantages, but with a distinct philosophy:
 
-*   **HTML-First, Not HTML-Like**: Write your templates in actual HTML strings or files, not JSX or specialized template languages. Your `template$` returns what the browser understands natively.
+*   **HTML-First, Not HTML-Like**: Write your templates in actual HTML strings or files, not JSX or specialized template languages. Your template\ returns what the browser understands natively.
 *   **Direct DOM Control, When You Need It**: While `elementJS` provides powerful declarative binding, it never prevents you from directly manipulating the DOM (`el.textContent`, `el.value`) within your component's lifecycle methods. This offers unmatched control and can lead to highly optimized updates.
 *   **Reactivity Without the Virtual DOM Overhead**: Experience efficient, fine-grained reactivity powered by JavaScript Proxies, directly updating the real DOM. This often translates to smaller bundle sizes and faster initial render times.
 *   **Flexible State Management**: Choose between component-local (`el.state$`), page-global (`el.pageState$`), or persistent (`el.appState$`) reactive state objects, all accessible where you need them, effectively mitigating "prop drilling" without complex context APIs.
-*   **SSR-Aware Hydration by Design**: Our two-way data binding intelligently leverages server-rendered HTML values during client-side hydration, ensuring a seamless transition from static content to interactive application without redundant data fetches.
+*   **SSR With JSphere**: Use `elementJS` serverside with `JSphere` to ensure a seamless transition from static content to interactive application without redundant data fetches.
 *   **Intuitive Binding & Event Handling**: Connect data and events using declarative `data-*` attributes right in your HTML, or take imperative control in JavaScript when dynamic or complex scenarios demand it. You have the choice.
 
 #### **If you're coming from SolidJS:**
