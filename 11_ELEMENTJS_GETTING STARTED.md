@@ -19,7 +19,7 @@ createComponent$('component-name', (el) => {
 
 ### 2. Defining Component Behavior: `el.define$`
 
-Inside the component's initialization function, you use `el.define$` to configure its lifecycle methods, properties, and public methods.
+Inside the component's initialization function, you use `el.define$` to configure its lifecycle methods, public properties and methods.
 
 **Syntax:**
 
