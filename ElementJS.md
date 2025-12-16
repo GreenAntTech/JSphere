@@ -29,7 +29,7 @@ You will get the most value out of this tutorial if you are familiar with:
 
 Let’s get started with the basics.
 
-## How to Add an elementJS Component to a Webpage ##
+## Creating a Clock Application Demo ##
 
 Create a clockapp.html file and add the following code:
 
