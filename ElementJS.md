@@ -156,7 +156,7 @@ Next, you need to define the behavior of your `elementJS` components in a JavaSc
 
 *   **`createComponent$('clock-app', (el) => { ... })`**:
 
-    *   **`'clock-app'`**: This is a unique string that identifies your component. It will be used in your HTML via the `el-is` attribute (e.g., `<div el-is="component-name"></div>`).
+    *   **`'clock-app'`**: This is a unique string that identifies your component. It will be used in your HTML via the `el-is` attribute (e.g., `<div el-is="clock-app" el-id="clockApp"></div>`).
     *   **`(el) => { ... }`**: This is the **initialization function** for your component. It receives a single argument, `el`, which is a reference to the actual HTML element that this component instance is attached to. This `el` object is augmented with `elementJS`-specific properties and methods, providing the interface to define your component's behavior.
     *   This defines our main application component. The `el` parameter provides access to the component's API.
     *   **`el.state$`**: Used to manage the local reactive state of this component instance, here holding the `clock` object (time and color).
