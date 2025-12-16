@@ -47,7 +47,7 @@ Create a clockapp.html file and add the following code:
    </script>
 </head>
 <body>
-   <div el-is="app" el-id="app"></div>
+   <div el-is="clock-app" el-id="clockApp"></div>
 </body>
 </html>
 ```
@@ -57,7 +57,7 @@ Create a file named clockapp.js and add the following code:
 ```JavaScript
 import { createComponent$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';
 
-createComponent$('app', (el) => {
+createComponent$('clock-app', (el) => {
 
     const [state] = el.state$;
 
