@@ -20,4 +20,13 @@ Let's break down each part of the above statement:
 
 In essence, `elementJS` aims to bridge the gap between the raw power and familiarity of vanilla web development and the structured, reactive benefits of modern frameworks, offering a pragmatic and performant alternative.
 
+## What You Should Already Know ##
+
+You will get the most value out of this tutorial if you are familiar with:
+* JavaScript fundamentals (variables, functions, arrays, objects)
+* Basic CSS for styling
+* HTML basics for structure
+
+Let’s get started with the basics.
+
 ## How to Add an elementJS Component to a Website ##
