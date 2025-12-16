@@ -6,7 +6,7 @@ Let's break down each part of the above statement:
 
 1.  **"To empower web developers..."**: We want developers to feel capable and productive, therefore, we prioritized `elementJS`'s focus on developer ergonomics, ease of understanding, and leveraging existing skills.
 
-2.  **"...to build high-performance, maintainable, and highly interactive web applications..."**: This covers the desired outcomes for any modern web framework: applications that are fast, easy to update, and engaging for users. Use it to build single page applications or use it serverside with `JSphere` to build SSR applications or combine both together.
+2.  **"...to build high-performance, maintainable, and highly interactive web applications..."**: This covers the desired outcomes for any modern web framework: applications that are fast, easy to update, and engaging for users.
 
 3.  **"...by augmenting standard HTML, CSS, and JavaScript..."**: This is a core differentiator. `elementJS` doesn't replace these fundamentals; it builds upon them. It uses `data-*` attributes, HTML templates, and direct DOM APIs, making it feel like a natural extension of web standards.
 
