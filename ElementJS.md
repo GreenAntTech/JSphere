@@ -23,7 +23,7 @@ In essence, `elementJS` aims to bridge the gap between the raw power and familia
 ## What You Should Already Know ##
 
 You will get the most value out of this tutorial if you are familiar with:
-* JavaScript fundamentals (variables, functions, arrays, objects)
+* JavaScript fundamentals (variables, functions, arrays, objects, ES modules)
 * Basic CSS for styling
 * HTML basics for structure
 
