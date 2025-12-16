@@ -31,7 +31,7 @@ Let’s get started with the basics.
 
 ## How to Add an elementJS Component to a Webpage ##
 
-Create an index.html file and add the following code
+Create an index.html file and add the following code:
 
 ```HTML
 <!DOCTYPE html>
@@ -52,3 +52,8 @@ Create an index.html file and add the following code
 </html>
 ```
 
+Create a file named contact-form.js and add the following code:
+
+```JavaScript
+
+```
