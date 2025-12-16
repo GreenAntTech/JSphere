@@ -41,7 +41,7 @@ Create a clockapp.html file and add the following code:
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <title>elementJS - Clock App</title>
    <script type="module">
-      import './clock.js';
+      import './clockapp.js';
       import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';
       await renderDocument$();
    </script>
