@@ -31,7 +31,7 @@ Let’s get started with the basics.
 
 ## How to Add an elementJS Component to a Webpage ##
 
-Create an index.html file and add the following code:
+Create a clockapp.html file and add the following code:
 
 ```HTML
 <!DOCTYPE html>
@@ -39,21 +39,89 @@ Create an index.html file and add the following code:
 <head>
    <meta charset="UTF-8">
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <title>Contact Form</title>
+   <title>elementJS - Clock App</title>
    <script type="module">
-      import './contact-form.js';
-      import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.224/shared/element.js';
+      import './clock.js';
+      import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';
       await renderDocument$();
    </script>
 </head>
 <body>
-   <div el-is="contact-form" el-id="contactForm"></div>
+   <div el-is="app" el-id="app"></div>
 </body>
 </html>
 ```
 
-Create a file named contact-form.js and add the following code:
+Create a file named clockapp.js and add the following code:
 
 ```JavaScript
+import { createComponent$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';
 
+createComponent$('app', (el) => {
+
+    const [state] = el.state$;
+
+    const colors = ['black', 'red', 'blue', 'green', 'purple', 'orange'];
+    
+    el.define$({
+        
+        onInit$: () => { 
+            state.clock = {
+                time: getFormattedTime(),
+                color: 'black'
+            }
+        },
+
+        onTemplate$: () => /*html*/`
+            <div style="font-family: monospace;">
+                <label style="margin-right: 0.5rem;">Choose Color:</label>
+                <select el-id="colorPicker" value="black">
+                    ${colors.map(value => `<option value="${value}">${value}</option>`).join("")}
+                </select>
+                <h1 el-is="clock" el-id="clock" data-bind="state.clock"></h1>
+            </div>
+        `,
+
+        onRender$: () => {
+            // const { colorPicker } = el.children$;
+            // for (const color of colors) {
+            //     const option = el.ownerDocument.createElement('option');
+            //     option.setAttribute('value', color);
+            //     option.textContent = color;
+            //     colorPicker.append(option);
+            // }
+        },
+
+        onHydrate$: () => {
+            const { colorPicker } = el.children$;
+            colorPicker.addEventListener('change', () => state.clock.color = colorPicker.value );
+        },
+
+        onReady$: () => {
+            setInterval(() => { state.clock.time = getFormattedTime() }, 1000);
+        }
+    })
+
+    function getFormattedTime() {
+        const now = new Date();
+        return now.toLocaleTimeString("en-CA", {
+            hour12: true,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit"
+        });
+    }
+})
+
+createComponent$('clock', (el) => {
+    el.define$({
+        onReady$: () => {
+            el.bind$((obj, property, _oldValue) => {
+                const clock = (property == 'clock') ? obj[property] : obj;
+                el.textContent = clock.time;
+                el.style.color = clock.color;
+            });
+        }
+    })
+})
 ```
