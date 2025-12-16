@@ -125,3 +125,70 @@ createComponent$('clock', (el) => {
     })
 })
 ```
+
+## How to Add an elementJS Component to a Web Page
+
+One of the core strengths of `elementJS` is its ability to seamlessly integrate with standard HTML. Adding an `elementJS` component to your web page is straightforward, leveraging familiar HTML attributes and a simple JavaScript setup. This section will guide you through the process using our `Clock Application Demo` as a reference.
+
+### Step 1: Prepare Your HTML Structure
+
+To incorporate an `elementJS` component, you need a basic HTML file that includes:
+1.  A standard HTML container element (e.g., a `<div>`) where your `elementJS` application will be mounted.
+2.  A `<script type="module">` tag to load `elementJS` and your application's main JavaScript file.
+
+Let's look at the `clockapp.html` file from our demo:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>elementJS - Clock App</title>
+   <script type="module">
+      import './clockapp.js';
+      import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';
+      await renderDocument$();
+   </script>
+</head>
+<body>
+   <div el-is="clock-app" el-id="clockApp"></div>
+</body>
+</html>
+```
+
+**Key Elements in the HTML:**
+
+*   **`<div el-is="clock-app" el-id="clockApp"></div>`**:
+    *   This `<div>` element serves as the entry point for our main `elementJS` component.
+    *   **`el-is="clock-app"`**: This attribute tells `elementJS` that this HTML element should be treated as an instance of the component named `'clock-app'`. When `elementJS` scans the page, it will look for a component definition registered with this name.
+    *   **`el-id="clockApp"`**: This attribute provides a unique identifier for this specific component instance within the `elementJS` application. It can be used to access this component programmatically (e.g., from a parent component's `el.children$`) or for debugging.
+*   **`<script type="module">`**:
+    *   This tag is crucial for loading your `elementJS` application.
+    *   **`import './clockapp.js';`**: This line imports your main application logic (`clockapp.js`), which will contain the definitions for your `elementJS` components (like `'clock-app'` and `'clock'`).
+    *   **`import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';`**: This imports the essential `renderDocument$` function from the `elementJS` library.
+    *   **`await renderDocument$();`**: This function call initiates the `elementJS` rendering process. It scans the entire HTML document for elements with `el-is` attributes, identifies their corresponding component definitions, and then executes their lifecycle methods to render and hydrate them. The `await` keyword ensures that the rendering process completes before any subsequent synchronous code runs.
+
+### Step 2: Define Your Component in JavaScript
+
+Next, you need to define the behavior of your `elementJS` components in a JavaScript file (e.g., `clockapp.js`). This involves using the `createComponent$` function and defining the component's lifecycle methods.
+
+**Key Aspects in the JavaScript:**
+
+*   **`createComponent$('clock-app', (el) => { ... })`**:
+    *   This defines our main application component. The `el` parameter provides access to the component's API.
+    *   **`el.state$`**: Used to manage the local reactive state of this component instance, here holding the `clock` object (time and color).
+    *   **`onInit$`**: Initializes the `state.clock` object with the current time and a default color.
+    *   **`onTemplate$`**: Provides the HTML structure for the `clock-app`. Notice how it uses JavaScript's `map().join("")` to declaratively generate the `<option>` elements for the color picker. It also declares a child component: `<h1 el-is="clock" el-id="clock" data-bind="state.clock"></h1>`.
+    *   **`onHydrate$`**: Attaches an event listener to the `colorPicker`. When the selection changes, it updates `state.clock.color`, triggering reactivity.
+    *   **`onReady$`**: Sets up a `setInterval` to update `state.clock.time` every second, demonstrating continuous reactivity.
+*   **`createComponent$('clock', (el) => { ... })`**:
+    *   This defines the child component responsible for displaying the time and color.
+    *   **`onHydrate$`**:
+        *   **`el.bind$(...)`**: This is where the magic of reactivity happens. The `clock` component declaratively binds to the `state.clock` property of its parent (`clock-app`) using the `data-bind="state.clock"` attribute on the `<h1>` element.
+        *   The callback function provided to `el.bind$` is executed whenever `state.clock` (or properties within it like `time` or `color`) changes.
+        *   Inside the callback, `el.textContent` and `el.style.color` are directly updated to reflect the current `time` and `color` from the bound state.
+
+### Step 3: Serve Your Application
+
+To see your `elementJS` application in action, you'll need a web server. You can use `JSphere` (as implied by the import path) or any other web server (e.g., `Live Server` for VS Code, `http-server` via npm, or Python's `http.server` module) to serve your `clockapp.html` and `clockapp.js` files.
