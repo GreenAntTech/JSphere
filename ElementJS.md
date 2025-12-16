@@ -37,17 +37,17 @@ Create an index.html file and add the following code
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Form</title>
-    <script type="module">
-        import { renderDocument$ } from '/myproject2/shared/element.js';
-        // Render and hydrate the document, making all components interactive
-        await renderDocument$();
-    </script>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Contact Form</title>
+   <script type="module">
+      import 'contact-form.js';
+      import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.224/shared/element.js';
+      await renderDocument$();
+   </script>
 </head>
 <body>
-    <div el-is="contact-form" el-id="contactForm"></div>
+   <div el-is="contact-form" el-id="contactForm"></div>
 </body>
 </html>
 ```
