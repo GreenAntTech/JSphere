@@ -29,4 +29,26 @@ You will get the most value out of this tutorial if you are familiar with:
 
 Let’s get started with the basics.
 
-## How to Add an elementJS Component to a Website ##
+## How to Add an elementJS Component to a Webpage ##
+
+Create an index.html file and add the following code
+
+```HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Form</title>
+    <script type="module">
+        import { renderDocument$ } from '/myproject2/shared/element.js';
+        // Render and hydrate the document, making all components interactive
+        await renderDocument$();
+    </script>
+</head>
+<body>
+    <div el-is="contact-form" el-id="contactForm"></div>
+</body>
+</html>
+```
+
