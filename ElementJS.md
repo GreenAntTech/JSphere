@@ -136,27 +136,6 @@ To incorporate an `elementJS` component, you need a basic HTML file that include
 1.  A standard HTML container element (e.g., a `<div>`) where your `elementJS` application will be mounted.
 2.  A `<script type="module">` tag to load `elementJS` and your application's main JavaScript file.
 
-Let's look at the `clockapp.html` file from our demo:
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-   <meta charset="UTF-8">
-   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <title>elementJS - Clock App</title>
-   <script type="module">
-      import './clockapp.js';
-      import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.227/shared/element.js';
-      await renderDocument$();
-   </script>
-</head>
-<body>
-   <div el-is="clock-app" el-id="clockApp"></div>
-</body>
-</html>
-```
-
 **Key Elements in the HTML:**
 
 *   **`<div el-is="clock-app" el-id="clockApp"></div>`**:
