@@ -41,7 +41,7 @@ Create an index.html file and add the following code:
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <title>Contact Form</title>
    <script type="module">
-      import 'contact-form.js';
+      import './contact-form.js';
       import { renderDocument$ } from 'https://esm.sh/gh/greenanttech/jsphere@v1.0.0-preview.224/shared/element.js';
       await renderDocument$();
    </script>
