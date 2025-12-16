@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.224';
+const version = 'v1.0.0-preview.227';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25366,14 +25366,22 @@ async function init1(config) {
         if (!project.appConfig.routes) project.appConfig.routes = [];
         if (!project.appConfig.directives) project.appConfig.directives = [];
         if (!project.appConfig.extensions) project.appConfig.extensions = {};
-        if (!project.appConfig.extensions.cache) project.appConfig.extensions.cache = {
-            uri: 'jsphere://Cache',
-            settings: {}
-        };
-        if (!project.appConfig.extensions.feature) project.appConfig.extensions.feature = {
-            uri: 'jsphere://Feature',
-            settings: {}
-        };
+        if (!project.appConfig.extensions.cache || !(typeof project.appConfig.extensions.cache == 'object')) {
+            project.appConfig.extensions.cache = {
+                uri: 'jsphere://Cache',
+                settings: {}
+            };
+        } else if (!project.appConfig.extensions.cache.uri) {
+            project.appConfig.extensions.cache.uri = 'jsphere://Cache';
+        }
+        if (!project.appConfig.extensions.feature || !(typeof project.appConfig.extensions.feature == 'object')) {
+            project.appConfig.extensions.feature = {
+                uri: 'jsphere://Feature',
+                settings: {}
+            };
+        } else if (!project.appConfig.extensions.feature.uri) {
+            project.appConfig.extensions.feature.uri = 'jsphere://Feature';
+        }
         if (!project.appConfig.featureFlags) project.appConfig.featureFlags = [];
         project.appConfig.settings = getSettings(project.appConfig.settings || {});
         if (clearRuntimeCache) {

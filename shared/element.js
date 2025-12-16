@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.224');
+console.log('elementJS:', 'v1.0.0-preview.227');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -238,10 +238,15 @@ function observe(objectToObserve, name, config) {
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
+                    const rootState = path.split('.')[0];
                     let listeners = watchList[`${path}.${key}`];
                     if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
-                    listeners = watchList[path.split('.')[0]];
+                    listeners = watchList[`${path}`];
                     if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
+                    if (path != rootState) {
+                        listeners = watchList[rootState];
+                        if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
+                    }
                 }
                 return result;
             }
@@ -273,10 +278,16 @@ function observe(objectToObserve, name, config) {
                         } else {
                             result = target[key].apply(target, args);
                         }
+                        const rootState = path.split('.')[0];
+                        const parentPath = path.substring(0, path.lastIndexOf('.'));
                         let listeners = watchList[path];
                         if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
-                        listeners = watchList[path.split('.')[0]];
+                        listeners = watchList[parentPath];
                         if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
+                        if (parentPath != rootState) {
+                            listeners = watchList[rootState];
+                            if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
+                        }
                         return result;
                     };
                 }
@@ -303,10 +314,16 @@ function observe(objectToObserve, name, config) {
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
+                    const rootState = path.split('.')[0];
+                    const parentPath = path.substring(0, path.lastIndexOf('.'));
                     let listeners = watchList[path];
                     if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
-                    listeners = watchList[path.split('.')[0]];
+                    listeners = watchList[parentPath];
                     if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
+                    if (parentPath != rootState) {
+                        listeners = watchList[rootState];
+                        if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
+                    }
                 }
                 return result;
             }
@@ -1323,6 +1340,30 @@ createComponent('caption', (el)=>{
             }
         } else el.textContent = caption(el.id$);
     }
+});
+createComponent('bound-input', (el)=>{
+    el.define$({
+        onHydrate$: ()=>{
+            const [obj] = el.bind$((obj, property)=>{
+                if (obj[property]) el.value = obj[property];
+            });
+            el.addEventListener('input', ()=>{
+                obj[el.id$] = el.value;
+            });
+        }
+    });
+});
+createComponent('bound-checkbox', (el)=>{
+    el.define$({
+        onHydrate$: ()=>{
+            const [obj] = el.bind$((obj, property)=>{
+                if (obj[property]) el.checked = obj[property];
+            });
+            el.addEventListener('click', ()=>{
+                obj[el.id$] = el.checked;
+            });
+        }
+    });
 });
 export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, observe as observe$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
 export { observe as observe };
