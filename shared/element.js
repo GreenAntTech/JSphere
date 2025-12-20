@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.230');
+console.log('elementJS:', 'v1.0.0-preview.231');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -681,7 +681,7 @@ function initElementAsComponent(el, appState, pageState) {
                         initElementAsComponent(childElement);
                         childElement.parent$ = el;
                         const elId = childElement.id$;
-                        if (childElement.componentState$ !== 2) childElement.componentState$ = 0;
+                        if (childElement.is$ != 'component' && childElement.componentState$ !== 2) childElement.componentState$ = 0;
                         el.children$[elId] = childElement;
                     }
                 }
@@ -905,7 +905,6 @@ function initElementAsComponent(el, appState, pageState) {
         }
     }
     async function onTemplate(props) {
-        if (el.is$ == 'component') return;
         let content;
         const template = el.onTemplate$(props);
         if (template && template.startsWith('/')) {
@@ -973,8 +972,6 @@ function initElementAsComponent(el, appState, pageState) {
     }
     async function onReady(props) {
         await el.onReady$(props);
-        el.removeAttribute('el-parent');
-        removeDataAttributes(el);
     }
     function onHydrateOn(state) {
         const hydrateOnComponents = el.ownerDocument.documentElement.hydrateOnComponents$;
@@ -1043,13 +1040,6 @@ function addPropsFromAttributes(el, props) {
     }
     props = Object.assign(attrs, props);
     return props;
-}
-function removeDataAttributes(el) {
-    for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) {
-            el.removeAttribute(attr.name);
-        }
-    }
 }
 function kebabToCamelCase(kebabCaseString) {
     return kebabCaseString.replace(/-([a-z])/g, (g)=>g[1].toUpperCase());
