@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.231');
+console.log('elementJS:', 'v1.0.0-preview.232');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -654,26 +654,8 @@ function initElementAsComponent(el, appState, pageState) {
                     el.children$ = {};
                     if (el.componentState$ === 2) {
                         children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
-                    } else if (el.id$ == 'document') {
-                        children = [];
-                        const head = el.querySelector('head');
-                        const body = el.querySelector('body');
-                        if (head) {
-                            if (head.hasAttribute('el-is')) children.push(head);
-                            else {
-                                const components = head.querySelectorAll(':scope [el-id]');
-                                for (const component of components)children.push(component);
-                            }
-                        }
-                        if (body) {
-                            if (body.hasAttribute('el-is')) children.push(body);
-                            else {
-                                const components = body.querySelectorAll(':scope [el-id]');
-                                for (const component of components)children.push(component);
-                            }
-                        }
                     } else {
-                        children = el.querySelectorAll(':scope [el-id]');
+                        children = getChildComponents(el);
                     }
                     for (const childElement of children){
                         if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
@@ -681,7 +663,7 @@ function initElementAsComponent(el, appState, pageState) {
                         initElementAsComponent(childElement);
                         childElement.parent$ = el;
                         const elId = childElement.id$;
-                        if (childElement.is$ != 'component' && childElement.componentState$ !== 2) childElement.componentState$ = 0;
+                        if (childElement.componentState$ !== 2) childElement.componentState$ = 0;
                         el.children$[elId] = childElement;
                     }
                 }
@@ -905,6 +887,7 @@ function initElementAsComponent(el, appState, pageState) {
         }
     }
     async function onTemplate(props) {
+        if (el.is$ == 'component') return;
         let content;
         const template = el.onTemplate$(props);
         if (template && template.startsWith('/')) {
@@ -972,6 +955,8 @@ function initElementAsComponent(el, appState, pageState) {
     }
     async function onReady(props) {
         await el.onReady$(props);
+        el.removeAttribute('el-parent');
+        removeDataAttributes(el);
     }
     function onHydrateOn(state) {
         const hydrateOnComponents = el.ownerDocument.documentElement.hydrateOnComponents$;
@@ -1041,6 +1026,13 @@ function addPropsFromAttributes(el, props) {
     props = Object.assign(attrs, props);
     return props;
 }
+function removeDataAttributes(el) {
+    for (const attr of el.attributes){
+        if (attr.name.startsWith('data-')) {
+            el.removeAttribute(attr.name);
+        }
+    }
+}
 function kebabToCamelCase(kebabCaseString) {
     return kebabCaseString.replace(/-([a-z])/g, (g)=>g[1].toUpperCase());
 }
@@ -1067,6 +1059,18 @@ function setupIntersectionObserver() {
     }, {
         rootMargin: '100px',
         threshold: 0
+    });
+}
+function getChildComponents(parent) {
+    const components = [
+        ...parent.querySelectorAll('[el-id]')
+    ];
+    return components.filter((child)=>{
+        let match = child.closest('[el-is]');
+        if (match.is$ == parent.is$) return true;
+        match = match.parentElement.closest('[el-id]');
+        if (match.id$ == parent.id$) return true;
+        return false;
     });
 }
 function setExtendedURL(url) {
@@ -1219,6 +1223,9 @@ createComponent('list', (el)=>{
         tbody: 'tr'
     };
     el.define$({
+        clear$: ()=>{
+            el.innerHTML = '';
+        },
         append$: async (element)=>{
             const component = await insert(element, 'append');
             return component;
