@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.233');
+console.log('elementJS:', 'v1.0.0-preview.234');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -784,12 +784,14 @@ function initElementAsComponent(el, appState, pageState) {
                 }
             },
             remove$: {
-                value: ()=>{
+                value: async ()=>{
+                    await onCleanup(el);
                     el.parent$.removeChild(el);
                 }
             },
             removeChild$: {
-                value: (childElement)=>{
+                value: async (childElement)=>{
+                    await onCleanup(childElement);
                     delete el.children$[childElement.id$];
                     el.removeChild(childElement);
                 }
@@ -951,6 +953,13 @@ function initElementAsComponent(el, appState, pageState) {
         el.removeAttribute('el-parent');
         removeDataAttributes(el);
     }
+    async function onCleanup(el) {
+        await el.onCleanup$();
+        for(const id in el.children$){
+            const child = el.children$[id];
+            await child.onCleanup$();
+        }
+    }
     function onHydrateOn(state) {
         const hydrateOnComponents = el.ownerDocument.documentElement.hydrateOnComponents$;
         if (hydrateOnComponents.length == 0) {
@@ -1037,6 +1046,7 @@ function addMissingLifecycleMethods(el) {
     if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
     if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
     if (typeof el.onReady$ == 'undefined') el.onReady$ = ()=>{};
+    if (typeof el.onCleanup$ == 'undefined') el.onCleanup$ = ()=>{};
 }
 function sanitize(code) {
     const sanitizedCode = code.replaceAll(/\?eTag=[a-zA-Z0-9:]+[\"]/g, '\"').replaceAll(/\?eTag=[a-zA-Z0-9:]+[\']/g, '\'');
