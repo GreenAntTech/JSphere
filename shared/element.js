@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.232');
+console.log('elementJS:', 'v1.0.0-preview.233');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -887,7 +887,6 @@ function initElementAsComponent(el, appState, pageState) {
         }
     }
     async function onTemplate(props) {
-        if (el.is$ == 'component') return;
         let content;
         const template = el.onTemplate$(props);
         if (template && template.startsWith('/')) {
@@ -910,12 +909,6 @@ function initElementAsComponent(el, appState, pageState) {
             el.innerHTML = sanitize(content);
         } else if (template == '') {
             el.innerHTML = template;
-        } else if (![
-            'HTML',
-            'HEAD',
-            'BODY'
-        ].includes(el.tagName)) {
-            el.innerHTML = '';
         }
         await getDependencies(el);
         el.initChildren$();
