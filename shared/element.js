@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.234');
+console.log('elementJS:', 'v1.0.0-preview.235');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -1180,6 +1180,48 @@ function deepEqual(a, b) {
     }
     return false;
 }
+async function insertElement(parent, element, action, elId) {
+    const tagNameMap = {
+        ul: 'li',
+        ol: 'li',
+        thead: 'tr',
+        tbody: 'tr'
+    };
+    if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
+    else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
+    const component = parent.ownerDocument.createElement(element.tagName);
+    for(const prop in element){
+        if (prop == 'tagName' || prop == 'props') continue;
+        component.setAttribute(prop, element[prop]);
+    }
+    await loadDependencies([
+        element['el-is']
+    ]);
+    initElementAsComponent(component);
+    component.setAttribute('id', `el${++idCount}`);
+    component.parent$ = parent;
+    component.setAttribute('el-parent', parent.id$);
+    parent.children$[element['el-id']] = component;
+    component.componentState$ = parent.componentState$ === -1 ? -1 : 0;
+    switch(action){
+        case 'prepend':
+            parent.prepend(component);
+            break;
+        case 'append':
+            parent.append(component);
+            break;
+        case 'before':
+            parent.children$[elId].before(component);
+            break;
+        case 'after':
+            parent.children$[elId].after(component);
+            break;
+        default:
+            parent.append(component);
+    }
+    if (parent.componentState$ === -1) await component.init$(element.props);
+    return component;
+}
 createComponent('document', (el)=>{
     el.define$({
         onRender$: async (props)=>{
@@ -1218,70 +1260,74 @@ createComponent('component', (el)=>{
         }
     });
 });
-createComponent('list', (el)=>{
-    const tagNameMap = {
-        ul: 'li',
-        ol: 'li',
-        thead: 'tr',
-        tbody: 'tr'
-    };
+createComponent('bound-list', (el)=>{
+    const [state] = el.state$;
     el.define$({
-        clear$: ()=>{
-            el.innerHTML = '';
+        onRender$: (props)=>{
+            el.bind$(async (obj, property)=>{
+                await clearList();
+                let index = 0;
+                const list = obj[property];
+                await createList(list, props, index++);
+                state.bound = true;
+            });
+        },
+        onHydrate$: (props)=>{
+            el.bind$(async (obj, property)=>{
+                if (state.bound) {
+                    state.bound = false;
+                    return;
+                }
+                await clearList();
+                let index = 0;
+                const list = obj[property];
+                await createList(list, props, index++);
+            });
+        }
+    });
+    async function clearList() {
+        for(const id in el.children$){
+            await el.removeChild$(el.children$[id]);
+        }
+    }
+    async function createList(list, props, index) {
+        if (list) {
+            for (const item of list){
+                const component = await insertElement(el, {
+                    'el-is': props.is,
+                    'el-id': item[props.id],
+                    'data-index': index,
+                    'data-bind': props.bind + '.' + index
+                }, 'append');
+                await component.init$(item);
+            }
+        }
+    }
+});
+createComponent('list', (el)=>{
+    el.define$({
+        clear$: async ()=>{
+            for(const id in el.children$){
+                await el.removeChild$(el.children$[id]);
+            }
         },
         append$: async (element)=>{
-            const component = await insert(element, 'append');
+            const component = await insertElement(el, element, 'append');
             return component;
         },
         prepend$: async (element)=>{
-            const component = await insert(element, 'prepend');
+            const component = await insertElement(el, element, 'prepend');
             return component;
         },
         before$: async (element, elId)=>{
-            const component = await insert(element, 'before', elId);
+            const component = await insertElement(el, element, 'before', elId);
             return component;
         },
         after$: async (element, elId)=>{
-            const component = await insert(element, 'after', elId);
+            const component = await insertElement(el, element, 'after', elId);
             return component;
         }
     });
-    async function insert(element, action, elId) {
-        if (element.tagName === undefined && tagNameMap[el.tagName.toLowerCase()] === undefined) element.tagName = 'div';
-        else element.tagName = tagNameMap[el.tagName.toLowerCase()];
-        const component = el.ownerDocument.createElement(element.tagName);
-        for(const prop in element){
-            if (prop == 'tagName' || prop == 'props') continue;
-            component.setAttribute(prop, element[prop]);
-        }
-        await loadDependencies([
-            element['el-is']
-        ]);
-        initElementAsComponent(component);
-        component.setAttribute('id', `el${++idCount}`);
-        component.parent$ = el;
-        component.setAttribute('el-parent', el.id$);
-        el.children$[element['el-id']] = component;
-        component.componentState$ = el.componentState$ === -1 ? -1 : 0;
-        switch(action){
-            case 'prepend':
-                el.prepend(component);
-                break;
-            case 'append':
-                el.append(component);
-                break;
-            case 'before':
-                el.children$[elId].before(component);
-                break;
-            case 'after':
-                el.children$[elId].after(component);
-                break;
-            default:
-                el.append(component);
-        }
-        if (el.componentState$ === -1) await component.init$(element.props);
-        return component;
-    }
 });
 createComponent('link', (el)=>{
     let _onclick;
