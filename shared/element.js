@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.235');
+console.log('elementJS:', 'v1.0.0-preview.236');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -683,7 +683,7 @@ function initElementAsComponent(el, appState, pageState) {
                     return el.getAttribute('el-is');
                 }
             },
-            bind$: {
+            onBind$: {
                 value: (fn)=>{
                     if (bound) {
                         return;
@@ -919,7 +919,7 @@ function initElementAsComponent(el, appState, pageState) {
         await el.onRender$(props);
         for(const id in el.children$){
             const child = el.children$[id];
-            if (child.componentState$ === 0) await child.init$();
+            if (child.componentState$ === -1 || child.componentState$ === 0) await child.init$();
         }
         el.componentState$ = 2;
     }
@@ -931,7 +931,7 @@ function initElementAsComponent(el, appState, pageState) {
         if (el.hasAttribute('el-hydrate-on')) {
             el.componentState$ = 3;
             el.ownerDocument.documentElement.hydrateOnComponents$.push({
-                'component': el,
+                component: el,
                 props
             });
         } else {
@@ -957,7 +957,7 @@ function initElementAsComponent(el, appState, pageState) {
         await el.onCleanup$();
         for(const id in el.children$){
             const child = el.children$[id];
-            await child.onCleanup$();
+            if (child.onCleanup$) await child.onCleanup$();
         }
     }
     function onHydrateOn(state) {
@@ -1022,11 +1022,30 @@ function addPropsFromAttributes(el, props) {
     for (const attr of el.attributes){
         if (attr.name.startsWith('data-')) {
             const propName = kebabToCamelCase(attr.name.substring(5));
-            attrs[propName] = attr.value || true;
+            if (propName == 'bind') {
+                attrs[propName] = getBoundEntity(el, attr.value);
+            } else attrs[propName] = attr.value || true;
         }
     }
     props = Object.assign(attrs, props);
     return props;
+}
+function getBoundEntity(el, path) {
+    const arrPath = path.split('.');
+    const stateProp = arrPath[0];
+    const state = el.parent$[stateProp + '$'][0];
+    let entity = state;
+    for(let i = 1; i < arrPath.length - 1; i++){
+        entity = entity[arrPath[i]];
+    }
+    const property = arrPath.pop();
+    const value = entity[property];
+    return {
+        path,
+        entity,
+        property,
+        value
+    };
 }
 function removeDataAttributes(el) {
     for (const attr of el.attributes){
@@ -1169,7 +1188,7 @@ function deepEqual(a, b) {
         }
         return true;
     }
-    if (typeof a === "object" && typeof b === "object") {
+    if (typeof a === 'object' && typeof b === 'object') {
         const keysA = Object.keys(a);
         const keysB = Object.keys(b);
         if (keysA.length !== keysB.length) return false;
@@ -1261,27 +1280,16 @@ createComponent('component', (el)=>{
     });
 });
 createComponent('bound-list', (el)=>{
-    const [state] = el.state$;
     el.define$({
-        onRender$: (props)=>{
-            el.bind$(async (obj, property)=>{
-                await clearList();
-                let index = 0;
-                const list = obj[property];
-                await createList(list, props, index++);
-                state.bound = true;
-            });
+        onRender$: async (props)=>{
+            await clearList();
+            const list = props.bind.value;
+            await createList(list, props);
         },
-        onHydrate$: (props)=>{
-            el.bind$(async (obj, property)=>{
-                if (state.bound) {
-                    state.bound = false;
-                    return;
-                }
-                await clearList();
-                let index = 0;
-                const list = obj[property];
-                await createList(list, props, index++);
+        onHydrate$: async (props)=>{
+            el.onBind$(async (entity, property)=>{
+                const list = entity[property];
+                await updateList(list, props);
             });
         }
     });
@@ -1290,16 +1298,41 @@ createComponent('bound-list', (el)=>{
             await el.removeChild$(el.children$[id]);
         }
     }
-    async function createList(list, props, index) {
+    async function createList(list, props) {
+        let index = 0;
         if (list) {
             for (const item of list){
                 const component = await insertElement(el, {
                     'el-is': props.is,
                     'el-id': item[props.id],
                     'data-index': index,
-                    'data-bind': props.bind + '.' + index
+                    'data-bind': props.bind.path + '.' + index++
                 }, 'append');
                 await component.init$(item);
+            }
+        }
+    }
+    async function updateList(list, props) {
+        if (list) {
+            const keys = list.map((entry)=>entry.id);
+            for(const id in el.children$){
+                if (!keys.includes(id)) el.children$[id].remove$();
+            }
+            let index = 0;
+            for (const item of list){
+                const elId = item[props.id];
+                if (!el.children$[elId]) {
+                    const component = await insertElement(el, {
+                        'el-is': props.is,
+                        'el-id': elId,
+                        'data-index': index,
+                        'data-bind': props.bind.path + '.' + index++
+                    }, 'append');
+                    await component.init$(item);
+                } else {
+                    el.children$[elId].remove();
+                    el.append(el.children$[elId]);
+                }
             }
         }
     }
@@ -1353,7 +1386,7 @@ createComponent('link', (el)=>{
                 if (el.href$) navigateTo(el.href$);
                 else if (el.getAttribute('href')) globalThis.location.href = el.getAttribute('href');
             };
-            el.addEventListener("click", _onclick);
+            el.addEventListener('click', _onclick);
         },
         disabled$: {
             set: (value)=>{
@@ -1427,33 +1460,42 @@ createComponent('caption', (el)=>{
 });
 createComponent('bound-input', (el)=>{
     el.define$({
-        onHydrate$: ()=>{
-            const [obj] = el.bind$((obj, property)=>{
-                if (obj[property]) el.value = obj[property];
+        onRender$: (props)=>{
+            el.setAttribute('value', props.bind.value);
+        },
+        onHydrate$: (props)=>{
+            el.onBind$((entity, property)=>{
+                if (entity[property]) el.value = entity[property];
             });
             el.addEventListener('input', ()=>{
-                obj[el.id$] = el.value;
+                props.bind.entity[el.id$] = el.value;
             });
         }
     });
 });
 createComponent('bound-checkbox', (el)=>{
     el.define$({
-        onHydrate$: ()=>{
-            const [obj] = el.bind$((obj, property)=>{
-                if (obj[property]) el.checked = obj[property];
+        onRender$: (props)=>{
+            el.setAttribute('checked', props.bind.value);
+        },
+        onHydrate$: (props)=>{
+            el.onBind$((entity, property)=>{
+                if (entity[property]) el.checked = entity[property];
             });
-            el.addEventListener('click', ()=>{
-                obj[el.id$] = el.checked;
+            el.addEventListener('input', ()=>{
+                props.bind.entity[el.id$] = el.checked;
             });
         }
     });
 });
 createComponent('bound-content', (el)=>{
     el.define$({
+        onRender$: (props)=>{
+            el.textContent = props.bind.value;
+        },
         onHydrate$: ()=>{
-            el.bind$((obj, property)=>{
-                if (obj[property]) el.textContent = obj[property];
+            el.onBind$((entity, property)=>{
+                if (entity[property]) el.textContent = entity[property];
             });
         }
     });
