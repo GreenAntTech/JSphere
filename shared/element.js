@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.236');
+console.log('elementJS:', 'v1.0.0-preview.237');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -501,7 +501,6 @@ function initElementAsComponent(el, appState, pageState) {
     let props = {};
     let childComponents = {};
     let parent;
-    let bound = false;
     let hydrateOnCallback = ()=>{};
     if (!el.init$) {
         Object.defineProperties(el, {
@@ -685,28 +684,16 @@ function initElementAsComponent(el, appState, pageState) {
             },
             onBind$: {
                 value: (fn)=>{
-                    if (bound) {
-                        return;
-                    } else {
-                        const path = props.bind;
-                        if (path === null || path === undefined) return;
-                        const arrPath = path ? path.split('.') : [];
-                        const stateProp = arrPath[0] + '$';
-                        const watch = el.parent$[stateProp][1];
-                        const newWatch = (obj, path, fn)=>{
-                            watch(obj, path, fn, el);
-                        };
-                        const state = el.parent$[stateProp][0];
-                        let obj = state;
-                        for(let i = 1; i < arrPath.length - 1; i++){
-                            obj = obj[arrPath[i]];
-                        }
-                        bound = true;
-                        return [
-                            obj,
-                            newWatch(state, path, fn)
-                        ];
-                    }
+                    const path = props.bind.path;
+                    if (path === null || path === undefined) return;
+                    const arrPath = path ? path.split('.') : [];
+                    const stateProp = arrPath[0] + '$';
+                    const watch = el.parent$[stateProp][1];
+                    const newWatch = (entity, path, fn)=>{
+                        watch(entity, path, fn, el);
+                    };
+                    const state = el.parent$[stateProp][0];
+                    newWatch(state, path, fn);
                 }
             },
             children$: {
