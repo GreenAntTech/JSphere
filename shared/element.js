@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.237');
+console.log('elementJS:', 'v1.0.0-preview.238');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -340,7 +340,7 @@ function observe(objectToObserve, name, config) {
         observablesCache.set(obj, proxy);
         return proxy;
     }
-    function watch(root, path, fn, el) {
+    function watch(path, fn, el) {
         let listeners = watchList[path];
         if (!listeners) {
             listeners = new Set();
@@ -351,16 +351,9 @@ function observe(objectToObserve, name, config) {
                 delete watchList[path];
                 return;
             }
-            fn(object, key, oldValue);
+            fn(object[key], oldValue);
         };
         listeners.add(listener);
-        let obj = root;
-        const arrPath = path.split('.');
-        for(let i = 1; i < arrPath.length - 1; i++){
-            obj = obj[arrPath[i]];
-        }
-        const property = arrPath.pop();
-        listener(obj, property, obj[property]);
         return ()=>{
             delete watchList[path];
         };
@@ -382,7 +375,7 @@ function observe(objectToObserve, name, config) {
             activeCompute = null;
             dirty = false;
             deps.forEach(({ path })=>{
-                watch(proxy, path, markDirty, el);
+                watch(path, markDirty, el);
             });
         };
         function markDirty() {
@@ -407,7 +400,7 @@ function observe(objectToObserve, name, config) {
     const proxy = makeObservable(objectToObserve);
     if (config && config.persist && config.key) {
         loadState();
-        watch(proxy, 'appState', persistState);
+        watch('appState', persistState);
     }
     return [
         proxy,
@@ -682,18 +675,25 @@ function initElementAsComponent(el, appState, pageState) {
                     return el.getAttribute('el-is');
                 }
             },
-            onBind$: {
-                value: (fn)=>{
-                    const path = props.bind.path;
-                    if (path === null || path === undefined) return;
-                    const arrPath = path ? path.split('.') : [];
-                    const stateProp = arrPath[0] + '$';
-                    const watch = el.parent$[stateProp][1];
-                    const newWatch = (entity, path, fn)=>{
-                        watch(entity, path, fn, el);
-                    };
-                    const state = el.parent$[stateProp][0];
-                    newWatch(state, path, fn);
+            call$: {
+                value: (event, data, options = {
+                    preventBubble: false
+                })=>{
+                    let parentEl = el.parent$;
+                    while(parentEl.id$ != 'document'){
+                        if (parentEl.props$[event]) {
+                            const method = parentEl.props$[event].value;
+                            if (method && parentEl.parent$[method]) {
+                                parentEl.parent$[method](data);
+                                break;
+                            }
+                        }
+                        if (options.preventBubble) break;
+                        parentEl = parentEl.parent$;
+                    }
+                    if (parentEl.id$ == 'document') {
+                        console.warn(`Could not find a component listening for the event '${event}'`);
+                    }
                 }
             },
             children$: {
@@ -768,6 +768,11 @@ function initElementAsComponent(el, appState, pageState) {
                 },
                 get: ()=>{
                     return parent || el.ownerDocument.documentElement;
+                }
+            },
+            props$: {
+                get: ()=>{
+                    return props;
                 }
             },
             remove$: {
@@ -1009,9 +1014,12 @@ function addPropsFromAttributes(el, props) {
     for (const attr of el.attributes){
         if (attr.name.startsWith('data-')) {
             const propName = kebabToCamelCase(attr.name.substring(5));
-            if (propName == 'bind') {
-                attrs[propName] = getBoundEntity(el, attr.value);
-            } else attrs[propName] = attr.value || true;
+            if (attr.value && attr.value.startsWith('bind:')) {
+                attrs[propName] = getBoundEntity(el, attr.value.substring(5));
+            } else attrs[propName] = {
+                value: attr.value || true,
+                onChange: ()=>{}
+            };
         }
     }
     props = Object.assign(attrs, props);
@@ -1019,19 +1027,64 @@ function addPropsFromAttributes(el, props) {
 }
 function getBoundEntity(el, path) {
     const arrPath = path.split('.');
-    const stateProp = arrPath[0];
-    const state = el.parent$[stateProp + '$'][0];
-    let entity = state;
-    for(let i = 1; i < arrPath.length - 1; i++){
-        entity = entity[arrPath[i]];
+    let statePath = '', value;
+    if ([
+        'appState',
+        'pageState'
+    ].includes(arrPath[0])) {
+        statePath = path;
+        value = el[arrPath[0] + '$'][0];
+        for(let i = 1; i < arrPath.length; i++){
+            value = value[arrPath[i]];
+        }
+    } else if (arrPath[0] == 'state') {
+        let parentEl = el.parent$;
+        let found = false;
+        while(parentEl.id$ != 'document' && !found){
+            value = parentEl[arrPath[0] + '$'][0];
+            for(let i = 1; i < arrPath.length; i++){
+                statePath = path.replace('state.', parentEl.uId$ + '.');
+                if (!value.hasOwnProperty(arrPath[i])) {
+                    parentEl = parentEl.parent$;
+                    break;
+                } else {
+                    value = value[arrPath[i]];
+                    found = true;
+                }
+            }
+            if (parentEl.id$ == 'document') value = undefined;
+        }
+    } else {
+        const parentProp = el.parent$.props$[arrPath[0]];
+        value = parentProp.value;
+        for(let i = 1; i < arrPath.length; i++){
+            value = value[arrPath[i]];
+        }
+        arrPath.shift();
+        statePath = parentProp.statePath + '.' + arrPath.join('.');
     }
-    const property = arrPath.pop();
-    const value = entity[property];
     return {
-        path,
-        entity,
-        property,
+        statePath,
+        onChange: bind(el, statePath),
         value
+    };
+}
+function bind(el, statePath) {
+    return (fn)=>{
+        const arrPath = statePath.split('.');
+        let observer, path;
+        if (![
+            'appState',
+            'pageState'
+        ].includes(arrPath[0])) {
+            observer = el.ownerDocument.getElementById(arrPath[0]).state$;
+            path = statePath.replace(arrPath[0] + '.', 'state.');
+        } else {
+            observer = el[arrPath[0] + '$'];
+            path = statePath;
+        }
+        const watch = observer[1];
+        watch(path, fn, el);
     };
 }
 function removeDataAttributes(el) {
@@ -1266,62 +1319,71 @@ createComponent('component', (el)=>{
         }
     });
 });
-createComponent('bound-list', (el)=>{
+createComponent('reactive-list', (el)=>{
+    let listItems;
     el.define$({
         onRender$: async (props)=>{
-            await clearList();
-            const list = props.bind.value;
-            await createList(list, props);
+            listItems = transformSourceList(props);
+            await clearComponents();
+            await createComponents(props);
         },
-        onHydrate$: async (props)=>{
-            el.onBind$(async (entity, property)=>{
-                const list = entity[property];
-                await updateList(list, props);
+        onHydrate$: (props)=>{
+            props.src.onChange(async ()=>{
+                transformSourceList(props);
+                await updateComponents(props);
             });
         }
     });
-    async function clearList() {
+    function transformSourceList(props) {
+        const items = {};
+        for (const item of props.src.value){
+            items[String(item[props.id.value])] = item;
+        }
+        return items;
+    }
+    async function clearComponents() {
         for(const id in el.children$){
             await el.removeChild$(el.children$[id]);
         }
     }
-    async function createList(list, props) {
+    async function createComponents(props) {
         let index = 0;
-        if (list) {
-            for (const item of list){
-                const component = await insertElement(el, {
-                    'el-is': props.is,
-                    'el-id': item[props.id],
-                    'data-index': index,
-                    'data-bind': props.bind.path + '.' + index++
-                }, 'append');
-                await component.init$(item);
-            }
+        const propName = props.item.value || 'index';
+        for(const id in listItems){
+            await insertElement(el, {
+                'el-is': props.is.value,
+                'el-id': id,
+                'data-index': index,
+                [`data-${propName}`]: 'bind:src.' + index++
+            }, 'append');
         }
     }
-    async function updateList(list, props) {
-        if (list) {
-            const keys = list.map((entry)=>entry.id);
-            for(const id in el.children$){
-                if (!keys.includes(id)) el.children$[id].remove$();
-            }
-            let index = 0;
-            for (const item of list){
-                const elId = item[props.id];
-                if (!el.children$[elId]) {
-                    const component = await insertElement(el, {
-                        'el-is': props.is,
-                        'el-id': elId,
-                        'data-index': index,
-                        'data-bind': props.bind.path + '.' + index++
-                    }, 'append');
-                    await component.init$(item);
-                } else {
-                    el.children$[elId].remove();
-                    el.append(el.children$[elId]);
-                }
+    function updateComponents(props) {
+        const keys = props.src.value.map((entry)=>entry.id.toString());
+        for(const id in el.children$){
+            if (!keys.includes(id)) {
+                el.children$[id].remove$();
+                delete el.children$[id];
             }
         }
+        keys.forEach(async (id, index)=>{
+            if (!el.children$[id]) {
+                const propName = props.item.value || 'index';
+                await insertElement(el, {
+                    'el-is': props.is.value,
+                    'el-id': id,
+                    'data-index': index,
+                    [`data-${propName}`]: 'bind:src.' + index
+                }, 'append');
+            } else {
+                el.children$[id].remove();
+                el.children$[id].props$.index = {
+                    value: index,
+                    onChange: ()=>{}
+                };
+                el.append(el.children$[id]);
+            }
+        });
     }
 });
 createComponent('list', (el)=>{
@@ -1415,10 +1477,10 @@ createComponent('caption', (el)=>{
             state.params = props.params;
         },
         onHydrate$: ()=>{
-            watchAppState(appState, 'appState.captionPack', ()=>{
+            watchAppState('appState.captionPack', ()=>{
                 setCaption(state.params);
             });
-            watchPageState(pageState, 'pageState.captionPack', ()=>{
+            watchPageState('pageState.captionPack', ()=>{
                 setCaption(state.params);
             });
         },
