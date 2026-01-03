@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.239');
+console.log('elementJS:', 'v1.0.0-preview.240');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -331,7 +331,6 @@ function observe(objectToObserve, name, config) {
                         for (const item of target)item.__path__ = `${path}.${key}`;
                     } else if (typeof target === 'object') {
                         for(const item in target){
-                            if (typeof target[item] != 'object') continue;
                             target[item].__path__ = `${path}.${key}`;
                         }
                     }
