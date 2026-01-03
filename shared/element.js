@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.238');
+console.log('elementJS:', 'v1.0.0-preview.239');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -208,7 +208,8 @@ function useCaptions(name) {
 }
 function observe(objectToObserve, name, config) {
     const observablesCache = new WeakMap();
-    const watchList = {};
+    const watchList = new Map();
+    let listenerId = 0;
     let activeCompute = null;
     function objectAccessor(path) {
         return {
@@ -233,17 +234,29 @@ function observe(objectToObserve, name, config) {
             },
             set (target, key, value, receiver) {
                 if (value && value.__proxy__) return true;
+                if (key == '__path__') {
+                    path = value;
+                    if (Array.isArray(target)) {
+                        for (const item of target)item.__path__ = `${path}.${key}`;
+                    } else if (typeof target === 'object') {
+                        for(const item in target){
+                            if (typeof target[item] != 'object') continue;
+                            target[item].__path__ = `${path}.${key}`;
+                        }
+                    }
+                    return true;
+                }
                 const oldValue = receiver[key];
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
                     const rootState = path.split('.')[0];
-                    let listeners = watchList[`${path}.${key}`];
+                    let listeners = watchList.get(`${path}.${key}`);
                     if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
-                    listeners = watchList[`${path}`];
+                    listeners = watchList.get(`${path}`);
                     if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
                     if (path != rootState) {
-                        listeners = watchList[rootState];
+                        listeners = watchList.get(rootState);
                         if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
                     }
                 }
@@ -277,14 +290,17 @@ function observe(objectToObserve, name, config) {
                         } else {
                             result = target[key].apply(target, args);
                         }
+                        target.forEach((item, index)=>{
+                            item.__path__ = `${path}.${index}`;
+                        });
                         const rootState = path.split('.')[0];
                         const parentPath = path.substring(0, path.lastIndexOf('.'));
-                        let listeners = watchList[path];
+                        let listeners = watchList.get(path);
                         if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
-                        listeners = watchList[parentPath];
+                        listeners = watchList.get(parentPath);
                         if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
                         if (parentPath != rootState) {
-                            listeners = watchList[rootState];
+                            listeners = watchList.get(rootState);
                             if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
                         }
                         return result;
@@ -309,18 +325,30 @@ function observe(objectToObserve, name, config) {
             },
             set (target, key, value, receiver) {
                 if (value && value.__proxy__) return true;
+                if (key == '__path__') {
+                    path = value;
+                    if (Array.isArray(target)) {
+                        for (const item of target)item.__path__ = `${path}.${key}`;
+                    } else if (typeof target === 'object') {
+                        for(const item in target){
+                            if (typeof target[item] != 'object') continue;
+                            target[item].__path__ = `${path}.${key}`;
+                        }
+                    }
+                    return true;
+                }
                 const oldValue = receiver[key];
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
                 if (result) {
                     const rootState = path.split('.')[0];
                     const parentPath = path.substring(0, path.lastIndexOf('.'));
-                    let listeners = watchList[path];
+                    let listeners = watchList.get(path);
                     if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
-                    listeners = watchList[parentPath];
+                    listeners = watchList.get(parentPath);
                     if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
                     if (parentPath != rootState) {
-                        listeners = watchList[rootState];
+                        listeners = watchList.get(rootState);
                         if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
                     }
                 }
@@ -341,22 +369,43 @@ function observe(objectToObserve, name, config) {
         return proxy;
     }
     function watch(path, fn, el) {
-        let listeners = watchList[path];
-        if (!listeners) {
-            listeners = new Set();
-            watchList[path] = listeners;
-        }
-        const listener = (object, key, oldValue)=>{
-            if (el && !el.parentElement) {
-                delete watchList[path];
-                return;
+        const entryId = listenerId++;
+        const getListeners = (path)=>{
+            let listeners = watchList.get(path);
+            if (!listeners) {
+                listeners = new Map();
+                watchList.set(path, listeners);
             }
-            fn(object[key], oldValue);
+            return listeners;
         };
-        listeners.add(listener);
-        return ()=>{
-            delete watchList[path];
+        const getListener = (path, fn, el)=>{
+            return (object, key, oldValue)=>{
+                if (el && !el.parentElement) {
+                    const listeners = watchList.get(path);
+                    listeners.delete(entryId);
+                    return;
+                }
+                fn(object[key], oldValue);
+            };
         };
+        let currentPath = path;
+        const listeners = getListeners(currentPath);
+        listeners.set(entryId, getListener(currentPath, fn, el));
+        return [
+            ()=>{
+                const listeners = watchList.get(currentPath);
+                listeners.delete(entryId);
+                if (listeners.size === 0) watchList.delete(currentPath);
+            },
+            (newPath)=>{
+                let listeners = watchList.get(currentPath);
+                listeners.delete(entryId);
+                if (listeners.size === 0) watchList.delete(currentPath);
+                currentPath = newPath;
+                listeners = getListeners(currentPath);
+                listeners.set(entryId, getListener(currentPath, fn, el));
+            }
+        ];
     }
     function compute(fn, el) {
         let cachedValue;
@@ -364,7 +413,7 @@ function observe(objectToObserve, name, config) {
         const deps = new Set();
         const recompute = ()=>{
             deps.forEach(({ path })=>{
-                const listeners = watchList[path];
+                const listeners = watchList.get(path);
                 if (listeners) listeners.delete(markDirty);
             });
             deps.clear();
@@ -750,13 +799,6 @@ function initElementAsComponent(el, appState, pageState) {
                     return hydrateOnComponents;
                 }
             },
-            on$: {
-                value: (event, ...args)=>{
-                    const method = props[`on-${event}`];
-                    if (typeof method == 'string') el.addEventListener(event, ()=>el.parent$[method](args));
-                    else if (typeof method == 'function') el.addEventListener(event, ()=>method(args));
-                }
-            },
             onMessageReceived$: {
                 value: async (subject, data)=>{
                     if (messageListeners[subject]) await messageListeners[subject](data, appContext.ctx);
@@ -778,12 +820,15 @@ function initElementAsComponent(el, appState, pageState) {
             remove$: {
                 value: async ()=>{
                     await onCleanup(el);
+                    unwatchElementProps(el);
+                    delete el.parent$.children$[el.id$];
                     el.parent$.removeChild(el);
                 }
             },
             removeChild$: {
                 value: async (childElement)=>{
                     await onCleanup(childElement);
+                    unwatchElementProps(childElement);
                     delete el.children$[childElement.id$];
                     el.removeChild(childElement);
                 }
@@ -1009,23 +1054,70 @@ function initElementAsComponent(el, appState, pageState) {
         registeredComponents[type](el);
     } else console.warn(`The component type '${type}' is not registered.`);
 }
+function unwatchElementProps(el) {
+    for(const id in el.children$){
+        unwatchElementProps(el.children$[id]);
+    }
+    for(const prop in el.props$){
+        const value = el.props$[prop];
+        if (value.unwatch) {
+            value.unwatch();
+        }
+    }
+}
+function reIndexStatePath(el, oldRoot, newRoot, depth) {
+    for(const id in el.children$){
+        reIndexStatePath(el.children$[id], oldRoot, newRoot, depth + 1);
+    }
+    for(const prop in el.props$){
+        let statePath = el.props$[prop].statePath;
+        if (statePath) {
+            if (depth === 0) {
+                statePath = statePath.replace(oldRoot, newRoot);
+            } else {
+                statePath = statePath.replace(oldRoot + '.', newRoot + '.');
+            }
+            const arrStatePath = statePath.split('.');
+            arrStatePath[0] = 'state';
+            const value = el.props$[prop];
+            if (value.rewatch) value.rewatch(arrStatePath.join('.'));
+        }
+    }
+}
 function addPropsFromAttributes(el, props) {
     const attrs = {};
     for (const attr of el.attributes){
         if (attr.name.startsWith('data-')) {
             const propName = kebabToCamelCase(attr.name.substring(5));
             if (attr.value && attr.value.startsWith('bind:')) {
-                attrs[propName] = getBoundEntity(el, attr.value.substring(5));
-            } else attrs[propName] = {
-                value: attr.value || true,
-                onChange: ()=>{}
-            };
+                attrs[propName] = getBoundEntity(el, propName, attr.value.substring(5));
+            } else {
+                let value;
+                if (attr.value && attr.value.startsWith('num:')) {
+                    value = Number(attr.value.substring(4));
+                    if (isNaN(value)) {
+                        throw `The attribute ${attr.name} on the element id="${el.uId$}" is not a valid number`;
+                    }
+                } else if (attr.value && attr.value.startsWith('bool:')) {
+                    value = attr.value.substring(5);
+                    value = value == 'true' ? true : value == 'false' ? false : null;
+                    if (value === null) {
+                        throw `The attribute ${attr.name} on the element id="${el.uId$}" is not a valid boolean`;
+                    }
+                } else {
+                    value = attr.value || true;
+                }
+                attrs[propName] = {
+                    value,
+                    onChange: ()=>{}
+                };
+            }
         }
     }
     props = Object.assign(attrs, props);
     return props;
 }
-function getBoundEntity(el, path) {
+function getBoundEntity(el, propName, path) {
     const arrPath = path.split('.');
     let statePath = '', value;
     if ([
@@ -1043,16 +1135,19 @@ function getBoundEntity(el, path) {
         while(parentEl.id$ != 'document' && !found){
             value = parentEl[arrPath[0] + '$'][0];
             for(let i = 1; i < arrPath.length; i++){
-                statePath = path.replace('state.', parentEl.uId$ + '.');
                 if (!value.hasOwnProperty(arrPath[i])) {
                     parentEl = parentEl.parent$;
                     break;
                 } else {
                     value = value[arrPath[i]];
+                    statePath = path.replace('state.', parentEl.uId$ + '.');
                     found = true;
                 }
             }
-            if (parentEl.id$ == 'document') value = undefined;
+            if (parentEl.id$ == 'document') {
+                statePath = path.replace('state.', parentEl.uId$ + '.');
+                value = undefined;
+            }
         }
     } else {
         const parentProp = el.parent$.props$[arrPath[0]];
@@ -1065,11 +1160,11 @@ function getBoundEntity(el, path) {
     }
     return {
         statePath,
-        onChange: bind(el, statePath),
+        onChange: bind(el, propName, statePath),
         value
     };
 }
-function bind(el, statePath) {
+function bind(el, propName, statePath) {
     return (fn)=>{
         const arrPath = statePath.split('.');
         let observer, path;
@@ -1084,15 +1179,17 @@ function bind(el, statePath) {
             path = statePath;
         }
         const watch = observer[1];
-        watch(path, fn, el);
+        const [unwatch, rewatch] = watch(path, fn, el);
+        el.props$[propName].unwatch = unwatch;
+        el.props$[propName].rewatch = rewatch;
     };
 }
 function removeDataAttributes(el) {
+    const attrs = [];
     for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) {
-            el.removeAttribute(attr.name);
-        }
+        if (attr.name.startsWith('data-')) attrs.push(attr.name);
     }
+    for (const attr of attrs)el.removeAttribute(attr);
 }
 function kebabToCamelCase(kebabCaseString) {
     return kebabCaseString.replace(/-([a-z])/g, (g)=>g[1].toUpperCase());
@@ -1353,7 +1450,7 @@ createComponent('reactive-list', (el)=>{
             await insertElement(el, {
                 'el-is': props.is.value,
                 'el-id': id,
-                'data-index': index,
+                'data-index': `num:${index}`,
                 [`data-${propName}`]: 'bind:src.' + index++
             }, 'append');
         }
@@ -1372,16 +1469,25 @@ createComponent('reactive-list', (el)=>{
                 await insertElement(el, {
                     'el-is': props.is.value,
                     'el-id': id,
-                    'data-index': index,
+                    'data-index': `num:${index}`,
                     [`data-${propName}`]: 'bind:src.' + index
                 }, 'append');
+                console.log('inserted new component:', props.is.value, id, index, propName);
             } else {
-                el.children$[id].remove();
-                el.children$[id].props$.index = {
-                    value: index,
-                    onChange: ()=>{}
-                };
-                el.append(el.children$[id]);
+                if (el.children$[id].props$.index.value != index) {
+                    el.children$[id].remove();
+                    el.children$[id].props$.index.value = index;
+                    const props = el.children$[id].props$;
+                    for(const prop in props){
+                        const statePath = props[prop].statePath;
+                        if (statePath) {
+                            const arrPath = statePath.split('.');
+                            arrPath[arrPath.length - 1] = index.toString();
+                            reIndexStatePath(el.children$[id], statePath, arrPath.join('.'), 0);
+                        }
+                    }
+                    el.append(el.children$[id]);
+                }
             }
         });
     }
