@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.243');
+console.log('elementJS:', 'v1.0.0-preview.244');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -1070,7 +1070,7 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
         reIndexStatePath(el.children$[id], oldRoot, newRoot, depth + 1);
     }
     for(const prop in el.props$){
-        let statePath = el.props$[prop].statePath;
+        let statePath = el.props$[prop].__statePath__;
         if (statePath) {
             if (depth === 0) {
                 statePath = statePath.replace(oldRoot, newRoot);
@@ -1156,12 +1156,12 @@ function getBoundEntity(el, propName, path) {
             value = value[arrPath[i]];
         }
         arrPath.shift();
-        statePath = parentProp.statePath + '.' + arrPath.join('.');
+        statePath = parentProp.__statePath__ + '.' + arrPath.join('.');
     }
     return {
         __statePath__: statePath,
         onChange: bind(el, propName, statePath),
-        value: value
+        value
     };
 }
 function bind(el, propName, statePath) {
@@ -1499,7 +1499,7 @@ createComponent('reactive-list', (el)=>{
                 el.insertBefore(node, referenceNode);
                 node.props$.index.value = i;
                 for(const prop in node.props$){
-                    const statePath = node.props$[prop].statePath;
+                    const statePath = node.props$[prop].__statePath__;
                     if (statePath) {
                         const arrPath = statePath.split('.');
                         arrPath[arrPath.length - 1] = i.toString();
