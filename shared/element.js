@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.241');
+console.log('elementJS:', 'v1.0.0-preview.242');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -274,7 +274,8 @@ function observe(objectToObserve, name, config) {
                     'shift',
                     'unshift',
                     'splice',
-                    'replace'
+                    'replace',
+                    'sort'
                 ];
                 if (mutatingMethods.includes(key)) {
                     if (activeCompute) {
@@ -1471,7 +1472,7 @@ createComponent('reactive-list', (el)=>{
         }
     }
     async function reconcileDom(currentOrder, newOrder) {
-        const nextById = newOrder.map((item)=>item.id);
+        const nextById = newOrder.map((item)=>item.id.toString());
         for (const { id } of currentOrder){
             if (!nextById.includes(id)) {
                 const node = el.children$[id];
