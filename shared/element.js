@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.240');
+console.log('elementJS:', 'v1.0.0-preview.241');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -236,12 +236,12 @@ function observe(objectToObserve, name, config) {
                 if (value && value.__proxy__) return true;
                 if (key == '__path__') {
                     path = value;
-                    if (Array.isArray(target)) {
-                        for (const item of target)item.__path__ = `${path}.${key}`;
-                    } else if (typeof target === 'object') {
-                        for(const item in target){
-                            if (typeof target[item] != 'object') continue;
-                            target[item].__path__ = `${path}.${key}`;
+                    if (Array.isArray(receiver)) {
+                        for (const item of receiver)item.__path__ = `${path}.${key}`;
+                    } else if (typeof receiver === 'object') {
+                        for(const item in receiver){
+                            if (typeof receiver[item] != 'object') continue;
+                            receiver[item].__path__ = `${path}.${key}`;
                         }
                     }
                     return true;
@@ -290,7 +290,7 @@ function observe(objectToObserve, name, config) {
                         } else {
                             result = target[key].apply(target, args);
                         }
-                        target.forEach((item, index)=>{
+                        receiver.forEach((item, index)=>{
                             item.__path__ = `${path}.${index}`;
                         });
                         const rootState = path.split('.')[0];
@@ -327,11 +327,11 @@ function observe(objectToObserve, name, config) {
                 if (value && value.__proxy__) return true;
                 if (key == '__path__') {
                     path = value;
-                    if (Array.isArray(target)) {
-                        for (const item of target)item.__path__ = `${path}.${key}`;
-                    } else if (typeof target === 'object') {
-                        for(const item in target){
-                            target[item].__path__ = `${path}.${key}`;
+                    if (Array.isArray(receiver)) {
+                        for (const item of receiver)item.__path__ = `${path}.${key}`;
+                    } else if (typeof receiver === 'object') {
+                        for(const item in receiver){
+                            receiver[item].__path__ = `${path}.${key}`;
                         }
                     }
                     return true;
@@ -1424,9 +1424,25 @@ createComponent('reactive-list', (el)=>{
             await createComponents(props);
         },
         onHydrate$: (props)=>{
-            props.src.onChange(async ()=>{
-                transformSourceList(props);
-                await updateComponents(props);
+            props.src.onChange(()=>{
+                listItems = transformSourceList(props);
+                const currentOrder = [];
+                let index = 0;
+                for(const id in el.children$){
+                    currentOrder.push({
+                        id,
+                        index: index++
+                    });
+                }
+                const newOrder = [];
+                index = 0;
+                for (const item of props.src.value){
+                    newOrder.push({
+                        id: item.id,
+                        index: index++
+                    });
+                }
+                reconcileDom(currentOrder, newOrder);
             });
         }
     });
@@ -1454,41 +1470,43 @@ createComponent('reactive-list', (el)=>{
             }, 'append');
         }
     }
-    function updateComponents(props) {
-        const keys = props.src.value.map((entry)=>entry.id.toString());
-        for(const id in el.children$){
-            if (!keys.includes(id)) {
-                el.children$[id].remove$();
-                delete el.children$[id];
-            }
-        }
-        keys.forEach(async (id, index)=>{
-            if (!el.children$[id]) {
-                const propName = props.item.value || 'index';
-                await insertElement(el, {
-                    'el-is': props.is.value,
-                    'el-id': id,
-                    'data-index': `num:${index}`,
-                    [`data-${propName}`]: 'bind:src.' + index
-                }, 'append');
-                console.log('inserted new component:', props.is.value, id, index, propName);
-            } else {
-                if (el.children$[id].props$.index.value != index) {
-                    el.children$[id].remove();
-                    el.children$[id].props$.index.value = index;
-                    const props = el.children$[id].props$;
-                    for(const prop in props){
-                        const statePath = props[prop].statePath;
-                        if (statePath) {
-                            const arrPath = statePath.split('.');
-                            arrPath[arrPath.length - 1] = index.toString();
-                            reIndexStatePath(el.children$[id], statePath, arrPath.join('.'), 0);
-                        }
-                    }
-                    el.append(el.children$[id]);
+    async function reconcileDom(currentOrder, newOrder) {
+        const nextById = newOrder.map((item)=>item.id);
+        for (const { id } of currentOrder){
+            if (!nextById.includes(id)) {
+                const node = el.children$[id];
+                if (node && node.parent$ === el) {
+                    el.children$[id].remove$();
+                    delete el.children$[id];
                 }
             }
-        });
+        }
+        for(let i = 0; i < newOrder.length; i++){
+            const referenceNode = el.children[i] || null;
+            const { id } = newOrder[i];
+            let node = el.children$[id];
+            if (!node) {
+                const propName = el.props$.item.value || 'item';
+                await insertElement(el, {
+                    'el-is': el.props$.is.value,
+                    'el-id': id,
+                    'data-index': `num:${i}`,
+                    [`data-${propName}`]: 'bind:src.' + i
+                }, 'append');
+                node = el.children$[id];
+            } else {
+                el.insertBefore(node, referenceNode);
+                node.props$.index.value = i;
+                for(const prop in node.props$){
+                    const statePath = node.props$[prop].statePath;
+                    if (statePath) {
+                        const arrPath = statePath.split('.');
+                        arrPath[arrPath.length - 1] = i.toString();
+                        reIndexStatePath(el.children$[id], statePath, arrPath.join('.'), 0);
+                    }
+                }
+            }
+        }
     }
 });
 createComponent('list', (el)=>{
@@ -1612,44 +1630,44 @@ createComponent('caption', (el)=>{
         } else el.textContent = caption(el.id$);
     }
 });
-createComponent('bound-input', (el)=>{
+createComponent('reactive-input', (el)=>{
     el.define$({
-        onRender$: (props)=>{
-            el.setAttribute('value', props.bind.value);
+        onRender$: ({ value })=>{
+            el.setAttribute('value', value.value$);
         },
-        onHydrate$: (props)=>{
-            el.onBind$((entity, property)=>{
-                if (entity[property]) el.value = entity[property];
+        onHydrate$: ({ value })=>{
+            value.onChange$((value)=>{
+                el.value = value;
             });
             el.addEventListener('input', ()=>{
-                props.bind.entity[el.id$] = el.value;
+                value.value$ = el.value;
             });
         }
     });
 });
-createComponent('bound-checkbox', (el)=>{
+createComponent('reactive-checkbox', (el)=>{
     el.define$({
-        onRender$: (props)=>{
-            el.setAttribute('checked', props.bind.value);
+        onRender$: ({ checked })=>{
+            el.setAttribute('checked', checked.value$);
         },
-        onHydrate$: (props)=>{
-            el.onBind$((entity, property)=>{
-                if (entity[property]) el.checked = entity[property];
+        onHydrate$: ({ checked })=>{
+            checked.onChange$((value)=>{
+                el.checked = value;
             });
             el.addEventListener('input', ()=>{
-                props.bind.entity[el.id$] = el.checked;
+                checked.value$ = el.checked;
             });
         }
     });
 });
-createComponent('bound-content', (el)=>{
+createComponent('reactive-content', (el)=>{
     el.define$({
-        onRender$: (props)=>{
-            el.textContent = props.bind.value;
+        onRender$: ({ content })=>{
+            el.textContent = content.value$;
         },
-        onHydrate$: ()=>{
-            el.onBind$((entity, property)=>{
-                if (entity[property]) el.textContent = entity[property];
+        onHydrate$: ({ content })=>{
+            content.onChange$((value)=>{
+                el.textContent = value;
             });
         }
     });
