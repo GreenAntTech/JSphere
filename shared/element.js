@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.245');
+console.log('elementJS:', 'v1.0.0-preview.246');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -881,6 +881,7 @@ function initElementAsComponent(el, appState, pageState) {
         el.componentState$ = 1;
     }
     async function onStyle(props) {
+        if (props.theme === undefined) props.theme = {};
         const theme = props.theme.value || '';
         const themeId = el.is$ + (theme ? '_' + theme : '');
         let css = el.onStyle$(props);
