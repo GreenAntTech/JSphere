@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.244');
+console.log('elementJS:', 'v1.0.0-preview.245');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -881,7 +881,7 @@ function initElementAsComponent(el, appState, pageState) {
         el.componentState$ = 1;
     }
     async function onStyle(props) {
-        const theme = props.theme || '';
+        const theme = props.theme.value || '';
         const themeId = el.is$ + (theme ? '_' + theme : '');
         let css = el.onStyle$(props);
         if (!css) return;
@@ -1538,18 +1538,18 @@ createComponent('list', (el)=>{
 createComponent('link', (el)=>{
     let _onclick;
     el.define$({
-        onRender$: (props)=>{
-            if (typeof props.value != 'undefined') {
-                el.text$ = props.value;
+        onRender$: ({ value, hidden, disabled, href })=>{
+            if (typeof value.value != 'undefined') {
+                el.text$ = value.value;
             }
-            if (typeof props.hidden == 'boolean') {
-                el.hidden$ = props.hidden;
+            if (typeof hidden.value == 'boolean') {
+                el.hidden$ = hidden.value;
             }
-            el.disabled$ = props.disabled || false;
-            el.href$ = props.href;
+            el.disabled$ = disabled.value || false;
+            el.href$ = href.value;
         },
         onHydrate$: (props)=>{
-            const onclick = props.onclick || (()=>{});
+            const onclick = props.onclick.value || (()=>{});
             if (typeof onclick != 'function') return;
             el.removeEventListener('click', _onclick);
             _onclick = (event)=>{
@@ -1596,9 +1596,9 @@ createComponent('caption', (el)=>{
     const [pageState, watchPageState] = el.pageState$;
     const [state] = el.state$;
     el.define$({
-        onRender$: (props)=>{
-            setCaption(props.params);
-            state.params = props.params;
+        onRender$: ({ params })=>{
+            setCaption(params.value);
+            state.params = params.value;
         },
         onHydrate$: ()=>{
             watchAppState('appState.captionPack', ()=>{
