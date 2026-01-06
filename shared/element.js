@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.242');
+console.log('elementJS:', 'v1.0.0-preview.243');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -1108,7 +1108,7 @@ function addPropsFromAttributes(el, props) {
                     value = attr.value || true;
                 }
                 attrs[propName] = {
-                    value,
+                    value: value,
                     onChange: ()=>{}
                 };
             }
@@ -1159,9 +1159,9 @@ function getBoundEntity(el, propName, path) {
         statePath = parentProp.statePath + '.' + arrPath.join('.');
     }
     return {
-        statePath,
+        __statePath__: statePath,
         onChange: bind(el, propName, statePath),
-        value
+        value: value
     };
 }
 function bind(el, propName, statePath) {
@@ -1634,14 +1634,14 @@ createComponent('caption', (el)=>{
 createComponent('reactive-input', (el)=>{
     el.define$({
         onRender$: ({ value })=>{
-            el.setAttribute('value', value.value$);
+            el.setAttribute('value', value.value);
         },
         onHydrate$: ({ value })=>{
-            value.onChange$((value)=>{
+            value.onChange((value)=>{
                 el.value = value;
             });
             el.addEventListener('input', ()=>{
-                value.value$ = el.value;
+                value.value = el.value;
             });
         }
     });
@@ -1649,14 +1649,14 @@ createComponent('reactive-input', (el)=>{
 createComponent('reactive-checkbox', (el)=>{
     el.define$({
         onRender$: ({ checked })=>{
-            el.setAttribute('checked', checked.value$);
+            el.setAttribute('checked', checked.value);
         },
         onHydrate$: ({ checked })=>{
-            checked.onChange$((value)=>{
+            checked.onChange((value)=>{
                 el.checked = value;
             });
             el.addEventListener('input', ()=>{
-                checked.value$ = el.checked;
+                checked.value = el.checked;
             });
         }
     });
@@ -1664,10 +1664,10 @@ createComponent('reactive-checkbox', (el)=>{
 createComponent('reactive-content', (el)=>{
     el.define$({
         onRender$: ({ content })=>{
-            el.textContent = content.value$;
+            el.textContent = content.value;
         },
         onHydrate$: ({ content })=>{
-            content.onChange$((value)=>{
+            content.onChange((value)=>{
                 el.textContent = value;
             });
         }
