@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.246');
+console.log('elementJS:', 'v1.0.0-preview.247');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -1451,7 +1451,7 @@ createComponent('reactive-list', (el)=>{
     function transformSourceList(props) {
         const items = {};
         for (const item of props.src.value){
-            items[String(item[props.id.value])] = item;
+            items[String(item[props.componentId.value])] = item;
         }
         return items;
     }
@@ -1462,10 +1462,10 @@ createComponent('reactive-list', (el)=>{
     }
     async function createComponents(props) {
         let index = 0;
-        const propName = props.item.value || 'index';
+        const propName = props.alias.value || 'item';
         for(const id in listItems){
             await insertElement(el, {
-                'el-is': props.is.value,
+                'el-is': props.component.value,
                 'el-id': id,
                 'data-index': `num:${index}`,
                 [`data-${propName}`]: 'bind:src.' + index++
@@ -1488,9 +1488,9 @@ createComponent('reactive-list', (el)=>{
             const { id } = newOrder[i];
             let node = el.children$[id];
             if (!node) {
-                const propName = el.props$.item.value || 'item';
+                const propName = el.props$.alias.value || 'item';
                 await insertElement(el, {
-                    'el-is': el.props$.is.value,
+                    'el-is': el.props$.component.value,
                     'el-id': id,
                     'data-index': `num:${i}`,
                     [`data-${propName}`]: 'bind:src.' + i
