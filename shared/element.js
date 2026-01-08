@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.248');
+console.log('elementJS:', 'v1.0.0-preview.249');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -30,6 +30,48 @@ class RenderError extends Error {
     constructor(message){
         super(message);
         this.name = 'RenderError';
+    }
+}
+class Prop {
+    boundFunction = ()=>{};
+    propValue = undefined;
+    constructor(value){
+        this.propValue = value;
+    }
+    get value() {
+        return this.propValue;
+    }
+    set value(value) {
+        this.propValue = value;
+        this.boundFunction(this.propValue);
+    }
+    onChange(fn) {
+        this.boundFunction = fn;
+    }
+}
+class StateProp {
+    _propValue = undefined;
+    _statePath = undefined;
+    _onChange = ()=>{};
+    constructor(statePath, value, fn){
+        this._statePath = statePath;
+        this._propValue = value;
+        this._onChange = fn;
+    }
+    get statePath() {
+        return this.statePath;
+    }
+    set statePath(value) {
+        this.statePath = value;
+    }
+    get value() {
+        return this._propValue;
+    }
+    set value(value) {
+        this._propValue = value;
+    }
+    onChange(fn) {
+        this._onChange(fn);
     }
 }
 function processEvent(event) {
@@ -1083,7 +1125,7 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
         reIndexStatePath(el.children$[id], oldRoot, newRoot, depth + 1);
     }
     for(const prop in el.props$){
-        let statePath = el.props$[prop].__statePath__;
+        let statePath = el.props$[prop].statePath;
         if (statePath) {
             if (depth === 0) {
                 statePath = statePath.replace(oldRoot, newRoot);
@@ -1120,10 +1162,7 @@ function addPropsFromAttributes(el, props) {
                 } else {
                     value = attr.value || true;
                 }
-                attrs[propName] = {
-                    value: value,
-                    onChange: ()=>{}
-                };
+                attrs[propName] = new Prop(value);
             }
         }
     }
@@ -1169,13 +1208,9 @@ function getBoundEntity(el, propName, path) {
             value = value[arrPath[i]];
         }
         arrPath.shift();
-        statePath = parentProp.__statePath__ + '.' + arrPath.join('.');
+        statePath = parentProp.statePath + '.' + arrPath.join('.');
     }
-    return {
-        __statePath__: statePath,
-        onChange: bind(el, propName, statePath),
-        value
-    };
+    return new StateProp(statePath, value, bind(el, propName, statePath));
 }
 function bind(el, propName, statePath) {
     return (fn)=>{
@@ -1513,7 +1548,7 @@ createComponent('reactive-list', (el)=>{
                 el.insertBefore(node, referenceNode);
                 node.props$.index.value = i;
                 for(const prop in node.props$){
-                    const statePath = node.props$[prop].__statePath__;
+                    const statePath = node.props$[prop].statePath;
                     if (statePath) {
                         const arrPath = statePath.split('.');
                         arrPath[arrPath.length - 1] = i.toString();
