@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.247');
+console.log('elementJS:', 'v1.0.0-preview.248');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -275,7 +275,9 @@ function observe(objectToObserve, name, config) {
                     'unshift',
                     'splice',
                     'replace',
-                    'sort'
+                    'sort',
+                    'move',
+                    'swap'
                 ];
                 if (mutatingMethods.includes(key)) {
                     if (activeCompute) {
@@ -288,6 +290,16 @@ function observe(objectToObserve, name, config) {
                         if (key === 'replace') {
                             oldValue = target[args[0]];
                             result = target[args[0]] = args[1];
+                        } else if (key == 'move') {
+                            const index = args[0];
+                            const position = args[1] === undefined ? 0 : args[1];
+                            const value = target.splice(index, 1);
+                            result = target.splice(position, 0, ...value);
+                        } else if (key == 'swap') {
+                            const value = target[args[0]];
+                            target[args[0]] = target[args[1]];
+                            target[args[1]] = value;
+                            result = true;
                         } else {
                             result = target[key].apply(target, args);
                         }
@@ -1426,7 +1438,8 @@ createComponent('reactive-list', (el)=>{
             await createComponents(props);
         },
         onHydrate$: (props)=>{
-            props.src.onChange(()=>{
+            props.src.onChange((src)=>{
+                props.src.value = src;
                 listItems = transformSourceList(props);
                 const currentOrder = [];
                 let index = 0;
