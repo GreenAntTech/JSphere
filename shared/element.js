@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.249');
+console.log('elementJS:', 'v1.0.0-preview.250');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -59,10 +59,10 @@ class StateProp {
         this._onChange = fn;
     }
     get statePath() {
-        return this.statePath;
+        return this._statePath;
     }
     set statePath(value) {
-        this.statePath = value;
+        this._statePath = value;
     }
     get value() {
         return this._propValue;
