@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.250');
+console.log('elementJS:', 'v1.0.0-preview.251');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -797,6 +797,11 @@ function initElementAsComponent(el, appState, pageState) {
                     if (parentEl.id$ == 'document') {
                         console.warn(`Could not find a component listening for the event '${event}'`);
                     }
+                }
+            },
+            on$: {
+                value: (event, handler)=>{
+                    el.addEventListener(event, handler);
                 }
             },
             children$: {
