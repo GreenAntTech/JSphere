@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.251');
+console.log('elementJS:', 'v1.0.0-preview.252');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -198,17 +198,19 @@ function navigateTo(path) {
         dispatchEvent(new Event('popstate'));
     }
 }
-async function elementFetch(input, options = {
+async function elementFetch(path, options = {
     headers: []
 }) {
+    let url = path;
     if (appContext.server) {
-        input = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port || '80'}${input}`;
+        url = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port || '80'}${path}`;
+        if (options && options.headers === undefined) options.headers = [];
         options.headers.push([
             'element-server-request',
             'true'
         ]);
     }
-    return await fetch(input, options);
+    return await fetch(url, options);
 }
 function registerAllowedOrigin(uri) {
     registeredAllowedOrigins.push(uri);
@@ -317,6 +319,7 @@ function observe(objectToObserve, name, config) {
                     'unshift',
                     'splice',
                     'replace',
+                    'reverse',
                     'sort',
                     'move',
                     'swap'
@@ -590,6 +593,71 @@ async function getDocumentElement(config) {
     }
     return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
 }
+function createStyleShim(el) {
+    return new Proxy({}, {
+        set (_, prop, value) {
+            const existing = el.getAttribute("style") || "";
+            const styles = parseStyle(existing);
+            styles[prop] = value;
+            el.setAttribute("style", serializeStyle(styles));
+            return true;
+        },
+        get (_, prop) {
+            const styles = parseStyle(el.getAttribute("style") || "");
+            return styles[prop];
+        }
+    });
+}
+function parseStyle(style) {
+    const obj = {};
+    style.split(";").forEach((rule)=>{
+        if (!rule) return;
+        const [key, val] = rule.split(":");
+        if (key && val) obj[key.trim()] = val.trim();
+    });
+    return obj;
+}
+function serializeStyle(obj) {
+    return Object.entries(obj).map(([k, v])=>`${k}:${v}`).join(";");
+}
+function createElementShim(el) {
+    const PROPERTY_TO_ATTRIBUTE = {
+        value: "value",
+        checked: "checked",
+        selected: "selected",
+        disabled: "disabled",
+        id: "id",
+        className: "class"
+    };
+    let styleShim;
+    return new Proxy(el, {
+        get (target, prop) {
+            if (prop === "style") {
+                if (!styleShim) styleShim = createStyleShim(target);
+                return styleShim;
+            }
+            if (prop in PROPERTY_TO_ATTRIBUTE) {
+                return target.getAttribute(PROPERTY_TO_ATTRIBUTE[prop]);
+            }
+            if (typeof target[prop] === "function") {
+                return target[prop].bind(target);
+            }
+            return target[prop];
+        },
+        set (target, prop, value) {
+            if (prop in PROPERTY_TO_ATTRIBUTE) {
+                if (typeof value === "boolean") {
+                    value ? target.setAttribute(PROPERTY_TO_ATTRIBUTE[prop], "") : target.removeAttribute(PROPERTY_TO_ATTRIBUTE[prop]);
+                } else {
+                    target.setAttribute(PROPERTY_TO_ATTRIBUTE[prop], String(value));
+                }
+                return true;
+            }
+            target[prop] = value;
+            return true;
+        }
+    });
+}
 function initElementAsComponent(el, appState, pageState) {
     const messageListeners = {};
     const hydrateOnComponents = [];
@@ -778,24 +846,14 @@ function initElementAsComponent(el, appState, pageState) {
                     return el.getAttribute('el-is');
                 }
             },
-            call$: {
-                value: (event, data, options = {
-                    preventBubble: false
-                })=>{
+            emit$: {
+                value: (subject, data)=>{
                     let parentEl = el.parent$;
                     while(parentEl.id$ != 'document'){
-                        if (parentEl.props$[event]) {
-                            const method = parentEl.props$[event].value;
-                            if (method && parentEl.parent$[method]) {
-                                parentEl.parent$[method](data);
-                                break;
-                            }
+                        if (parentEl.listensFor$(subject)) {
+                            parentEl.onMessageReceived$(subject, data);
                         }
-                        if (options.preventBubble) break;
                         parentEl = parentEl.parent$;
-                    }
-                    if (parentEl.id$ == 'document') {
-                        console.warn(`Could not find a component listening for the event '${event}'`);
                     }
                 }
             },
@@ -1477,7 +1535,7 @@ createComponent('reactive-list', (el)=>{
             await clearComponents();
             await createComponents(props);
         },
-        onHydrate$: (props)=>{
+        onHydrate$: async (props)=>{
             props.src.onChange((src)=>{
                 props.src.value = src;
                 listItems = transformSourceList(props);
@@ -1498,6 +1556,13 @@ createComponent('reactive-list', (el)=>{
                     });
                 }
                 reconcileDom(currentOrder, newOrder);
+                if (currentOrder.length === 0) {
+                    el.emit$(el.id$ + ':ItemsUpdated');
+                } else if (newOrder.length > currentOrder.length) {
+                    el.emit$(el.id$ + ':ItemsAdded');
+                } else if (newOrder.length < currentOrder.length) {
+                    el.emit$(el.id$ + ':ItemsRemoved');
+                }
             });
         }
     });
@@ -1727,5 +1792,6 @@ createComponent('reactive-content', (el)=>{
         }
     });
 });
-export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emitMessage$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
 export { observe as observe };
+export { createElementShim as createElementShim };
