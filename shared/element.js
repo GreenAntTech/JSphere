@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.253');
+console.log('elementJS:', 'v1.0.0-preview.254');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -518,9 +518,21 @@ function runAt(props) {
     if (appContext.server && props.server) return props.server();
     else if (appContext.client && props.client) return props.client();
 }
-function getElementProxy(el) {
-    const shims = {};
+function initElementAsComponent(el, appState, pageState) {
+    const componentId = el.getAttribute('el-id');
+    const componentIs = el.getAttribute('el-is') || 'component';
     const componentProps = {};
+    const renderAt = el.getAttribute('el-render-at');
+    const stateObject = observe({}, 'state');
+    const messageListeners = new Map();
+    let componentState = 0;
+    let childComponents = {};
+    let parent;
+    if (el.hasAttribute('el-comp-state')) {
+        componentState = parseInt(el.getAttribute('el-comp-state'));
+    } else {
+        el.setAttribute('el-comp-state', String(componentState));
+    }
     Object.defineProperties(componentProps, {
         define$: {
             value: (userDefinedProperties)=>{
@@ -535,115 +547,44 @@ function getElementProxy(el) {
                 Object.defineProperties(componentProps, userDefinedProperties);
             }
         },
-        shims$: {
-            value: (userDefinedProperties)=>{
-                for(const prop in userDefinedProperties){
-                    if (typeof userDefinedProperties[prop] === 'function') {
-                        userDefinedProperties[prop] = {
-                            value: userDefinedProperties[prop]
-                        };
-                    }
+        init$: {
+            value: async (props)=>{
+                addPropsFromAttributes(componentProps, el, props);
+                addMissingLifecycleMethods(el);
+                if (appContext.server && renderAt == 'client') {
+                    return childComponents;
                 }
-                Object.defineProperties(shims, userDefinedProperties);
-            }
-        }
-    });
-    function getProxyHandler() {
-        return {
-            get: (target, prop, receiver)=>{
-                if (prop.endsWith('$')) {
-                    const value = componentProps[prop];
-                    if (typeof value == 'function') {
-                        return function(...args) {
-                            return value(args);
-                        };
-                    }
-                    return value;
+                if (appContext.client && renderAt == 'server') {
+                    return childComponents;
                 }
-                if (shims[prop]) {
-                    const value = shims[prop];
-                    if (typeof value == 'function') {
-                        return function(...args) {
-                            return value(args);
-                        };
-                    }
-                    return value;
+                if (componentState === 0) {
+                    await loadDependencies(el.use$(componentProps));
+                    await onInit(el, componentProps);
+                    await onStyle(el, componentProps);
+                    await onTemplate(el, componentProps);
+                    await onRender(el, componentProps);
                 }
-                const value = Reflect.get(target, prop, receiver);
-                return value;
-            },
-            set: (target, prop, value, receiver)=>{
-                if (prop.endsWith('$')) {
-                    if (!componentProps[prop]) {
-                        componentProps[prop] = value;
-                    }
-                    return true;
+                if (appContext.server) {
+                    componentState = 1;
+                    return childComponents;
+                } else {
+                    componentState = 2;
                 }
-                if (shims[prop]) {
-                    shims[prop] = value;
-                    return true;
+                if (componentState === 1) {
+                    await onResume(el);
+                    componentState = 2;
                 }
-                const success = Reflect.set(target, prop, value, receiver);
-                return success;
-            }
-        };
-    }
-    return new Proxy(el, getProxyHandler());
-}
-function initializeComponent(el, appState, pageState) {
-    el = getElementProxy(el);
-    const componentId = el.getAttribute('el-id');
-    const componentIs = el.getAttribute('el-is') || 'component';
-    const componentProps = {};
-    const renderAt = el.getAttribute('el-render-at');
-    const stateObject = observe({}, 'state');
-    const messageListeners = new Map();
-    new Set();
-    let componentState = 0;
-    let childComponents = {};
-    let parent;
-    if (el.hasAttribute('el-comp-state')) {
-        componentState = parseInt(el.getAttribute('el-comp-state'));
-    } else {
-        el.setAttribute('el-comp-state', String(componentState));
-    }
-    el.define$({
-        init$: async (props)=>{
-            addPropsFromAttributes(componentProps, el, props);
-            addMissingLifecycleMethods(el);
-            if (appContext.server && renderAt == 'client') {
+                if (componentState === 2) {
+                    await onHydrate(el, props);
+                    componentState = 3;
+                }
+                if (componentState === 3) {
+                    await onReady(el, props);
+                    componentState = 0;
+                    el.removeAttribute('el-comp-state');
+                }
                 return childComponents;
             }
-            if (appContext.client && renderAt == 'server') {
-                return childComponents;
-            }
-            if (componentState === 0) {
-                await loadDependencies(el.use$(componentProps));
-                await onInit(el, componentProps);
-                await onStyle(el, componentProps);
-                await onTemplate(el, componentProps);
-                await onRender(el, componentProps);
-            }
-            if (appContext.server) {
-                componentState = 1;
-                return childComponents;
-            } else {
-                componentState = 2;
-            }
-            if (componentState === 1) {
-                await onResume(el);
-                componentState = 2;
-            }
-            if (componentState === 2) {
-                await onHydrate(el, props);
-                componentState = 3;
-            }
-            if (componentState === 3) {
-                await onReady(el, props);
-                componentState = 0;
-                el.removeAttribute('el-comp-state');
-            }
-            return childComponents;
         },
         uId$: {
             get: ()=>{
@@ -660,17 +601,21 @@ function initializeComponent(el, appState, pageState) {
                 return componentIs;
             }
         },
-        emit$: (subject, data)=>{
-            let parentEl = el.parent$;
-            while(parentEl.id$ != 'document'){
-                if (parentEl.listensFor$(subject)) {
-                    parentEl.onMessageReceived$(subject, data);
+        emit$: {
+            value: (subject, data)=>{
+                let parentEl = el.parent$;
+                while(parentEl.id$ != 'document'){
+                    if (parentEl.listensFor$(subject)) {
+                        parentEl.onMessageReceived$(subject, data);
+                    }
+                    parentEl = parentEl.parent$;
                 }
-                parentEl = parentEl.parent$;
             }
         },
-        on$: (event, handler)=>{
-            el.addEventListener(event, handler);
+        on$: {
+            value: (event, handler)=>{
+                el.addEventListener(event, handler);
+            }
         },
         children$: {
             get: ()=>{
@@ -707,8 +652,10 @@ function initializeComponent(el, appState, pageState) {
                 return style.includes('display: none');
             }
         },
-        onMessageReceived$: async (subject, data)=>{
-            if (messageListeners.get(subject)) await messageListeners.get(subject)(data, appContext.ctx);
+        onMessageReceived$: {
+            value: async (subject, data)=>{
+                if (messageListeners.get(subject)) await messageListeners.get(subject)(data, appContext.ctx);
+            }
         },
         parent$: {
             set: (value)=>{
@@ -723,26 +670,34 @@ function initializeComponent(el, appState, pageState) {
                 return componentProps;
             }
         },
-        remove$: async ()=>{
-            await onCleanup(el);
-            unwatchElementProps(el);
-            delete el.parent$.children$[el.id$];
-            el.parent$.removeChild(el);
+        remove$: {
+            value: async ()=>{
+                await onCleanup(el);
+                unwatchElementProps(el);
+                delete el.parent$.children$[el.id$];
+                el.parent$.removeChild(el);
+            }
         },
-        removeChild$: async (childElement)=>{
-            await onCleanup(childElement);
-            unwatchElementProps(childElement);
-            delete el.children$[childElement.id$];
-            el.removeChild(childElement);
+        removeChild$: {
+            value: async (childElement)=>{
+                await onCleanup(childElement);
+                unwatchElementProps(childElement);
+                delete el.children$[childElement.id$];
+                el.removeChild(childElement);
+            }
         },
-        listensFor$: (subject)=>{
-            return messageListeners.has(subject);
+        listensFor$: {
+            value: (subject)=>{
+                return messageListeners.has(subject);
+            }
         },
-        subscribeTo$: (subject, handler)=>{
-            messageListeners.set(subject, async (data)=>{
-                await handler(data);
-            });
-            el.setAttribute('el-listening', 'true');
+        subscribeTo$: {
+            value: (subject, handler)=>{
+                messageListeners.set(subject, async (data)=>{
+                    await handler(data);
+                });
+                el.setAttribute('el-listening', 'true');
+            }
         },
         appState$: {
             get: ()=>{
@@ -759,9 +714,11 @@ function initializeComponent(el, appState, pageState) {
                 return stateObject;
             }
         },
-        unsubscribeTo$: (subject)=>{
-            messageListeners.delete(subject);
-            if (messageListeners.size === 0) el.removeAttribute('el-listening');
+        unsubscribeTo$: {
+            value: (subject)=>{
+                messageListeners.delete(subject);
+                if (messageListeners.size === 0) el.removeAttribute('el-listening');
+            }
         }
     });
     if (componentIs == 'component') el.setAttribute('el-is', 'component');
@@ -945,7 +902,7 @@ function initChildren(el) {
         children = getChildComponents(el);
     }
     for (const child of children){
-        const childElement = initializeComponent(child);
+        const childElement = initElementAsComponent(child);
         if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
         childElement.parent$ = el;
@@ -966,11 +923,10 @@ async function renderDocument(config, ctx) {
         const pageState = observe(config.pageState, 'pageState');
         if (appContext.server) {
             setExtendedURL(ctx.request.url);
-            appContext.documentElement = await getDocumentElement(config);
-            const el = initializeComponent(appContext.documentElement, appState, pageState);
+            const el = appContext.documentElement = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
-            el.setAttribute('el-server-rendering', 'true');
+            initElementAsComponent(el, appState, pageState);
             await el.init$();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
@@ -981,8 +937,7 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-id-count', idCount.toString());
             return el;
         } else {
-            document.documentElement;
-            const el = initializeComponent(appContext.documentElement, appState, pageState);
+            const el = document.documentElement;
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             if (el.hasAttribute('el-server-rendered')) {
@@ -995,6 +950,7 @@ async function renderDocument(config, ctx) {
                 Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
                 el.removeAttribute('el-state');
             }
+            initElementAsComponent(el, appState, pageState);
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
             await el.init$();
@@ -1028,71 +984,6 @@ async function getDocumentElement(config) {
         }
     }
     return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
-}
-function createStyleShim(el) {
-    return new Proxy({}, {
-        set (_, prop, value) {
-            const existing = el.getAttribute("style") || "";
-            const styles = parseStyle(existing);
-            styles[prop] = value;
-            el.setAttribute("style", serializeStyle(styles));
-            return true;
-        },
-        get (_, prop) {
-            const styles = parseStyle(el.getAttribute("style") || "");
-            return styles[prop];
-        }
-    });
-}
-function parseStyle(style) {
-    const obj = {};
-    style.split(";").forEach((rule)=>{
-        if (!rule) return;
-        const [key, val] = rule.split(":");
-        if (key && val) obj[key.trim()] = val.trim();
-    });
-    return obj;
-}
-function serializeStyle(obj) {
-    return Object.entries(obj).map(([k, v])=>`${k}:${v}`).join(";");
-}
-function createElementShim(el) {
-    const PROPERTY_TO_ATTRIBUTE = {
-        value: "value",
-        checked: "checked",
-        selected: "selected",
-        disabled: "disabled",
-        id: "id",
-        className: "class"
-    };
-    let styleShim;
-    return new Proxy(el, {
-        get (target, prop) {
-            if (prop === "style") {
-                if (!styleShim) styleShim = createStyleShim(target);
-                return styleShim;
-            }
-            if (prop in PROPERTY_TO_ATTRIBUTE) {
-                return target.getAttribute(PROPERTY_TO_ATTRIBUTE[prop]);
-            }
-            if (typeof target[prop] === "function") {
-                return target[prop].bind(target);
-            }
-            return target[prop];
-        },
-        set (target, prop, value) {
-            if (prop in PROPERTY_TO_ATTRIBUTE) {
-                if (typeof value === "boolean") {
-                    value ? target.setAttribute(PROPERTY_TO_ATTRIBUTE[prop], "") : target.removeAttribute(PROPERTY_TO_ATTRIBUTE[prop]);
-                } else {
-                    target.setAttribute(PROPERTY_TO_ATTRIBUTE[prop], String(value));
-                }
-                return true;
-            }
-            target[prop] = value;
-            return true;
-        }
-    });
 }
 function unwatchElementProps(el) {
     for(const id in el.children$){
@@ -1370,38 +1261,38 @@ async function insertElement(parent, element, action, elId) {
     };
     if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
     else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
-    let el = parent.ownerDocument.createElement(element.tagName);
+    const component = parent.ownerDocument.createElement(element.tagName);
     for(const prop in element){
         if (prop == 'tagName' || prop == 'props') continue;
-        el.setAttribute(prop, element[prop]);
+        component.setAttribute(prop, element[prop]);
     }
     await loadDependencies([
         element['el-is']
     ]);
-    el = initializeComponent(el);
-    el.setAttribute('id', `el${++idCount}`);
-    el.parent$ = parent;
-    el.setAttribute('el-parent', parent.id$);
-    parent.children$[element['el-id']] = el;
-    el.componentState$ = parent.componentState$ === -1 ? -1 : 0;
+    initElementAsComponent(component);
+    component.setAttribute('id', `el${++idCount}`);
+    component.parent$ = parent;
+    component.setAttribute('el-parent', parent.id$);
+    parent.children$[element['el-id']] = component;
+    component.componentState$ = parent.componentState$ === -1 ? -1 : 0;
     switch(action){
         case 'prepend':
-            parent.prepend(el);
+            parent.prepend(component);
             break;
         case 'append':
-            parent.append(el);
+            parent.append(component);
             break;
         case 'before':
-            parent.children$[elId].before(el);
+            parent.children$[elId].before(component);
             break;
         case 'after':
-            parent.children$[elId].after(el);
+            parent.children$[elId].after(component);
             break;
         default:
-            parent.append(el);
+            parent.append(component);
     }
-    if (parent.componentState$ === -1) await el.init$(element.props);
-    return el;
+    if (parent.componentState$ === -1) await component.init$(element.props);
+    return component;
 }
 createComponent('document', (el)=>{
     el.define$({
@@ -1708,4 +1599,3 @@ createComponent('reactive-content', (el)=>{
 });
 export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
 export { observe as observe };
-export { createElementShim as createElementShim };
