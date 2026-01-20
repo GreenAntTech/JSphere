@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.254');
+console.log('elementJS:', 'v1.0.0-preview.255');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -525,15 +525,21 @@ function initElementAsComponent(el, appState, pageState) {
     const renderAt = el.getAttribute('el-render-at');
     const stateObject = observe({}, 'state');
     const messageListeners = new Map();
+    const hydrateOnComponents = new Set();
+    const docEl = el.ownerDocument.documentElement;
+    let isRoot = false;
     let componentState = 0;
     let childComponents = {};
     let parent;
+    if (!docEl.hasAttribute('el-client-rendering') && !docEl.hasAttribute('el-server-rendering') && !docEl.hasAttribute('el-server-rendered') || componentId == 'document') {
+        isRoot = true;
+    }
     if (el.hasAttribute('el-comp-state')) {
         componentState = parseInt(el.getAttribute('el-comp-state'));
     } else {
         el.setAttribute('el-comp-state', String(componentState));
     }
-    Object.defineProperties(componentProps, {
+    Object.defineProperties(el, {
         define$: {
             value: (userDefinedProperties)=>{
                 for(const prop in userDefinedProperties){
@@ -544,7 +550,7 @@ function initElementAsComponent(el, appState, pageState) {
                         };
                     }
                 }
-                Object.defineProperties(componentProps, userDefinedProperties);
+                Object.defineProperties(el, userDefinedProperties);
             }
         },
         init$: {
@@ -566,24 +572,34 @@ function initElementAsComponent(el, appState, pageState) {
                 }
                 if (appContext.server) {
                     componentState = 1;
+                    el.setAttribute('el-comp-state', String(componentState));
                     return childComponents;
-                } else {
+                }
+                if (componentState === 0) {
                     componentState = 2;
+                    if (!isRoot) return childComponents;
                 }
                 if (componentState === 1) {
                     await onResume(el);
                     componentState = 2;
+                    if (!isRoot) return childComponents;
                 }
                 if (componentState === 2) {
-                    await onHydrate(el, props);
-                    componentState = 3;
-                }
-                if (componentState === 3) {
-                    await onReady(el, props);
+                    if (el.hasAttribute('el-hydrate-on')) {
+                        el.parent$.hydrateOnComponents$.add({
+                            el,
+                            props: componentProps,
+                            hydrateOn: el.getAttribute('el-hydrate-on')
+                        });
+                        el.removeAttribute('el-hydrate-on');
+                        return;
+                    }
+                    await loadDependencies(el.use$(componentProps));
+                    await onHydrate(el, componentProps);
+                    await onReady(el, componentProps);
                     componentState = 0;
                     el.removeAttribute('el-comp-state');
                 }
-                return childComponents;
             }
         },
         uId$: {
@@ -650,6 +666,11 @@ function initElementAsComponent(el, appState, pageState) {
                 let style = el.getAttribute('style');
                 if (!style) style = '';
                 return style.includes('display: none');
+            }
+        },
+        hydrateOnComponents$: {
+            get: ()=>{
+                return hydrateOnComponents;
             }
         },
         onMessageReceived$: {
@@ -813,7 +834,7 @@ async function onRender(el, props) {
     await el.onRender$(props);
     for(const id in el.children$){
         const child = el.children$[id];
-        await child.init$();
+        if (child.componentState$ == 0) await child.init$();
     }
 }
 async function onResume(el) {
@@ -825,33 +846,30 @@ async function onResume(el) {
     }
 }
 async function onHydrate(el, props) {
-    if (el.hasAttribute('el-hydrate-on')) {
-        el.parent$.hydrateOnComponents$.add({
-            el,
-            props,
-            hydrateOn: el.getAttribute('el-hydrate-on')
-        });
-        el.removeAttribute('el-hydrate-on');
-        return;
-    }
     await el.onHydrate$(props);
     for(const id in el.children$){
         const child = el.children$[id];
-        await child.init$();
+        if (child.componentState$ == 0) await child.init$();
     }
 }
 async function onReady(el, props) {
     await el.onReady$(props);
     onHydrateOn(el);
-    el.removeAttribute('el-comp-state');
-    el.removeAttribute('el-parent');
+    const attrs = [
+        'el-client-rendering',
+        'el-server-rendering',
+        'el-server-rendered',
+        'el-comp-state',
+        'el-parent'
+    ];
     for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) el.removeAttribute(attr.name);
+        if (attr.name.startsWith('data-')) attrs.push(attr.name);
     }
+    for (const attr of attrs)el.removeAttribute(attr);
 }
 function onHydrateOn(el) {
     for (const entry of el.hydrateOnComponents$){
-        const component = entry.component;
+        const component = entry.el;
         const props = entry.props;
         const hydrateOn = entry.hydrateOn;
         if (hydrateOn == 'idle' || hydrateOn.startsWith('idle:')) {
@@ -926,14 +944,16 @@ async function renderDocument(config, ctx) {
             const el = appContext.documentElement = await getDocumentElement(config);
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
+            el.setAttribute('el-server-rendering', 'true');
             initElementAsComponent(el, appState, pageState);
             await el.init$();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
                 if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$[0]));
             }
-            el.setAttribute('el-state', JSON.stringify(config.pageState));
+            el.removeAttribute('el-server-rendering');
             el.setAttribute('el-server-rendered', 'true');
+            el.setAttribute('el-state', JSON.stringify(config.pageState));
             el.setAttribute('el-id-count', idCount.toString());
             return el;
         } else {
@@ -1163,7 +1183,10 @@ async function getDependencies(el) {
         'list'
     ].includes(el.getAttribute('el-is'))) dependencies.push(el.getAttribute('el-is'));
     let children;
-    if (el.componentState$ === 2) children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
+    if ([
+        1,
+        2
+    ].includes(el.componentState$)) children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
     else children = el.querySelectorAll(':scope [el-is]');
     children.forEach((component)=>{
         if (component.getAttribute('el-is') == 'component') return;
@@ -1274,7 +1297,6 @@ async function insertElement(parent, element, action, elId) {
     component.parent$ = parent;
     component.setAttribute('el-parent', parent.id$);
     parent.children$[element['el-id']] = component;
-    component.componentState$ = parent.componentState$ === -1 ? -1 : 0;
     switch(action){
         case 'prepend':
             parent.prepend(component);
@@ -1291,7 +1313,7 @@ async function insertElement(parent, element, action, elId) {
         default:
             parent.append(component);
     }
-    if (parent.componentState$ === -1) await component.init$(element.props);
+    await component.init$(element.props);
     return component;
 }
 createComponent('document', (el)=>{
@@ -1340,7 +1362,7 @@ createComponent('reactive-list', (el)=>{
             await clearComponents();
             await createComponents(props);
         },
-        onHydrate$: async (props)=>{
+        onHydrate$: (props)=>{
             props.src.onChange((src)=>{
                 props.src.value = src;
                 listItems = transformSourceList(props);
