@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.255');
+console.log('elementJS:', 'v1.0.0-preview.256');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -518,7 +518,7 @@ function runAt(props) {
     if (appContext.server && props.server) return props.server();
     else if (appContext.client && props.client) return props.client();
 }
-function initElementAsComponent(el, appState, pageState) {
+function initElementAsComponent(el, parent, appState, pageState) {
     const componentId = el.getAttribute('el-id');
     const componentIs = el.getAttribute('el-is') || 'component';
     const componentProps = {};
@@ -526,14 +526,10 @@ function initElementAsComponent(el, appState, pageState) {
     const stateObject = observe({}, 'state');
     const messageListeners = new Map();
     const hydrateOnComponents = new Set();
-    const docEl = el.ownerDocument.documentElement;
-    let isRoot = false;
-    let componentState = 0;
+    let isRoot = parent === null || parent.componentState$ === -1;
+    let componentState = -1;
     let childComponents = {};
-    let parent;
-    if (!docEl.hasAttribute('el-client-rendering') && !docEl.hasAttribute('el-server-rendering') && !docEl.hasAttribute('el-server-rendered') || componentId == 'document') {
-        isRoot = true;
-    }
+    if (parent === null || parent.componentState$ === -1) isRoot = true;
     if (el.hasAttribute('el-comp-state')) {
         componentState = parseInt(el.getAttribute('el-comp-state'));
     } else {
@@ -555,7 +551,7 @@ function initElementAsComponent(el, appState, pageState) {
         },
         init$: {
             value: async (props)=>{
-                addPropsFromAttributes(componentProps, el, props);
+                if (componentState === -1) componentState = 0;
                 addMissingLifecycleMethods(el);
                 if (appContext.server && renderAt == 'client') {
                     return childComponents;
@@ -564,6 +560,8 @@ function initElementAsComponent(el, appState, pageState) {
                     return childComponents;
                 }
                 if (componentState === 0) {
+                    addPropsFromAttributes(componentProps, el);
+                    addProps(componentProps, el, props);
                     await loadDependencies(el.use$(componentProps));
                     await onInit(el, componentProps);
                     await onStyle(el, componentProps);
@@ -580,6 +578,7 @@ function initElementAsComponent(el, appState, pageState) {
                     if (!isRoot) return childComponents;
                 }
                 if (componentState === 1) {
+                    addPropsFromAttributes(componentProps, el);
                     await onResume(el);
                     componentState = 2;
                     if (!isRoot) return childComponents;
@@ -594,10 +593,11 @@ function initElementAsComponent(el, appState, pageState) {
                         el.removeAttribute('el-hydrate-on');
                         return;
                     }
+                    addProps(componentProps, el, props);
                     await loadDependencies(el.use$(componentProps));
                     await onHydrate(el, componentProps);
                     await onReady(el, componentProps);
-                    componentState = 0;
+                    componentState = -1;
                     el.removeAttribute('el-comp-state');
                 }
             }
@@ -683,7 +683,7 @@ function initElementAsComponent(el, appState, pageState) {
                 parent = value;
             },
             get: ()=>{
-                return parent || el.ownerDocument.documentElement;
+                return parent;
             }
         },
         props$: {
@@ -758,8 +758,7 @@ async function onInit(el, props) {
     el.removeAttribute('el-active');
 }
 async function onStyle(el, props) {
-    if (props.theme === undefined) props.theme = {};
-    const theme = props.theme.value || '';
+    const theme = props.theme !== undefined ? props.theme.value : '';
     const themeId = el.is$ + (theme ? '_' + theme : '');
     let css = el.onStyle$(props);
     if (!css) return;
@@ -834,7 +833,7 @@ async function onRender(el, props) {
     await el.onRender$(props);
     for(const id in el.children$){
         const child = el.children$[id];
-        if (child.componentState$ == 0) await child.init$();
+        if (child.componentState$ == -1) await child.init$();
     }
 }
 async function onResume(el) {
@@ -849,7 +848,7 @@ async function onHydrate(el, props) {
     await el.onHydrate$(props);
     for(const id in el.children$){
         const child = el.children$[id];
-        if (child.componentState$ == 0) await child.init$();
+        if (child.componentState$ == 2) await child.init$();
     }
 }
 async function onReady(el, props) {
@@ -870,14 +869,13 @@ async function onReady(el, props) {
 function onHydrateOn(el) {
     for (const entry of el.hydrateOnComponents$){
         const component = entry.el;
-        const props = entry.props;
         const hydrateOn = entry.hydrateOn;
         if (hydrateOn == 'idle' || hydrateOn.startsWith('idle:')) {
             const time = hydrateOn.startsWith('idle:') ? parseInt(hydrateOn.substring(5)) : 0;
             if (time) {
                 const callback = async ()=>{
                     await getDependencies(component);
-                    await component.init$(props);
+                    await component.init$();
                 };
                 globalThis.requestIdleCallback(callback, {
                     timeout: time
@@ -888,13 +886,13 @@ function onHydrateOn(el) {
             const callback = async ()=>{
                 if (!component.parentElement) return;
                 await getDependencies(component);
-                await component.init$(props);
+                await component.init$();
             };
             setTimeout(callback, time);
         } else if (hydrateOn == 'visible') {
             component.hydrateOnCallback$ = async ()=>{
                 await getDependencies(component);
-                await component.init$(props);
+                await component.init$();
                 intersectionObserver.unobserve(component);
             };
             intersectionObserver.observe(component);
@@ -920,7 +918,7 @@ function initChildren(el) {
         children = getChildComponents(el);
     }
     for (const child of children){
-        const childElement = initElementAsComponent(child);
+        const childElement = initElementAsComponent(child, el);
         if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
         childElement.parent$ = el;
@@ -945,7 +943,7 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-is', 'document');
             el.setAttribute('el-id', 'document');
             el.setAttribute('el-server-rendering', 'true');
-            initElementAsComponent(el, appState, pageState);
+            initElementAsComponent(el, null, appState, pageState);
             await el.init$();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
@@ -970,7 +968,7 @@ async function renderDocument(config, ctx) {
                 Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
                 el.removeAttribute('el-state');
             }
-            initElementAsComponent(el, appState, pageState);
+            initElementAsComponent(el, null, appState, pageState);
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
             await el.init$();
@@ -1035,34 +1033,49 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
         }
     }
 }
-function addPropsFromAttributes(componentProps, el, props) {
+function addProps(componentProps, el, props) {
+    const newProps = {};
+    for(const propName in props){
+        if (componentProps[propName]) continue;
+        if (typeof props[propName] == 'string') {
+            if (props[propName].startsWith('bind:')) {
+                props[propName] = getBoundEntity(el, propName, props[propName].substring(5));
+            } else {
+                let value;
+                if (props[propName].startsWith('num:')) {
+                    value = Number(props[propName].substring(4));
+                    if (isNaN(value)) {
+                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid number`;
+                    }
+                } else if (props[propName].startsWith('bool:')) {
+                    value = props[propName].substring(5);
+                    value = value == 'true' ? true : value == 'false' ? false : null;
+                    if (value === null) {
+                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid boolean`;
+                    }
+                } else {
+                    value = props[propName];
+                }
+                props[propName] = new Prop(value);
+                console.log(propName, props[propName]);
+            }
+        } else {
+            props[propName] = new Prop(props[propName]);
+            console.log(propName, props[propName]);
+        }
+        newProps[propName] = props[propName];
+    }
+    Object.assign(componentProps, newProps);
+}
+function addPropsFromAttributes(componentProps, el) {
     const attrs = {};
     for (const attr of el.attributes){
         if (attr.name.startsWith('data-')) {
             const propName = kebabToCamelCase(attr.name.substring(5));
-            if (attr.value && attr.value.startsWith('bind:')) {
-                attrs[propName] = getBoundEntity(el, propName, attr.value.substring(5));
-            } else {
-                let value;
-                if (attr.value && attr.value.startsWith('num:')) {
-                    value = Number(attr.value.substring(4));
-                    if (isNaN(value)) {
-                        throw `The attribute ${attr.name} on the element id="${el.uId$}" is not a valid number`;
-                    }
-                } else if (attr.value && attr.value.startsWith('bool:')) {
-                    value = attr.value.substring(5);
-                    value = value == 'true' ? true : value == 'false' ? false : null;
-                    if (value === null) {
-                        throw `The attribute ${attr.name} on the element id="${el.uId$}" is not a valid boolean`;
-                    }
-                } else {
-                    value = attr.value || true;
-                }
-                attrs[propName] = new Prop(value);
-            }
+            attrs[propName] = attr.value || true;
         }
     }
-    Object.assign(componentProps, attrs, props);
+    addProps(componentProps, el, attrs);
 }
 function getBoundEntity(el, propName, path) {
     const arrPath = path.split('.');
@@ -1275,7 +1288,7 @@ function deepEqual(a, b) {
     }
     return false;
 }
-async function insertElement(parent, element, action, elId) {
+async function insertElement(parent, element, action, elId, autoInit) {
     const tagNameMap = {
         ul: 'li',
         ol: 'li',
@@ -1292,7 +1305,7 @@ async function insertElement(parent, element, action, elId) {
     await loadDependencies([
         element['el-is']
     ]);
-    initElementAsComponent(component);
+    initElementAsComponent(component, parent);
     component.setAttribute('id', `el${++idCount}`);
     component.parent$ = parent;
     component.setAttribute('el-parent', parent.id$);
@@ -1313,7 +1326,7 @@ async function insertElement(parent, element, action, elId) {
         default:
             parent.append(component);
     }
-    await component.init$(element.props);
+    if (autoInit) await component.init$(element.props);
     return component;
 }
 createComponent('document', (el)=>{
@@ -1336,6 +1349,27 @@ createComponent('document', (el)=>{
 });
 createComponent('component', (el)=>{
     el.define$({
+        clear$: async ()=>{
+            for(const id in el.children$){
+                await el.removeChild$(el.children$[id]);
+            }
+        },
+        append$: async (element, autoInit = false)=>{
+            const component = await insertElement(el, element, 'append', '', autoInit);
+            return component;
+        },
+        prepend$: async (element, autoInit = false)=>{
+            const component = await insertElement(el, element, 'prepend', '', autoInit);
+            return component;
+        },
+        before$: async (element, elId, autoInit = false)=>{
+            const component = await insertElement(el, element, 'before', elId, autoInit);
+            return component;
+        },
+        after$: async (element, elId, autoInit = false)=>{
+            const component = await insertElement(el, element, 'after', elId, autoInit);
+            return component;
+        },
         text$: {
             set: (value)=>{
                 el.textContent = value;
@@ -1414,7 +1448,7 @@ createComponent('reactive-list', (el)=>{
                 'el-id': id,
                 'data-index': `num:${index}`,
                 [`data-${propName}`]: 'bind:src.' + index++
-            }, 'append');
+            }, 'append', '', true);
         }
     }
     async function reconcileDom(currentOrder, newOrder) {
@@ -1439,7 +1473,7 @@ createComponent('reactive-list', (el)=>{
                     'el-id': id,
                     'data-index': `num:${i}`,
                     [`data-${propName}`]: 'bind:src.' + i
-                }, 'append');
+                }, 'append', '', true);
                 node = el.children$[id];
             } else {
                 el.insertBefore(node, referenceNode);
@@ -1455,31 +1489,6 @@ createComponent('reactive-list', (el)=>{
             }
         }
     }
-});
-createComponent('list', (el)=>{
-    el.define$({
-        clear$: async ()=>{
-            for(const id in el.children$){
-                await el.removeChild$(el.children$[id]);
-            }
-        },
-        append$: async (element)=>{
-            const component = await insertElement(el, element, 'append');
-            return component;
-        },
-        prepend$: async (element)=>{
-            const component = await insertElement(el, element, 'prepend');
-            return component;
-        },
-        before$: async (element, elId)=>{
-            const component = await insertElement(el, element, 'before', elId);
-            return component;
-        },
-        after$: async (element, elId)=>{
-            const component = await insertElement(el, element, 'after', elId);
-            return component;
-        }
-    });
 });
 createComponent('link', (el)=>{
     let _onclick;
