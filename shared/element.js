@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.257');
+console.log('elementJS:', 'v1.0.0-preview.258');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -899,16 +899,18 @@ function onHydrateOn(el) {
     el.hydrateOnComponents$.clear();
 }
 async function onCleanup(el) {
-    const nodeList = el.querySelectorAll(':scope [el-id]');
-    const nodes = Array.from(nodeList);
-    nodes.push(el);
-    for (const node of nodes){
-        await node.onCleanup$();
-        unwatchElementProps(node);
-        delete node.parent$.children$[node.id$];
-        node.parent$ = null;
-        node.parentElement.removeChild(node);
+    const desscendants = el.querySelectorAll(':scope [el-id]');
+    for (const descendant of desscendants){
+        await descendant.onCleanup$();
+        descendant.parent$ = null;
     }
+    await el.onCleanup$();
+    unwatchElementProps(el);
+    delete el.parent$.children$[el.id$];
+    setTimeout(()=>{
+        el.parent$ = null;
+    }, 0);
+    el.parentElement.removeChild(el);
 }
 function initChildren(el) {
     let children;
