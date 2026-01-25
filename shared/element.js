@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.258');
+console.log('elementJS:', 'v1.0.0-preview.259');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -868,7 +868,7 @@ function onHydrateOn(el) {
             const time = hydrateOn.startsWith('idle:') ? parseInt(hydrateOn.substring(5)) : 0;
             if (time) {
                 const callback = async ()=>{
-                    if (!component.parentElement) return;
+                    if (component.parent$ == null) return;
                     await getDependencies(component);
                     await component.init$();
                 };
@@ -879,14 +879,14 @@ function onHydrateOn(el) {
         } else if (hydrateOn == 'timeout' || hydrateOn.startsWith('timeout:')) {
             const time = hydrateOn.startsWith('timeout:') ? parseInt(hydrateOn.substring(8)) : 500;
             const callback = async ()=>{
-                if (!component.parentElement) return;
+                if (component.parent$ == null) return;
                 await getDependencies(component);
                 await component.init$();
             };
             setTimeout(callback, time);
         } else if (hydrateOn == 'visible') {
             component.hydrateOnCallback$ = async ()=>{
-                if (!component.parentElement) return;
+                if (component.parent$ == null) return;
                 await getDependencies(component);
                 await component.init$();
                 intersectionObserver.unobserve(component);
