@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.256');
+console.log('elementJS:', 'v1.0.0-preview.257');
 let idCount = 0;
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -694,17 +694,11 @@ function initElementAsComponent(el, parent, appState, pageState) {
         remove$: {
             value: async ()=>{
                 await onCleanup(el);
-                unwatchElementProps(el);
-                delete el.parent$.children$[el.id$];
-                el.parent$.removeChild(el);
             }
         },
         removeChild$: {
             value: async (childElement)=>{
                 await onCleanup(childElement);
-                unwatchElementProps(childElement);
-                delete el.children$[childElement.id$];
-                el.removeChild(childElement);
             }
         },
         listensFor$: {
@@ -874,6 +868,7 @@ function onHydrateOn(el) {
             const time = hydrateOn.startsWith('idle:') ? parseInt(hydrateOn.substring(5)) : 0;
             if (time) {
                 const callback = async ()=>{
+                    if (!component.parentElement) return;
                     await getDependencies(component);
                     await component.init$();
                 };
@@ -891,6 +886,7 @@ function onHydrateOn(el) {
             setTimeout(callback, time);
         } else if (hydrateOn == 'visible') {
             component.hydrateOnCallback$ = async ()=>{
+                if (!component.parentElement) return;
                 await getDependencies(component);
                 await component.init$();
                 intersectionObserver.unobserve(component);
@@ -903,10 +899,15 @@ function onHydrateOn(el) {
     el.hydrateOnComponents$.clear();
 }
 async function onCleanup(el) {
-    await el.onCleanup$();
-    for(const id in el.children$){
-        const child = el.children$[id];
-        if (child.onCleanup$) await child.onCleanup$();
+    const nodeList = el.querySelectorAll(':scope [el-id]');
+    const nodes = Array.from(nodeList);
+    nodes.push(el);
+    for (const node of nodes){
+        await node.onCleanup$();
+        unwatchElementProps(node);
+        delete node.parent$.children$[node.id$];
+        node.parent$ = null;
+        node.parentElement.removeChild(node);
     }
 }
 function initChildren(el) {
@@ -1033,7 +1034,7 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
         }
     }
 }
-function addProps(componentProps, el, props) {
+function addProps(componentProps, el, props = {}) {
     const newProps = {};
     for(const propName in props){
         if (componentProps[propName]) continue;
@@ -1057,11 +1058,9 @@ function addProps(componentProps, el, props) {
                     value = props[propName];
                 }
                 props[propName] = new Prop(value);
-                console.log(propName, props[propName]);
             }
         } else {
             props[propName] = new Prop(props[propName]);
-            console.log(propName, props[propName]);
         }
         newProps[propName] = props[propName];
     }
@@ -1350,9 +1349,7 @@ createComponent('document', (el)=>{
 createComponent('component', (el)=>{
     el.define$({
         clear$: async ()=>{
-            for(const id in el.children$){
-                await el.removeChild$(el.children$[id]);
-            }
+            for(const key in el.children$)await el.children$[key].remove$();
         },
         append$: async (element, autoInit = false)=>{
             const component = await insertElement(el, element, 'append', '', autoInit);
