@@ -1,11 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.259');
-let idCount = 0;
-const appContext = {
-    server: globalThis.Deno ? true : false,
-    client: globalThis.Deno ? false : true,
-    documentElement: null,
-    ctx: null
-};
+console.log('elementJS:', 'v1.0.0-preview.260');
 class Feature {
     featureFlags = [];
     constructor(flags){
@@ -74,6 +67,32 @@ class StateProp {
         this._onChange(fn);
     }
 }
+const extendedURL = {};
+const feature = new Feature(getFeatureFlags());
+const registeredAllowedOrigins = [
+    ''
+];
+const registeredCaptions = {};
+const registeredComponents = {};
+const registeredDependencies = {};
+const registeredServerDependencies = {};
+const registeredDeviceMessages = {};
+const registeredMessages = {};
+const registeredRoutes = {};
+const resourceCache = new Map();
+const appContext = {
+    server: globalThis.Deno ? true : false,
+    client: globalThis.Deno ? false : true,
+    documentElement: null,
+    ctx: null
+};
+let intersectionObserver;
+let idCount = 0;
+(function() {
+    globalThis.addEventListener('message', processEvent, false);
+    globalThis.addEventListener('popstate', popStateEvent, false);
+    if (globalThis.location) registerAllowedOrigin(globalThis.location.origin);
+})();
 function processEvent(event) {
     try {
         let message;
@@ -125,8 +144,7 @@ function processEvent(event) {
 function isValidMessage(data) {
     return typeof data === 'object' && data !== null && 'subject' in data && typeof data.subject === 'string';
 }
-globalThis.addEventListener('message', processEvent, false);
-globalThis.addEventListener('popstate', async ()=>{
+async function popStateEvent() {
     setExtendedURL(globalThis.location);
     for(const routePath in registeredRoutes){
         const route = {
@@ -141,24 +159,704 @@ globalThis.addEventListener('popstate', async ()=>{
             break;
         }
     }
-}, false);
-const extendedURL = {};
-const feature = new Feature(getFeatureFlags());
-const registeredAllowedOrigins = [
-    ''
-];
-const registeredCaptions = {};
-const registeredComponents = {};
-const registeredDependencies = {};
-const registeredServerDependencies = {};
-const registeredDeviceMessages = {};
-const registeredMessages = {};
-const registeredRoutes = {};
-const resourceCache = new Map();
-let intersectionObserver;
-(function() {
-    if (globalThis.location) registerAllowedOrigin(globalThis.location.origin);
-})();
+}
+async function renderDocument(config, ctx) {
+    try {
+        if (!config) config = {};
+        if (!config.pageState) config.pageState = {};
+        validateInputs(config, ctx);
+        appContext.ctx = ctx;
+        const appState = observe({}, 'appState', {
+            persist: true,
+            key: 'elementJS_appState_' + (ctx ? ctx.request.url.hostname : globalThis.location.hostname)
+        });
+        const pageState = observe(config.pageState, 'pageState');
+        if (appContext.server) {
+            setExtendedURL(ctx.request.url);
+            const el = appContext.documentElement = await getDocumentElement(config);
+            el.setAttribute('el-is', 'document');
+            el.setAttribute('el-id', 'document');
+            el.setAttribute('el-server-rendering', 'true');
+            initElementAsComponent(el, null, appState, pageState);
+            await el.init$();
+            const components = el.querySelectorAll('[el-is]');
+            for (const component of components){
+                if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$[0]));
+            }
+            el.removeAttribute('el-server-rendering');
+            el.setAttribute('el-server-rendered', 'true');
+            el.setAttribute('el-state', JSON.stringify(config.pageState));
+            el.setAttribute('el-id-count', idCount.toString());
+            return el;
+        } else {
+            const el = document.documentElement;
+            el.setAttribute('el-is', 'document');
+            el.setAttribute('el-id', 'document');
+            if (el.hasAttribute('el-server-rendered')) {
+                idCount = parseInt(el.getAttribute('el-id-count'));
+                el.removeAttribute('el-id-count');
+            } else {
+                el.setAttribute('el-client-rendering', 'true');
+            }
+            if (el.hasAttribute('el-state')) {
+                Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
+                el.removeAttribute('el-state');
+            }
+            initElementAsComponent(el, null, appState, pageState);
+            setExtendedURL(globalThis.location);
+            setupIntersectionObserver();
+            await el.init$();
+            return el;
+        }
+    } catch (e) {
+        console.error('Render error:', e);
+        throw e;
+    }
+}
+function validateInputs(config, ctx) {
+    if (appContext.server) {
+        if (!config || typeof config !== 'object') {
+            throw new RenderError('Invalid config object provided');
+        }
+        if (!ctx || typeof ctx !== 'object') {
+            throw new RenderError('Invalid server context object provided');
+        }
+        if (!config.file && !config.html) {
+            throw new RenderError('Either file path or HTML content must be provided');
+        }
+    }
+}
+async function getDocumentElement(config) {
+    let html = config.html;
+    if (!html && config.file) {
+        html = await getResource(config.file);
+        if (!html) {
+            console.error('Could not create document element - file not found: ', config.file);
+            throw new RenderError('FileNotFound');
+        }
+    }
+    return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
+}
+function initElementAsComponent(el, parent, appState, pageState) {
+    const componentId = el.getAttribute('el-id');
+    const componentIs = el.getAttribute('el-is') || 'component';
+    const componentProps = {};
+    const renderAt = el.getAttribute('el-render-at');
+    const stateObject = observe({}, 'state');
+    const messageListeners = new Map();
+    const hydrateOnComponents = new Set();
+    const style = parseStyle(el.getAttribute('style') || '');
+    let isRoot = parent === null || parent.componentState$ === -1;
+    let componentState = -1;
+    let childComponents = {};
+    if (parent === null || parent.componentState$ === -1) isRoot = true;
+    if (el.hasAttribute('el-comp-state')) {
+        componentState = parseInt(el.getAttribute('el-comp-state'));
+    } else {
+        el.setAttribute('el-comp-state', String(componentState));
+    }
+    Object.defineProperties(el, {
+        define$: {
+            value: (userDefinedProperties)=>{
+                for(const prop in userDefinedProperties){
+                    if (!prop.endsWith('$')) throw new RenderError(`Invalid property name '${prop}'. Property names must end with a $.`);
+                    if (typeof userDefinedProperties[prop] === 'function') {
+                        userDefinedProperties[prop] = {
+                            value: userDefinedProperties[prop]
+                        };
+                    }
+                }
+                Object.defineProperties(el, userDefinedProperties);
+            }
+        },
+        init$: {
+            value: async (props)=>{
+                if (componentState === -1) componentState = 0;
+                addMissingLifecycleMethods(el);
+                if (appContext.server && renderAt == 'client') {
+                    return childComponents;
+                }
+                if (appContext.client && renderAt == 'server') {
+                    return childComponents;
+                }
+                if (componentState === 0) {
+                    addPropsFromAttributes(componentProps, el);
+                    addProps(componentProps, el, props);
+                    await loadDependencies(el.use$(componentProps));
+                    await onInit(el, componentProps);
+                    await onStyle(el, componentProps);
+                    await onTemplate(el, componentProps);
+                    await onRender(el, componentProps);
+                }
+                if (appContext.server) {
+                    componentState = 1;
+                    el.setAttribute('el-comp-state', String(componentState));
+                    return childComponents;
+                }
+                if (componentState === 0) {
+                    componentState = 2;
+                    if (!isRoot) return childComponents;
+                }
+                if (componentState === 1) {
+                    addPropsFromAttributes(componentProps, el);
+                    await onResume(el);
+                    componentState = 2;
+                    if (!isRoot) return childComponents;
+                }
+                if (componentState === 2) {
+                    if (el.hasAttribute('el-hydrate-on')) {
+                        el.parent$.hydrateOnComponents$.add({
+                            el,
+                            props: componentProps,
+                            hydrateOn: el.getAttribute('el-hydrate-on')
+                        });
+                        el.removeAttribute('el-hydrate-on');
+                        return;
+                    }
+                    addProps(componentProps, el, props);
+                    await loadDependencies(el.use$(componentProps));
+                    await onHydrate(el, componentProps);
+                    await onReady(el, componentProps);
+                    componentState = -1;
+                    el.removeAttribute('el-comp-state');
+                }
+            }
+        },
+        uId$: {
+            get: ()=>{
+                return el.getAttribute('id');
+            }
+        },
+        id$: {
+            get: ()=>{
+                return componentId;
+            }
+        },
+        is$: {
+            get: ()=>{
+                return componentIs;
+            }
+        },
+        emit$: {
+            value: (subject, data)=>{
+                let parentEl = el.parent$;
+                while(parentEl.id$ != 'document'){
+                    if (parentEl.listensFor$(subject)) {
+                        parentEl.onMessageReceived$(subject, data);
+                    }
+                    parentEl = parentEl.parent$;
+                }
+            }
+        },
+        on$: {
+            value: (event, handler)=>{
+                el.addEventListener(event, handler);
+            }
+        },
+        children$: {
+            get: ()=>{
+                return childComponents;
+            },
+            set: (value)=>{
+                childComponents = value;
+            }
+        },
+        componentState$: {
+            get: ()=>{
+                return componentState;
+            }
+        },
+        hidden$: {
+            set: (value)=>{
+                if (typeof value != 'boolean') return;
+                if (value) {
+                    let style = el.getAttribute('style');
+                    if (!style) style = '';
+                    if (/\bdisplay\s*:\s*none\b/i.test(style)) return;
+                    style += '; display: none';
+                    el.setAttribute('style', style);
+                } else {
+                    let style = el.getAttribute('style');
+                    if (!style) style = '';
+                    style = style.replace(/\bdisplay\s*:\s*none\s*;?/gi, '').replace(/;;+/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '').trim();
+                    el.setAttribute('style', style);
+                }
+            },
+            get: ()=>{
+                let style = el.getAttribute('style');
+                if (!style) style = '';
+                return style.includes('display: none');
+            }
+        },
+        hydrateOnComponents$: {
+            get: ()=>{
+                return hydrateOnComponents;
+            }
+        },
+        onMessageReceived$: {
+            value: async (subject, data)=>{
+                if (messageListeners.get(subject)) await messageListeners.get(subject)(data, appContext.ctx);
+            }
+        },
+        parent$: {
+            set: (value)=>{
+                parent = value;
+            },
+            get: ()=>{
+                return parent;
+            }
+        },
+        props$: {
+            get: ()=>{
+                return componentProps;
+            }
+        },
+        remove$: {
+            value: async ()=>{
+                await onCleanup(el);
+            }
+        },
+        removeChild$: {
+            value: async (childElement)=>{
+                await onCleanup(childElement);
+            }
+        },
+        listensFor$: {
+            value: (subject)=>{
+                return messageListeners.has(subject);
+            }
+        },
+        subscribeTo$: {
+            value: (subject, handler)=>{
+                messageListeners.set(subject, async (data)=>{
+                    await handler(data);
+                });
+                el.setAttribute('el-listening', 'true');
+            }
+        },
+        appState$: {
+            get: ()=>{
+                return appState || el.ownerDocument.documentElement.appState$;
+            }
+        },
+        pageState$: {
+            get: ()=>{
+                return pageState || el.ownerDocument.documentElement.pageState$;
+            }
+        },
+        state$: {
+            get: ()=>{
+                return stateObject;
+            }
+        },
+        unsubscribeTo$: {
+            value: (subject)=>{
+                messageListeners.delete(subject);
+                if (messageListeners.size === 0) el.removeAttribute('el-listening');
+            }
+        }
+    });
+    if (appContext.server) {
+        Object.defineProperties(el, {
+            style: {
+                get: ()=>{
+                    return style;
+                }
+            }
+        });
+    }
+    if (componentIs == 'component') el.setAttribute('el-is', 'component');
+    if (registeredComponents[componentIs]) {
+        if (el.hasAttribute('el-state')) {
+            Object.assign(stateObject[0], JSON.parse(el.getAttribute('el-state')));
+            el.removeAttribute('el-state');
+        }
+        registeredComponents[componentIs](el);
+    } else console.warn(`The component type '${componentIs}' is not registered.`);
+    return el;
+}
+function addMissingLifecycleMethods(el) {
+    if (typeof el.use$ == 'undefined') el.use$ = ()=>[];
+    if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
+    if (typeof el.onStyle$ == 'undefined') el.onStyle$ = ()=>{};
+    if (typeof el.onTemplate$ == 'undefined') el.onTemplate$ = ()=>{};
+    if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
+    if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
+    if (typeof el.onReady$ == 'undefined') el.onReady$ = ()=>{};
+    if (typeof el.onCleanup$ == 'undefined') el.onCleanup$ = ()=>{};
+}
+async function onInit(el, props) {
+    el.setAttribute('el-active', '');
+    await el.onInit$(props);
+    el.removeAttribute('el-active');
+}
+async function onStyle(el, props) {
+    const theme = props.theme !== undefined ? props.theme.value : '';
+    const themeId = el.is$ + (theme ? '_' + theme : '');
+    let css = el.onStyle$(props);
+    if (!css) return;
+    if (css.endsWith('.css')) {
+        const path = css;
+        let content;
+        if (path.endsWith('.theme.css')) {
+            if (appContext.server) {
+                if (resourceCache.has(path)) {
+                    content = resourceCache.get(path);
+                    console.log(`Loaded CSS theme from cache: ${path}`);
+                } else {
+                    content = await getResource(path) || '';
+                    if (content !== undefined) resourceCache.set(path, content);
+                }
+            } else {
+                content = await getResource(path) || '';
+            }
+            if (theme) content = content.replaceAll('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
+            else content = content.replaceAll('[el]', `[el-is='${el.is$}']`);
+            el.setAttribute('data-theme', themeId);
+            if (el.ownerDocument.getElementById(themeId)) return;
+            const tag = el.ownerDocument.createElement('style');
+            tag.setAttribute('id', themeId);
+            tag.textContent = content;
+            el.ownerDocument.head.append(tag);
+        } else {
+            if (el.ownerDocument.head.querySelector(`[href='${path}']`)) return;
+            const tag = el.ownerDocument.createElement('link');
+            tag.setAttribute('rel', 'stylesheet');
+            tag.setAttribute('href', path);
+            el.ownerDocument.head.append(tag);
+        }
+    } else {
+        if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
+        if (theme) css = css.replaceAll('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
+        else css = css.replaceAll('[el]', `[el-is='${el.is$}']`);
+        const tag = el.ownerDocument.createElement('style');
+        tag.setAttribute('id', themeId);
+        tag.textContent = css;
+        el.ownerDocument.head.append(tag);
+    }
+}
+async function onTemplate(el, props) {
+    let content;
+    const template = el.onTemplate$(props);
+    if (template && template.startsWith('/')) {
+        const url = template;
+        if (appContext.server) {
+            if (resourceCache.has(url)) {
+                content = resourceCache.get(url);
+                console.log(`Loaded template from cache: ${url}`);
+            } else {
+                content = await getResource(url) || '';
+                if (content !== undefined) resourceCache.set(url, content);
+            }
+            el.innerHTML = sanitize(content);
+        } else {
+            content = await getResource(url) || '';
+            el.innerHTML = sanitize(content);
+        }
+    } else if (template) {
+        content = template;
+        el.innerHTML = sanitize(content);
+    } else if (template == '') {
+        el.innerHTML = template;
+    }
+    await getDependencies(el);
+    initChildren(el);
+}
+async function onRender(el, props) {
+    await el.onRender$(props);
+    if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
+    for(const id in el.children$){
+        const child = el.children$[id];
+        if (child.componentState$ == -1) await child.init$();
+    }
+}
+async function onResume(el) {
+    await getDependencies(el);
+    initChildren(el);
+    for(const id in el.children$){
+        const child = el.children$[id];
+        await child.init$();
+    }
+}
+async function onHydrate(el, props) {
+    await el.onHydrate$(props);
+    for(const id in el.children$){
+        const child = el.children$[id];
+        if (child.componentState$ == 2) await child.init$();
+    }
+}
+async function onReady(el, props) {
+    await el.onReady$(props);
+    onHydrateOn(el);
+    const attrs = [
+        'el-client-rendering',
+        'el-server-rendering',
+        'el-server-rendered',
+        'el-comp-state',
+        'el-parent'
+    ];
+    for (const attr of el.attributes){
+        if (attr.name.startsWith('data-')) attrs.push(attr.name);
+    }
+    for (const attr of attrs)el.removeAttribute(attr);
+}
+function onHydrateOn(el) {
+    for (const entry of el.hydrateOnComponents$){
+        const component = entry.el;
+        const hydrateOn = entry.hydrateOn;
+        if (hydrateOn == 'idle' || hydrateOn.startsWith('idle:')) {
+            const time = hydrateOn.startsWith('idle:') ? parseInt(hydrateOn.substring(5)) : 0;
+            if (time) {
+                const callback = async ()=>{
+                    if (component.parent$ == null) return;
+                    await getDependencies(component);
+                    await component.init$();
+                };
+                globalThis.requestIdleCallback(callback, {
+                    timeout: time
+                });
+            }
+        } else if (hydrateOn == 'timeout' || hydrateOn.startsWith('timeout:')) {
+            const time = hydrateOn.startsWith('timeout:') ? parseInt(hydrateOn.substring(8)) : 500;
+            const callback = async ()=>{
+                if (component.parent$ == null) return;
+                await getDependencies(component);
+                await component.init$();
+            };
+            setTimeout(callback, time);
+        } else if (hydrateOn == 'visible') {
+            component.hydrateOnCallback$ = async ()=>{
+                if (component.parent$ == null) return;
+                await getDependencies(component);
+                await component.init$();
+                intersectionObserver.unobserve(component);
+            };
+            intersectionObserver.observe(component);
+        } else {
+            throw new RenderError(`Invalid el-hydrate-on attribute value: ${hydrateOn}`);
+        }
+    }
+    el.hydrateOnComponents$.clear();
+}
+async function onCleanup(el) {
+    const desscendants = el.querySelectorAll(':scope [el-id]');
+    for (const descendant of desscendants){
+        await descendant.onCleanup$();
+        descendant.parent$ = null;
+    }
+    await el.onCleanup$();
+    unwatchElementProps(el);
+    delete el.parent$.children$[el.id$];
+    setTimeout(()=>{
+        el.parent$ = null;
+    }, 0);
+    el.parentElement.removeChild(el);
+}
+function initChildren(el) {
+    let children;
+    el.children$ = {};
+    if (el.componentState$ === 1) {
+        children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
+    } else {
+        children = getChildComponents(el);
+    }
+    for (const child of children){
+        const childElement = initElementAsComponent(child, el);
+        if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
+        childElement.setAttribute('el-parent', el.getAttribute('el-id'));
+        childElement.parent$ = el;
+        const elId = childElement.id$;
+        el.children$[elId] = childElement;
+    }
+}
+function getChildComponents(parent) {
+    const components = [
+        ...parent.querySelectorAll('[el-id]')
+    ];
+    return components.filter((child)=>{
+        let match = child.closest('[el-is]');
+        if (match.is$ == parent.is$) return true;
+        match = match.parentElement.closest('[el-id]');
+        if (match.id$ == parent.id$) return true;
+        return false;
+    });
+}
+function addProps(componentProps, el, props = {}) {
+    const newProps = {};
+    for(const propName in props){
+        if (componentProps[propName]) continue;
+        if (typeof props[propName] == 'string') {
+            if (props[propName].startsWith('bind:')) {
+                props[propName] = getBoundEntity(el, propName, props[propName].substring(5));
+            } else {
+                let value;
+                if (props[propName].startsWith('num:')) {
+                    value = Number(props[propName].substring(4));
+                    if (isNaN(value)) {
+                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid number`;
+                    }
+                } else if (props[propName].startsWith('bool:')) {
+                    value = props[propName].substring(5);
+                    value = value == 'true' ? true : value == 'false' ? false : null;
+                    if (value === null) {
+                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid boolean`;
+                    }
+                } else {
+                    value = props[propName];
+                }
+                props[propName] = new Prop(value);
+            }
+        } else {
+            props[propName] = new Prop(props[propName]);
+        }
+        newProps[propName] = props[propName];
+    }
+    Object.assign(componentProps, newProps);
+}
+function addPropsFromAttributes(componentProps, el) {
+    const attrs = {};
+    for (const attr of el.attributes){
+        if (attr.name.startsWith('data-')) {
+            const propName = kebabToCamelCase(attr.name.substring(5));
+            attrs[propName] = attr.value || true;
+        }
+    }
+    addProps(componentProps, el, attrs);
+}
+function getBoundEntity(el, propName, path) {
+    const arrPath = path.split('.');
+    let statePath = '', value;
+    if ([
+        'appState',
+        'pageState'
+    ].includes(arrPath[0])) {
+        statePath = path;
+        value = el[arrPath[0] + '$'][0];
+        for(let i = 1; i < arrPath.length; i++){
+            value = value[arrPath[i]];
+        }
+    } else if (arrPath[0] == 'state') {
+        let parentEl = el.parent$;
+        let found = false;
+        while(parentEl.id$ != 'document' && !found){
+            value = parentEl[arrPath[0] + '$'][0];
+            for(let i = 1; i < arrPath.length; i++){
+                if (!value.hasOwnProperty(arrPath[i])) {
+                    parentEl = parentEl.parent$;
+                    break;
+                } else {
+                    value = value[arrPath[i]];
+                    statePath = path.replace('state.', parentEl.uId$ + '.');
+                    found = true;
+                }
+            }
+            if (parentEl.id$ == 'document') {
+                statePath = path.replace('state.', parentEl.uId$ + '.');
+                value = undefined;
+            }
+        }
+    } else {
+        const parentProp = el.parent$.props$[arrPath[0]];
+        value = parentProp.value;
+        for(let i = 1; i < arrPath.length; i++){
+            value = value[arrPath[i]];
+        }
+        arrPath.shift();
+        statePath = parentProp.statePath + '.' + arrPath.join('.');
+    }
+    return new StateProp(statePath, value, bind(el, propName, statePath));
+}
+function bind(el, propName, statePath) {
+    return (fn)=>{
+        const arrPath = statePath.split('.');
+        let observer, path;
+        if (![
+            'appState',
+            'pageState'
+        ].includes(arrPath[0])) {
+            observer = el.ownerDocument.getElementById(arrPath[0]).state$;
+            path = statePath.replace(arrPath[0] + '.', 'state.');
+        } else {
+            observer = el[arrPath[0] + '$'];
+            path = statePath;
+        }
+        const watch = observer[1];
+        const [unwatch, rewatch] = watch(path, fn, el);
+        el.props$[propName].unwatch = unwatch;
+        el.props$[propName].rewatch = rewatch;
+    };
+}
+function unwatchElementProps(el) {
+    for(const id in el.children$){
+        unwatchElementProps(el.children$[id]);
+    }
+    for(const prop in el.props$){
+        const value = el.props$[prop];
+        if (value.unwatch) {
+            value.unwatch();
+        }
+    }
+}
+function reIndexStatePath(el, oldRoot, newRoot, depth) {
+    for(const id in el.children$){
+        reIndexStatePath(el.children$[id], oldRoot, newRoot, depth + 1);
+    }
+    for(const prop in el.props$){
+        let statePath = el.props$[prop].statePath;
+        if (statePath) {
+            if (depth === 0) {
+                statePath = statePath.replace(oldRoot, newRoot);
+            } else {
+                statePath = statePath.replace(oldRoot + '.', newRoot + '.');
+            }
+            const arrStatePath = statePath.split('.');
+            arrStatePath[0] = 'state';
+            const value = el.props$[prop];
+            if (value.rewatch) value.rewatch(arrStatePath.join('.'));
+        }
+    }
+}
+async function insertElement(parent, element, action, elId, autoInit) {
+    const tagNameMap = {
+        ul: 'li',
+        ol: 'li',
+        thead: 'tr',
+        tbody: 'tr'
+    };
+    if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
+    else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
+    const component = parent.ownerDocument.createElement(element.tagName);
+    for(const prop in element){
+        if (prop == 'tagName' || prop == 'props') continue;
+        component.setAttribute(prop, element[prop]);
+    }
+    await loadDependencies([
+        element['el-is']
+    ]);
+    initElementAsComponent(component, parent);
+    component.setAttribute('id', `el${++idCount}`);
+    component.parent$ = parent;
+    component.setAttribute('el-parent', parent.id$);
+    parent.children$[element['el-id']] = component;
+    switch(action){
+        case 'prepend':
+            parent.prepend(component);
+            break;
+        case 'append':
+            parent.append(component);
+            break;
+        case 'before':
+            parent.children$[elId].before(component);
+            break;
+        case 'after':
+            parent.children$[elId].after(component);
+            break;
+        default:
+            parent.append(component);
+    }
+    if (autoInit) await component.init$(element.props);
+    return component;
+}
 function createComponent(param1, param2) {
     if (typeof param1 == 'string') {
         registeredComponents[param1] = param2;
@@ -168,10 +866,21 @@ function createComponent(param1, param2) {
         return param1.name;
     }
 }
-function deviceSubscribesTo(subject) {
-    registeredDeviceMessages[subject] = true;
+async function elementFetch(path, options = {
+    headers: []
+}) {
+    let url = path;
+    if (appContext.server) {
+        url = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port || '80'}${path}`;
+        if (options && options.headers === undefined) options.headers = [];
+        options.headers.push([
+            'element-server-request',
+            'true'
+        ]);
+    }
+    return await fetch(url, options);
 }
-async function emitMessage(subject, data, target) {
+async function emit(subject, data, target) {
     const docEl = appContext.server ? appContext.documentElement : document.documentElement;
     const el = docEl.querySelector(`[el-active]`);
     if (el) {
@@ -190,6 +899,9 @@ async function emitMessage(subject, data, target) {
         }));
     }
 }
+function deviceSubscribesTo(subject) {
+    registeredDeviceMessages[subject] = true;
+}
 function navigateTo(path) {
     if (path === undefined) globalThis.dispatchEvent(new Event('popstate'));
     else if (path == globalThis.location.pathname) return;
@@ -197,58 +909,6 @@ function navigateTo(path) {
         globalThis.history.pushState({}, '', path);
         dispatchEvent(new Event('popstate'));
     }
-}
-async function elementFetch(path, options = {
-    headers: []
-}) {
-    let url = path;
-    if (appContext.server) {
-        url = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port || '80'}${path}`;
-        if (options && options.headers === undefined) options.headers = [];
-        options.headers.push([
-            'element-server-request',
-            'true'
-        ]);
-    }
-    return await fetch(url, options);
-}
-function registerAllowedOrigin(uri) {
-    registeredAllowedOrigins.push(uri);
-}
-function registerCaptions(name, captions) {
-    registeredCaptions[name] = captions;
-}
-function registerDependencies(dependencies) {
-    Object.assign(registeredDependencies, dependencies);
-}
-function registerRoute(path, handler) {
-    if (path === undefined || typeof path != 'string') {
-        console.warn('A path must be specified when registering a route:', path);
-        return;
-    }
-    if (typeof handler != 'function') {
-        console.warn('A valid hanlder must be specified when registering a route:', handler);
-        return;
-    }
-    registeredRoutes[path] = handler;
-}
-function registerServerDependencies(dependencies) {
-    Object.assign(registeredServerDependencies, dependencies);
-}
-function subscribeTo(subject, handler) {
-    registeredMessages[subject] = handler;
-}
-function useCaptions(name) {
-    return (value, ...args)=>{
-        const captionPack = registeredCaptions[name] || {};
-        let caption = captionPack[value] || value;
-        if (args && args.length > 0) {
-            for(let i = 0; i < args.length; i++){
-                caption = caption.replaceAll('{' + (i + 1) + '}', args[i]);
-            }
-        }
-        return caption;
-    };
 }
 function observe(objectToObserve, name, config) {
     const observablesCache = new WeakMap();
@@ -514,679 +1174,68 @@ function observe(objectToObserve, name, config) {
         compute
     ];
 }
+function registerAllowedOrigin(uri) {
+    registeredAllowedOrigins.push(uri);
+}
+function registerCaptions(name, captions) {
+    registeredCaptions[name] = captions;
+}
+function registerDependencies(dependencies) {
+    Object.assign(registeredDependencies, dependencies);
+}
+function registerRoute(path, handler) {
+    if (path === undefined || typeof path != 'string') {
+        console.warn('A path must be specified when registering a route:', path);
+        return;
+    }
+    if (typeof handler != 'function') {
+        console.warn('A valid hanlder must be specified when registering a route:', handler);
+        return;
+    }
+    registeredRoutes[path] = handler;
+}
+function registerServerDependencies(dependencies) {
+    Object.assign(registeredServerDependencies, dependencies);
+}
 function runAt(props) {
     if (appContext.server && props.server) return props.server();
     else if (appContext.client && props.client) return props.client();
 }
-function initElementAsComponent(el, parent, appState, pageState) {
-    const componentId = el.getAttribute('el-id');
-    const componentIs = el.getAttribute('el-is') || 'component';
-    const componentProps = {};
-    const renderAt = el.getAttribute('el-render-at');
-    const stateObject = observe({}, 'state');
-    const messageListeners = new Map();
-    const hydrateOnComponents = new Set();
-    let isRoot = parent === null || parent.componentState$ === -1;
-    let componentState = -1;
-    let childComponents = {};
-    if (parent === null || parent.componentState$ === -1) isRoot = true;
-    if (el.hasAttribute('el-comp-state')) {
-        componentState = parseInt(el.getAttribute('el-comp-state'));
-    } else {
-        el.setAttribute('el-comp-state', String(componentState));
-    }
-    Object.defineProperties(el, {
-        define$: {
-            value: (userDefinedProperties)=>{
-                for(const prop in userDefinedProperties){
-                    if (!prop.endsWith('$')) throw new RenderError(`Invalid property name '${prop}'. Property names must end with a $.`);
-                    if (typeof userDefinedProperties[prop] === 'function') {
-                        userDefinedProperties[prop] = {
-                            value: userDefinedProperties[prop]
-                        };
-                    }
-                }
-                Object.defineProperties(el, userDefinedProperties);
-            }
-        },
-        init$: {
-            value: async (props)=>{
-                if (componentState === -1) componentState = 0;
-                addMissingLifecycleMethods(el);
-                if (appContext.server && renderAt == 'client') {
-                    return childComponents;
-                }
-                if (appContext.client && renderAt == 'server') {
-                    return childComponents;
-                }
-                if (componentState === 0) {
-                    addPropsFromAttributes(componentProps, el);
-                    addProps(componentProps, el, props);
-                    await loadDependencies(el.use$(componentProps));
-                    await onInit(el, componentProps);
-                    await onStyle(el, componentProps);
-                    await onTemplate(el, componentProps);
-                    await onRender(el, componentProps);
-                }
-                if (appContext.server) {
-                    componentState = 1;
-                    el.setAttribute('el-comp-state', String(componentState));
-                    return childComponents;
-                }
-                if (componentState === 0) {
-                    componentState = 2;
-                    if (!isRoot) return childComponents;
-                }
-                if (componentState === 1) {
-                    addPropsFromAttributes(componentProps, el);
-                    await onResume(el);
-                    componentState = 2;
-                    if (!isRoot) return childComponents;
-                }
-                if (componentState === 2) {
-                    if (el.hasAttribute('el-hydrate-on')) {
-                        el.parent$.hydrateOnComponents$.add({
-                            el,
-                            props: componentProps,
-                            hydrateOn: el.getAttribute('el-hydrate-on')
-                        });
-                        el.removeAttribute('el-hydrate-on');
-                        return;
-                    }
-                    addProps(componentProps, el, props);
-                    await loadDependencies(el.use$(componentProps));
-                    await onHydrate(el, componentProps);
-                    await onReady(el, componentProps);
-                    componentState = -1;
-                    el.removeAttribute('el-comp-state');
-                }
-            }
-        },
-        uId$: {
-            get: ()=>{
-                return el.getAttribute('id');
-            }
-        },
-        id$: {
-            get: ()=>{
-                return componentId;
-            }
-        },
-        is$: {
-            get: ()=>{
-                return componentIs;
-            }
-        },
-        emit$: {
-            value: (subject, data)=>{
-                let parentEl = el.parent$;
-                while(parentEl.id$ != 'document'){
-                    if (parentEl.listensFor$(subject)) {
-                        parentEl.onMessageReceived$(subject, data);
-                    }
-                    parentEl = parentEl.parent$;
-                }
-            }
-        },
-        on$: {
-            value: (event, handler)=>{
-                el.addEventListener(event, handler);
-            }
-        },
-        children$: {
-            get: ()=>{
-                return childComponents;
-            },
-            set: (value)=>{
-                childComponents = value;
-            }
-        },
-        componentState$: {
-            get: ()=>{
-                return componentState;
-            }
-        },
-        hidden$: {
-            set: (value)=>{
-                if (typeof value != 'boolean') return;
-                if (value) {
-                    let style = el.getAttribute('style');
-                    if (!style) style = '';
-                    if (/\bdisplay\s*:\s*none\b/i.test(style)) return;
-                    style += '; display: none';
-                    el.setAttribute('style', style);
-                } else {
-                    let style = el.getAttribute('style');
-                    if (!style) style = '';
-                    style = style.replace(/\bdisplay\s*:\s*none\s*;?/gi, '').replace(/;;+/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '').trim();
-                    el.setAttribute('style', style);
-                }
-            },
-            get: ()=>{
-                let style = el.getAttribute('style');
-                if (!style) style = '';
-                return style.includes('display: none');
-            }
-        },
-        hydrateOnComponents$: {
-            get: ()=>{
-                return hydrateOnComponents;
-            }
-        },
-        onMessageReceived$: {
-            value: async (subject, data)=>{
-                if (messageListeners.get(subject)) await messageListeners.get(subject)(data, appContext.ctx);
-            }
-        },
-        parent$: {
-            set: (value)=>{
-                parent = value;
-            },
-            get: ()=>{
-                return parent;
-            }
-        },
-        props$: {
-            get: ()=>{
-                return componentProps;
-            }
-        },
-        remove$: {
-            value: async ()=>{
-                await onCleanup(el);
-            }
-        },
-        removeChild$: {
-            value: async (childElement)=>{
-                await onCleanup(childElement);
-            }
-        },
-        listensFor$: {
-            value: (subject)=>{
-                return messageListeners.has(subject);
-            }
-        },
-        subscribeTo$: {
-            value: (subject, handler)=>{
-                messageListeners.set(subject, async (data)=>{
-                    await handler(data);
-                });
-                el.setAttribute('el-listening', 'true');
-            }
-        },
-        appState$: {
-            get: ()=>{
-                return appState || el.ownerDocument.documentElement.appState$;
-            }
-        },
-        pageState$: {
-            get: ()=>{
-                return pageState || el.ownerDocument.documentElement.pageState$;
-            }
-        },
-        state$: {
-            get: ()=>{
-                return stateObject;
-            }
-        },
-        unsubscribeTo$: {
-            value: (subject)=>{
-                messageListeners.delete(subject);
-                if (messageListeners.size === 0) el.removeAttribute('el-listening');
+function subscribeTo(subject, handler) {
+    registeredMessages[subject] = handler;
+}
+function useCaptions(name) {
+    return (value, ...args)=>{
+        const captionPack = registeredCaptions[name] || {};
+        let caption = captionPack[value] || value;
+        if (args && args.length > 0) {
+            for(let i = 0; i < args.length; i++){
+                caption = caption.replaceAll('{' + (i + 1) + '}', args[i]);
             }
         }
-    });
-    if (componentIs == 'component') el.setAttribute('el-is', 'component');
-    if (registeredComponents[componentIs]) {
-        if (el.hasAttribute('el-state')) {
-            Object.assign(stateObject[0], JSON.parse(el.getAttribute('el-state')));
-            el.removeAttribute('el-state');
-        }
-        registeredComponents[componentIs](el);
-    } else console.warn(`The component type '${componentIs}' is not registered.`);
-    return el;
-}
-async function onInit(el, props) {
-    el.setAttribute('el-active', '');
-    await el.onInit$(props);
-    el.removeAttribute('el-active');
-}
-async function onStyle(el, props) {
-    const theme = props.theme !== undefined ? props.theme.value : '';
-    const themeId = el.is$ + (theme ? '_' + theme : '');
-    let css = el.onStyle$(props);
-    if (!css) return;
-    if (css.endsWith('.css')) {
-        const path = css;
-        let content;
-        if (path.endsWith('.theme.css')) {
-            if (appContext.server) {
-                if (resourceCache.has(path)) {
-                    content = resourceCache.get(path);
-                    console.log(`Loaded CSS theme from cache: ${path}`);
-                } else {
-                    content = await getResource(path) || '';
-                    if (content !== undefined) resourceCache.set(path, content);
-                }
-            } else {
-                content = await getResource(path) || '';
-            }
-            if (theme) content = content.replaceAll('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
-            else content = content.replaceAll('[el]', `[el-is='${el.is$}']`);
-            el.setAttribute('data-theme', themeId);
-            if (el.ownerDocument.getElementById(themeId)) return;
-            const tag = el.ownerDocument.createElement('style');
-            tag.setAttribute('id', themeId);
-            tag.textContent = content;
-            el.ownerDocument.head.append(tag);
-        } else {
-            if (el.ownerDocument.head.querySelector(`[href='${path}']`)) return;
-            const tag = el.ownerDocument.createElement('link');
-            tag.setAttribute('rel', 'stylesheet');
-            tag.setAttribute('href', path);
-            el.ownerDocument.head.append(tag);
-        }
-    } else {
-        if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-        if (theme) css = css.replaceAll('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
-        else css = css.replaceAll('[el]', `[el-is='${el.is$}']`);
-        const tag = el.ownerDocument.createElement('style');
-        tag.setAttribute('id', themeId);
-        tag.textContent = css;
-        el.ownerDocument.head.append(tag);
-    }
-}
-async function onTemplate(el, props) {
-    let content;
-    const template = el.onTemplate$(props);
-    if (template && template.startsWith('/')) {
-        const url = template;
-        if (appContext.server) {
-            if (resourceCache.has(url)) {
-                content = resourceCache.get(url);
-                console.log(`Loaded template from cache: ${url}`);
-            } else {
-                content = await getResource(url) || '';
-                if (content !== undefined) resourceCache.set(url, content);
-            }
-            el.innerHTML = sanitize(content);
-        } else {
-            content = await getResource(url) || '';
-            el.innerHTML = sanitize(content);
-        }
-    } else if (template) {
-        content = template;
-        el.innerHTML = sanitize(content);
-    } else if (template == '') {
-        el.innerHTML = template;
-    }
-    await getDependencies(el);
-    initChildren(el);
-}
-async function onRender(el, props) {
-    await el.onRender$(props);
-    for(const id in el.children$){
-        const child = el.children$[id];
-        if (child.componentState$ == -1) await child.init$();
-    }
-}
-async function onResume(el) {
-    await getDependencies(el);
-    initChildren(el);
-    for(const id in el.children$){
-        const child = el.children$[id];
-        await child.init$();
-    }
-}
-async function onHydrate(el, props) {
-    await el.onHydrate$(props);
-    for(const id in el.children$){
-        const child = el.children$[id];
-        if (child.componentState$ == 2) await child.init$();
-    }
-}
-async function onReady(el, props) {
-    await el.onReady$(props);
-    onHydrateOn(el);
-    const attrs = [
-        'el-client-rendering',
-        'el-server-rendering',
-        'el-server-rendered',
-        'el-comp-state',
-        'el-parent'
-    ];
-    for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) attrs.push(attr.name);
-    }
-    for (const attr of attrs)el.removeAttribute(attr);
-}
-function onHydrateOn(el) {
-    for (const entry of el.hydrateOnComponents$){
-        const component = entry.el;
-        const hydrateOn = entry.hydrateOn;
-        if (hydrateOn == 'idle' || hydrateOn.startsWith('idle:')) {
-            const time = hydrateOn.startsWith('idle:') ? parseInt(hydrateOn.substring(5)) : 0;
-            if (time) {
-                const callback = async ()=>{
-                    if (component.parent$ == null) return;
-                    await getDependencies(component);
-                    await component.init$();
-                };
-                globalThis.requestIdleCallback(callback, {
-                    timeout: time
-                });
-            }
-        } else if (hydrateOn == 'timeout' || hydrateOn.startsWith('timeout:')) {
-            const time = hydrateOn.startsWith('timeout:') ? parseInt(hydrateOn.substring(8)) : 500;
-            const callback = async ()=>{
-                if (component.parent$ == null) return;
-                await getDependencies(component);
-                await component.init$();
-            };
-            setTimeout(callback, time);
-        } else if (hydrateOn == 'visible') {
-            component.hydrateOnCallback$ = async ()=>{
-                if (component.parent$ == null) return;
-                await getDependencies(component);
-                await component.init$();
-                intersectionObserver.unobserve(component);
-            };
-            intersectionObserver.observe(component);
-        } else {
-            throw new RenderError(`Invalid el-hydrate-on attribute value: ${hydrateOn}`);
-        }
-    }
-    el.hydrateOnComponents$.clear();
-}
-async function onCleanup(el) {
-    const desscendants = el.querySelectorAll(':scope [el-id]');
-    for (const descendant of desscendants){
-        await descendant.onCleanup$();
-        descendant.parent$ = null;
-    }
-    await el.onCleanup$();
-    unwatchElementProps(el);
-    delete el.parent$.children$[el.id$];
-    setTimeout(()=>{
-        el.parent$ = null;
-    }, 0);
-    el.parentElement.removeChild(el);
-}
-function initChildren(el) {
-    let children;
-    el.children$ = {};
-    if (el.componentState$ === 1) {
-        children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
-    } else {
-        children = getChildComponents(el);
-    }
-    for (const child of children){
-        const childElement = initElementAsComponent(child, el);
-        if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
-        childElement.setAttribute('el-parent', el.getAttribute('el-id'));
-        childElement.parent$ = el;
-        const elId = childElement.id$;
-        el.children$[elId] = childElement;
-    }
-}
-async function renderDocument(config, ctx) {
-    try {
-        if (!config) config = {};
-        if (!config.pageState) config.pageState = {};
-        validateInputs(config, ctx);
-        appContext.ctx = ctx;
-        const appState = observe({}, 'appState', {
-            persist: true,
-            key: 'elementJS_appState_' + (ctx ? ctx.request.url.hostname : globalThis.location.hostname)
-        });
-        const pageState = observe(config.pageState, 'pageState');
-        if (appContext.server) {
-            setExtendedURL(ctx.request.url);
-            const el = appContext.documentElement = await getDocumentElement(config);
-            el.setAttribute('el-is', 'document');
-            el.setAttribute('el-id', 'document');
-            el.setAttribute('el-server-rendering', 'true');
-            initElementAsComponent(el, null, appState, pageState);
-            await el.init$();
-            const components = el.querySelectorAll('[el-is]');
-            for (const component of components){
-                if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$[0]));
-            }
-            el.removeAttribute('el-server-rendering');
-            el.setAttribute('el-server-rendered', 'true');
-            el.setAttribute('el-state', JSON.stringify(config.pageState));
-            el.setAttribute('el-id-count', idCount.toString());
-            return el;
-        } else {
-            const el = document.documentElement;
-            el.setAttribute('el-is', 'document');
-            el.setAttribute('el-id', 'document');
-            if (el.hasAttribute('el-server-rendered')) {
-                idCount = parseInt(el.getAttribute('el-id-count'));
-                el.removeAttribute('el-id-count');
-            } else {
-                el.setAttribute('el-client-rendering', 'true');
-            }
-            if (el.hasAttribute('el-state')) {
-                Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
-                el.removeAttribute('el-state');
-            }
-            initElementAsComponent(el, null, appState, pageState);
-            setExtendedURL(globalThis.location);
-            setupIntersectionObserver();
-            await el.init$();
-            return el;
-        }
-    } catch (e) {
-        console.error('Render error:', e);
-        throw e;
-    }
-}
-function validateInputs(config, ctx) {
-    if (appContext.server) {
-        if (!config || typeof config !== 'object') {
-            throw new RenderError('Invalid config object provided');
-        }
-        if (!ctx || typeof ctx !== 'object') {
-            throw new RenderError('Invalid server context object provided');
-        }
-        if (!config.file && !config.html) {
-            throw new RenderError('Either file path or HTML content must be provided');
-        }
-    }
-}
-async function getDocumentElement(config) {
-    let html = config.html;
-    if (!html && config.file) {
-        html = await getResource(config.file);
-        if (!html) {
-            console.error('Could not create document element - file not found: ', config.file);
-            throw new RenderError('FileNotFound');
-        }
-    }
-    return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
-}
-function unwatchElementProps(el) {
-    for(const id in el.children$){
-        unwatchElementProps(el.children$[id]);
-    }
-    for(const prop in el.props$){
-        const value = el.props$[prop];
-        if (value.unwatch) {
-            value.unwatch();
-        }
-    }
-}
-function reIndexStatePath(el, oldRoot, newRoot, depth) {
-    for(const id in el.children$){
-        reIndexStatePath(el.children$[id], oldRoot, newRoot, depth + 1);
-    }
-    for(const prop in el.props$){
-        let statePath = el.props$[prop].statePath;
-        if (statePath) {
-            if (depth === 0) {
-                statePath = statePath.replace(oldRoot, newRoot);
-            } else {
-                statePath = statePath.replace(oldRoot + '.', newRoot + '.');
-            }
-            const arrStatePath = statePath.split('.');
-            arrStatePath[0] = 'state';
-            const value = el.props$[prop];
-            if (value.rewatch) value.rewatch(arrStatePath.join('.'));
-        }
-    }
-}
-function addProps(componentProps, el, props = {}) {
-    const newProps = {};
-    for(const propName in props){
-        if (componentProps[propName]) continue;
-        if (typeof props[propName] == 'string') {
-            if (props[propName].startsWith('bind:')) {
-                props[propName] = getBoundEntity(el, propName, props[propName].substring(5));
-            } else {
-                let value;
-                if (props[propName].startsWith('num:')) {
-                    value = Number(props[propName].substring(4));
-                    if (isNaN(value)) {
-                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid number`;
-                    }
-                } else if (props[propName].startsWith('bool:')) {
-                    value = props[propName].substring(5);
-                    value = value == 'true' ? true : value == 'false' ? false : null;
-                    if (value === null) {
-                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid boolean`;
-                    }
-                } else {
-                    value = props[propName];
-                }
-                props[propName] = new Prop(value);
-            }
-        } else {
-            props[propName] = new Prop(props[propName]);
-        }
-        newProps[propName] = props[propName];
-    }
-    Object.assign(componentProps, newProps);
-}
-function addPropsFromAttributes(componentProps, el) {
-    const attrs = {};
-    for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) {
-            const propName = kebabToCamelCase(attr.name.substring(5));
-            attrs[propName] = attr.value || true;
-        }
-    }
-    addProps(componentProps, el, attrs);
-}
-function getBoundEntity(el, propName, path) {
-    const arrPath = path.split('.');
-    let statePath = '', value;
-    if ([
-        'appState',
-        'pageState'
-    ].includes(arrPath[0])) {
-        statePath = path;
-        value = el[arrPath[0] + '$'][0];
-        for(let i = 1; i < arrPath.length; i++){
-            value = value[arrPath[i]];
-        }
-    } else if (arrPath[0] == 'state') {
-        let parentEl = el.parent$;
-        let found = false;
-        while(parentEl.id$ != 'document' && !found){
-            value = parentEl[arrPath[0] + '$'][0];
-            for(let i = 1; i < arrPath.length; i++){
-                if (!value.hasOwnProperty(arrPath[i])) {
-                    parentEl = parentEl.parent$;
-                    break;
-                } else {
-                    value = value[arrPath[i]];
-                    statePath = path.replace('state.', parentEl.uId$ + '.');
-                    found = true;
-                }
-            }
-            if (parentEl.id$ == 'document') {
-                statePath = path.replace('state.', parentEl.uId$ + '.');
-                value = undefined;
-            }
-        }
-    } else {
-        const parentProp = el.parent$.props$[arrPath[0]];
-        value = parentProp.value;
-        for(let i = 1; i < arrPath.length; i++){
-            value = value[arrPath[i]];
-        }
-        arrPath.shift();
-        statePath = parentProp.statePath + '.' + arrPath.join('.');
-    }
-    return new StateProp(statePath, value, bind(el, propName, statePath));
-}
-function bind(el, propName, statePath) {
-    return (fn)=>{
-        const arrPath = statePath.split('.');
-        let observer, path;
-        if (![
-            'appState',
-            'pageState'
-        ].includes(arrPath[0])) {
-            observer = el.ownerDocument.getElementById(arrPath[0]).state$;
-            path = statePath.replace(arrPath[0] + '.', 'state.');
-        } else {
-            observer = el[arrPath[0] + '$'];
-            path = statePath;
-        }
-        const watch = observer[1];
-        const [unwatch, rewatch] = watch(path, fn, el);
-        el.props$[propName].unwatch = unwatch;
-        el.props$[propName].rewatch = rewatch;
+        return caption;
     };
 }
-function kebabToCamelCase(kebabCaseString) {
-    return kebabCaseString.replace(/-([a-z])/g, (g)=>g[1].toUpperCase());
-}
-function addMissingLifecycleMethods(el) {
-    if (typeof el.use$ == 'undefined') el.use$ = ()=>[];
-    if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
-    if (typeof el.onStyle$ == 'undefined') el.onStyle$ = ()=>{};
-    if (typeof el.onTemplate$ == 'undefined') el.onTemplate$ = ()=>{};
-    if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
-    if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
-    if (typeof el.onReady$ == 'undefined') el.onReady$ = ()=>{};
-    if (typeof el.onCleanup$ == 'undefined') el.onCleanup$ = ()=>{};
-}
-function sanitize(code) {
-    const sanitizedCode = code.replaceAll(/\?eTag=[a-zA-Z0-9:]+[\"]/g, '\"').replaceAll(/\?eTag=[a-zA-Z0-9:]+[\']/g, '\'');
-    return sanitizedCode;
-}
-function setupIntersectionObserver() {
-    intersectionObserver = new IntersectionObserver(async (entries)=>{
-        for (const entry of entries){
-            if (entry.isIntersecting) {
-                await entry.target.hydrateOnCallback$();
-            }
+function deepEqual(a, b) {
+    if (a === b) return true;
+    if (a === null || b === null) return a === b;
+    if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length) return false;
+        for(let i = 0; i < a.length; i++){
+            if (!deepEqual(a[i], b[i])) return false;
         }
-    }, {
-        rootMargin: '100px',
-        threshold: 0
-    });
-}
-function getChildComponents(parent) {
-    const components = [
-        ...parent.querySelectorAll('[el-id]')
-    ];
-    return components.filter((child)=>{
-        let match = child.closest('[el-is]');
-        if (match.is$ == parent.is$) return true;
-        match = match.parentElement.closest('[el-id]');
-        if (match.id$ == parent.id$) return true;
-        return false;
-    });
-}
-function setExtendedURL(url) {
-    const searchParams = {};
-    if (url.searchParams) url.searchParams.forEach((value, key)=>searchParams[key] = value);
-    else new URLSearchParams(url.search).forEach((value, key)=>searchParams[key] = value);
-    extendedURL.hash = url.hash, extendedURL.host = url.host, extendedURL.hostname = url.hostname, extendedURL.href = url.href, extendedURL.origin = url.origin, extendedURL.pathname = url.pathname, extendedURL.port = url.port, extendedURL.protocol = url.protocol, extendedURL.search = url.search, extendedURL.searchParams = searchParams;
+        return true;
+    }
+    if (typeof a === 'object' && typeof b === 'object') {
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        for (const key of keysA){
+            if (!deepEqual(a[key], b[key])) return false;
+        }
+        return true;
+    }
+    return false;
 }
 async function getDependencies(el) {
     const dependencies = [];
@@ -1246,6 +1295,9 @@ async function importModule(url) {
         throw new RenderError(`Either the requested resource or one of its dependencies was not found: ${url}`);
     }
 }
+function kebabToCamelCase(kebabCaseString) {
+    return kebabCaseString.replace(/-([a-z])/g, (g)=>g[1].toUpperCase());
+}
 async function loadDependencies(dependencies) {
     try {
         const imports = dependencies.map((dependency)=>{
@@ -1268,67 +1320,39 @@ async function loadDependencies(dependencies) {
         throw e;
     }
 }
-function deepEqual(a, b) {
-    if (a === b) return true;
-    if (a === null || b === null) return a === b;
-    if (Array.isArray(a) && Array.isArray(b)) {
-        if (a.length !== b.length) return false;
-        for(let i = 0; i < a.length; i++){
-            if (!deepEqual(a[i], b[i])) return false;
-        }
-        return true;
-    }
-    if (typeof a === 'object' && typeof b === 'object') {
-        const keysA = Object.keys(a);
-        const keysB = Object.keys(b);
-        if (keysA.length !== keysB.length) return false;
-        for (const key of keysA){
-            if (!deepEqual(a[key], b[key])) return false;
-        }
-        return true;
-    }
-    return false;
+function parseStyle(style) {
+    const obj = {};
+    style.split(";").forEach((rule)=>{
+        if (!rule) return;
+        const [key, val] = rule.split(":");
+        if (key && val) obj[key.trim()] = val.trim();
+    });
+    return obj;
 }
-async function insertElement(parent, element, action, elId, autoInit) {
-    const tagNameMap = {
-        ul: 'li',
-        ol: 'li',
-        thead: 'tr',
-        tbody: 'tr'
-    };
-    if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
-    else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
-    const component = parent.ownerDocument.createElement(element.tagName);
-    for(const prop in element){
-        if (prop == 'tagName' || prop == 'props') continue;
-        component.setAttribute(prop, element[prop]);
-    }
-    await loadDependencies([
-        element['el-is']
-    ]);
-    initElementAsComponent(component, parent);
-    component.setAttribute('id', `el${++idCount}`);
-    component.parent$ = parent;
-    component.setAttribute('el-parent', parent.id$);
-    parent.children$[element['el-id']] = component;
-    switch(action){
-        case 'prepend':
-            parent.prepend(component);
-            break;
-        case 'append':
-            parent.append(component);
-            break;
-        case 'before':
-            parent.children$[elId].before(component);
-            break;
-        case 'after':
-            parent.children$[elId].after(component);
-            break;
-        default:
-            parent.append(component);
-    }
-    if (autoInit) await component.init$(element.props);
-    return component;
+function sanitize(code) {
+    const sanitizedCode = code.replaceAll(/\?eTag=[a-zA-Z0-9:]+[\"]/g, '\"').replaceAll(/\?eTag=[a-zA-Z0-9:]+[\']/g, '\'');
+    return sanitizedCode;
+}
+function serializeStyle(obj) {
+    return Object.entries(obj).map(([k, v])=>`${k}:${v}`).join(";");
+}
+function setExtendedURL(url) {
+    const searchParams = {};
+    if (url.searchParams) url.searchParams.forEach((value, key)=>searchParams[key] = value);
+    else new URLSearchParams(url.search).forEach((value, key)=>searchParams[key] = value);
+    extendedURL.hash = url.hash, extendedURL.host = url.host, extendedURL.hostname = url.hostname, extendedURL.href = url.href, extendedURL.origin = url.origin, extendedURL.pathname = url.pathname, extendedURL.port = url.port, extendedURL.protocol = url.protocol, extendedURL.search = url.search, extendedURL.searchParams = searchParams;
+}
+function setupIntersectionObserver() {
+    intersectionObserver = new IntersectionObserver(async (entries)=>{
+        for (const entry of entries){
+            if (entry.isIntersecting) {
+                await entry.target.hydrateOnCallback$();
+            }
+        }
+    }, {
+        rootMargin: '100px',
+        threshold: 0
+    });
 }
 createComponent('document', (el)=>{
     el.define$({
@@ -1627,5 +1651,4 @@ createComponent('reactive-content', (el)=>{
         }
     });
 });
-export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emitMessage as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
-export { observe as observe };
+export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emit as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
