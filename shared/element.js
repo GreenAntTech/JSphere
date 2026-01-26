@@ -1,4 +1,10 @@
-console.log('elementJS:', 'v1.0.0-preview.260');
+console.log('elementJS:', 'v1.0.0-preview.261');
+const appContext = {
+    server: globalThis.Deno ? true : false,
+    client: globalThis.Deno ? false : true,
+    documentElement: null,
+    ctx: null
+};
 class Feature {
     featureFlags = [];
     constructor(flags){
@@ -80,12 +86,6 @@ const registeredDeviceMessages = {};
 const registeredMessages = {};
 const registeredRoutes = {};
 const resourceCache = new Map();
-const appContext = {
-    server: globalThis.Deno ? true : false,
-    client: globalThis.Deno ? false : true,
-    documentElement: null,
-    ctx: null
-};
 let intersectionObserver;
 let idCount = 0;
 (function() {
@@ -339,13 +339,15 @@ function initElementAsComponent(el, parent, appState, pageState) {
         },
         emit$: {
             value: (subject, data)=>{
-                let parentEl = el.parent$;
-                while(parentEl.id$ != 'document'){
-                    if (parentEl.listensFor$(subject)) {
-                        parentEl.onMessageReceived$(subject, data);
+                setTimeout(()=>{
+                    let parentEl = el.parent$;
+                    while(parentEl.id$ != 'document'){
+                        if (parentEl.listensFor$(subject)) {
+                            parentEl.onMessageReceived$(subject, data);
+                        }
+                        parentEl = parentEl.parent$;
                     }
-                    parentEl = parentEl.parent$;
-                }
+                });
             }
         },
         on$: {
@@ -458,6 +460,36 @@ function initElementAsComponent(el, parent, appState, pageState) {
     });
     if (appContext.server) {
         Object.defineProperties(el, {
+            disabled: {
+                set: (value)=>{
+                    if (typeof value != 'boolean') return;
+                    if (value) el.setAttribute('disabled', '');
+                    else el.removeAttribute('disabled');
+                },
+                get: ()=>{
+                    return el.getAttribute('disabled');
+                }
+            },
+            hidden: {
+                set: (value)=>{
+                    if (typeof value != 'boolean') return;
+                    if (value) el.setAttribute('hidden', '');
+                    else el.removeAttribute('hidden');
+                },
+                get: ()=>{
+                    return el.getAttribute('hidden');
+                }
+            },
+            readOnly: {
+                set: (value)=>{
+                    if (typeof value != 'boolean') return;
+                    if (value) el.setAttribute('readonly', '');
+                    else el.removeAttribute('readonly');
+                },
+                get: ()=>{
+                    return el.getAttribute('readonly');
+                }
+            },
             style: {
                 get: ()=>{
                     return style;
