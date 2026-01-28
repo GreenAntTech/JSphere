@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.261');
+console.log('elementJS:', 'v1.0.0-preview.262');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -82,18 +82,18 @@ const registeredCaptions = {};
 const registeredComponents = {};
 const registeredDependencies = {};
 const registeredServerDependencies = {};
-const registeredDeviceMessages = {};
-const registeredMessages = {};
+const deviceMessageHandlers = new Map();
+const messageHandlers = new Map();
 const registeredRoutes = {};
 const resourceCache = new Map();
 let intersectionObserver;
 let idCount = 0;
 (function() {
-    globalThis.addEventListener('message', processEvent, false);
-    globalThis.addEventListener('popstate', popStateEvent, false);
+    globalThis.addEventListener('message', processMessageEvent, false);
+    globalThis.addEventListener('popstate', processPopStateEvent, false);
     if (globalThis.location) registerAllowedOrigin(globalThis.location.origin);
 })();
-function processEvent(event) {
+async function processMessageEvent(event) {
     try {
         let message;
         try {
@@ -113,7 +113,7 @@ function processEvent(event) {
             console.warn('Message origin not registered:', event.origin);
             return;
         }
-        if (registeredDeviceMessages[subject]) {
+        if (deviceMessageHandlers.has(subject)) {
             listenerFound = true;
             if (window.webkit) {
                 window.webkit.messageHandlers.Device.postMessage(event.data);
@@ -121,17 +121,14 @@ function processEvent(event) {
                 window.Device.postMessage(event.data);
             }
         }
-        if (registeredMessages[subject]) {
+        if (messageHandlers.has(subject)) {
             listenerFound = true;
-            registeredMessages[subject](data, appContext.ctx);
-        }
-        const children = document.documentElement.querySelectorAll(`[el-listening]`);
-        for (const childElement of children){
-            if (childElement.is$ && childElement.listensFor$(subject)) {
-                listenerFound = true;
-                setTimeout(async ()=>{
-                    await childElement.onMessageReceived$(subject, data);
-                }, 0);
+            const listeners = messageHandlers.get(subject);
+            const arr = [];
+            for (const listener of listeners)arr.push(listener(data));
+            const results = await Promise.allSettled(arr);
+            for (const result of results){
+                if (result.status == 'rejected') console.error(result.reason);
             }
         }
         if (!listenerFound) {
@@ -144,7 +141,7 @@ function processEvent(event) {
 function isValidMessage(data) {
     return typeof data === 'object' && data !== null && 'subject' in data && typeof data.subject === 'string';
 }
-async function popStateEvent() {
+async function processPopStateEvent() {
     setExtendedURL(globalThis.location);
     for(const routePath in registeredRoutes){
         const route = {
@@ -338,21 +335,32 @@ function initElementAsComponent(el, parent, appState, pageState) {
             }
         },
         emit$: {
-            value: (subject, data)=>{
-                setTimeout(()=>{
-                    let parentEl = el.parent$;
-                    while(parentEl.id$ != 'document'){
-                        if (parentEl.listensFor$(subject)) {
-                            parentEl.onMessageReceived$(subject, data);
-                        }
-                        parentEl = parentEl.parent$;
-                    }
+            value: (event, data, config = {})=>{
+                Object.assign(config, {
+                    detail: data
                 });
+                const async = config.async;
+                delete config.async;
+                if (async === true) {
+                    setTimeout(()=>{
+                        el.dispatchEvent(new CustomEvent(event, config));
+                    }, 0);
+                } else {
+                    el.dispatchEvent(new CustomEvent(event, config));
+                }
             }
         },
         on$: {
             value: (event, handler)=>{
-                el.addEventListener(event, handler);
+                if (handler === undefined || messageListeners.has(event)) {
+                    const oldHandler = messageListeners.get(event);
+                    if (oldHandler) el.removeEventListener(event, oldHandler);
+                    messageListeners.delete(event);
+                }
+                if (typeof handler == 'function') {
+                    messageListeners.set(event, handler);
+                    el.addEventListener(event, handler);
+                }
             }
         },
         children$: {
@@ -368,36 +376,9 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 return componentState;
             }
         },
-        hidden$: {
-            set: (value)=>{
-                if (typeof value != 'boolean') return;
-                if (value) {
-                    let style = el.getAttribute('style');
-                    if (!style) style = '';
-                    if (/\bdisplay\s*:\s*none\b/i.test(style)) return;
-                    style += '; display: none';
-                    el.setAttribute('style', style);
-                } else {
-                    let style = el.getAttribute('style');
-                    if (!style) style = '';
-                    style = style.replace(/\bdisplay\s*:\s*none\s*;?/gi, '').replace(/;;+/g, ';').replace(/^\s*;\s*|\s*;\s*$/g, '').trim();
-                    el.setAttribute('style', style);
-                }
-            },
-            get: ()=>{
-                let style = el.getAttribute('style');
-                if (!style) style = '';
-                return style.includes('display: none');
-            }
-        },
         hydrateOnComponents$: {
             get: ()=>{
                 return hydrateOnComponents;
-            }
-        },
-        onMessageReceived$: {
-            value: async (subject, data)=>{
-                if (messageListeners.get(subject)) await messageListeners.get(subject)(data, appContext.ctx);
             }
         },
         parent$: {
@@ -428,14 +409,6 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 return messageListeners.has(subject);
             }
         },
-        subscribeTo$: {
-            value: (subject, handler)=>{
-                messageListeners.set(subject, async (data)=>{
-                    await handler(data);
-                });
-                el.setAttribute('el-listening', 'true');
-            }
-        },
         appState$: {
             get: ()=>{
                 return appState || el.ownerDocument.documentElement.appState$;
@@ -449,12 +422,6 @@ function initElementAsComponent(el, parent, appState, pageState) {
         state$: {
             get: ()=>{
                 return stateObject;
-            }
-        },
-        unsubscribeTo$: {
-            value: (subject)=>{
-                messageListeners.delete(subject);
-                if (messageListeners.size === 0) el.removeAttribute('el-listening');
             }
         }
     });
@@ -916,10 +883,14 @@ async function emit(subject, data, target) {
     const docEl = appContext.server ? appContext.documentElement : document.documentElement;
     const el = docEl.querySelector(`[el-active]`);
     if (el) {
-        if (el.is$ && el.listensFor$(subject)) {
-            await el.onMessageReceived$(subject, data);
-        } else if (registeredMessages[subject]) {
-            await registeredMessages[subject](data, appContext.ctx);
+        if (messageHandlers.has(subject)) {
+            const listeners = messageHandlers.get(subject);
+            const arr = [];
+            for (const listener of listeners)arr.push(listener(data));
+            const results = await Promise.allSettled(arr);
+            for (const result of results){
+                if (result.status == 'rejected') console.error(result.reason);
+            }
         }
     } else {
         if (target === undefined) target = window;
@@ -932,7 +903,7 @@ async function emit(subject, data, target) {
     }
 }
 function deviceSubscribesTo(subject) {
-    registeredDeviceMessages[subject] = true;
+    deviceMessageHandlers.set(subject, true);
 }
 function navigateTo(path) {
     if (path === undefined) globalThis.dispatchEvent(new Event('popstate'));
@@ -1234,7 +1205,17 @@ function runAt(props) {
     else if (appContext.client && props.client) return props.client();
 }
 function subscribeTo(subject, handler) {
-    registeredMessages[subject] = handler;
+    if (!messageHandlers.has(subject)) {
+        messageHandlers.set(subject, new Set());
+    }
+    const listeners = messageHandlers.get(subject);
+    listeners.add(handler);
+    return ()=>{
+        listeners.delete(handler);
+        if (listeners.size === 0) {
+            messageHandlers.delete(subject);
+        }
+    };
 }
 function useCaptions(name) {
     return (value, ...args)=>{
@@ -1473,11 +1454,17 @@ createComponent('reactive-list', (el)=>{
                 }
                 reconcileDom(currentOrder, newOrder);
                 if (currentOrder.length === 0) {
-                    el.emit$(el.id$ + ':ItemsUpdated');
+                    el.emit$('ItemsUpdated', null, {
+                        async: true
+                    });
                 } else if (newOrder.length > currentOrder.length) {
-                    el.emit$(el.id$ + ':ItemsAdded');
+                    el.emit$('ItemsAdded', null, {
+                        async: true
+                    });
                 } else if (newOrder.length < currentOrder.length) {
-                    el.emit$(el.id$ + ':ItemsRemoved');
+                    el.emit$('ItemsRemoved', null, {
+                        async: true
+                    });
                 }
             });
         }
@@ -1683,4 +1670,4 @@ createComponent('reactive-content', (el)=>{
         }
     });
 });
-export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emit as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as subscribeTo$ };
+export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emit as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as on$ };
