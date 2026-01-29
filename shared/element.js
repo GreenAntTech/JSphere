@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.262');
+console.log('elementJS:', 'v1.0.0-preview.263');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -240,7 +240,6 @@ function initElementAsComponent(el, parent, appState, pageState) {
     const componentProps = {};
     const renderAt = el.getAttribute('el-render-at');
     const stateObject = observe({}, 'state');
-    const messageListeners = new Map();
     const hydrateOnComponents = new Set();
     const style = parseStyle(el.getAttribute('style') || '');
     let isRoot = parent === null || parent.componentState$ === -1;
@@ -352,15 +351,14 @@ function initElementAsComponent(el, parent, appState, pageState) {
         },
         on$: {
             value: (event, handler)=>{
-                if (handler === undefined || messageListeners.has(event)) {
-                    const oldHandler = messageListeners.get(event);
-                    if (oldHandler) el.removeEventListener(event, oldHandler);
-                    messageListeners.delete(event);
-                }
-                if (typeof handler == 'function') {
-                    messageListeners.set(event, handler);
-                    el.addEventListener(event, handler);
-                }
+                const wrappedHandler = (event)=>{
+                    if (event.detail) handler(event.detail);
+                    else handler(event);
+                };
+                el.addEventListener(event, wrappedHandler);
+                return ()=>{
+                    el.removeEventListener(event, wrappedHandler);
+                };
             }
         },
         children$: {
@@ -402,11 +400,6 @@ function initElementAsComponent(el, parent, appState, pageState) {
         removeChild$: {
             value: async (childElement)=>{
                 await onCleanup(childElement);
-            }
-        },
-        listensFor$: {
-            value: (subject)=>{
-                return messageListeners.has(subject);
             }
         },
         appState$: {
@@ -1500,25 +1493,34 @@ createComponent('reactive-list', (el)=>{
                 const node = el.children$[id];
                 if (node && node.parent$ === el) {
                     el.children$[id].remove$();
-                    delete el.children$[id];
                 }
             }
         }
         for(let i = 0; i < newOrder.length; i++){
-            const referenceNode = el.children[i] || null;
             const { id } = newOrder[i];
-            let node = el.children$[id];
-            if (!node) {
+            const node = el.children$[id];
+            if (node === undefined) {
+                let action;
+                let elId;
+                if (i === 0) {
+                    action = 'prepend', elId = null;
+                } else {
+                    action = 'after', elId = newOrder[i - 1].id;
+                }
                 const propName = el.props$.alias.value || 'item';
                 await insertElement(el, {
                     'el-is': el.props$.component.value,
                     'el-id': id,
                     'data-index': `num:${i}`,
                     [`data-${propName}`]: 'bind:src.' + i
-                }, 'append', '', true);
-                node = el.children$[id];
+                }, action, elId, true);
             } else {
-                el.insertBefore(node, referenceNode);
+                const referenceNode = el.childNodes[i];
+                if (i === 0) {
+                    el.prepend(node);
+                } else if (node !== referenceNode) {
+                    el.insertBefore(node, referenceNode);
+                }
                 node.props$.index.value = i;
                 for(const prop in node.props$){
                     const statePath = node.props$[prop].statePath;
