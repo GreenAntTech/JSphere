@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.263');
+console.log('elementJS:', 'v1.0.0-preview.264');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -175,10 +175,10 @@ async function renderDocument(config, ctx) {
             el.setAttribute('el-id', 'document');
             el.setAttribute('el-server-rendering', 'true');
             initElementAsComponent(el, null, appState, pageState);
-            await el.init$();
+            await el.init();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
-                if (component.state$ && Object.keys(component.state$).length) component.setAttribute('el-state', JSON.stringify(component.state$[0]));
+                if (component.state && Object.keys(component.state).length) component.setAttribute('el-state', JSON.stringify(component.state[0]));
             }
             el.removeAttribute('el-server-rendering');
             el.setAttribute('el-server-rendered', 'true');
@@ -202,7 +202,7 @@ async function renderDocument(config, ctx) {
             initElementAsComponent(el, null, appState, pageState);
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
-            await el.init$();
+            await el.init();
             return el;
         }
     } catch (e) {
@@ -242,20 +242,19 @@ function initElementAsComponent(el, parent, appState, pageState) {
     const stateObject = observe({}, 'state');
     const hydrateOnComponents = new Set();
     const style = parseStyle(el.getAttribute('style') || '');
-    let isRoot = parent === null || parent.componentState$ === -1;
+    let isRoot = parent === null || parent.componentState === -1;
     let componentState = -1;
     let childComponents = {};
-    if (parent === null || parent.componentState$ === -1) isRoot = true;
+    if (parent === null || parent.componentState === -1) isRoot = true;
     if (el.hasAttribute('el-comp-state')) {
         componentState = parseInt(el.getAttribute('el-comp-state'));
     } else {
         el.setAttribute('el-comp-state', String(componentState));
     }
     Object.defineProperties(el, {
-        define$: {
+        define: {
             value: (userDefinedProperties)=>{
                 for(const prop in userDefinedProperties){
-                    if (!prop.endsWith('$')) throw new RenderError(`Invalid property name '${prop}'. Property names must end with a $.`);
                     if (typeof userDefinedProperties[prop] === 'function') {
                         userDefinedProperties[prop] = {
                             value: userDefinedProperties[prop]
@@ -265,7 +264,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 Object.defineProperties(el, userDefinedProperties);
             }
         },
-        init$: {
+        init: {
             value: async (props)=>{
                 if (componentState === -1) componentState = 0;
                 addMissingLifecycleMethods(el);
@@ -278,7 +277,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 if (componentState === 0) {
                     addPropsFromAttributes(componentProps, el);
                     addProps(componentProps, el, props);
-                    await loadDependencies(el.use$(componentProps));
+                    await loadDependencies(el.use(componentProps));
                     await onInit(el, componentProps);
                     await onStyle(el, componentProps);
                     await onTemplate(el, componentProps);
@@ -301,7 +300,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 }
                 if (componentState === 2) {
                     if (el.hasAttribute('el-hydrate-on')) {
-                        el.parent$.hydrateOnComponents$.add({
+                        el.parent.hydrateOnComponents.add({
                             el,
                             props: componentProps,
                             hydrateOn: el.getAttribute('el-hydrate-on')
@@ -310,7 +309,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                         return;
                     }
                     addProps(componentProps, el, props);
-                    await loadDependencies(el.use$(componentProps));
+                    await loadDependencies(el.use(componentProps));
                     await onHydrate(el, componentProps);
                     await onReady(el, componentProps);
                     componentState = -1;
@@ -318,22 +317,17 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 }
             }
         },
-        uId$: {
-            get: ()=>{
-                return el.getAttribute('id');
-            }
-        },
-        id$: {
+        compId: {
             get: ()=>{
                 return componentId;
             }
         },
-        is$: {
+        compIs: {
             get: ()=>{
                 return componentIs;
             }
         },
-        emit$: {
+        emit: {
             value: (event, data, config = {})=>{
                 Object.assign(config, {
                     detail: data
@@ -349,7 +343,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 }
             }
         },
-        on$: {
+        on: {
             value: (event, handler)=>{
                 const wrappedHandler = (event)=>{
                     if (event.detail) handler(event.detail);
@@ -361,7 +355,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 };
             }
         },
-        children$: {
+        components: {
             get: ()=>{
                 return childComponents;
             },
@@ -369,17 +363,17 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 childComponents = value;
             }
         },
-        componentState$: {
+        componentState: {
             get: ()=>{
                 return componentState;
             }
         },
-        hydrateOnComponents$: {
+        hydrateOnComponents: {
             get: ()=>{
                 return hydrateOnComponents;
             }
         },
-        parent$: {
+        parent: {
             set: (value)=>{
                 parent = value;
             },
@@ -387,32 +381,44 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 return parent;
             }
         },
-        props$: {
+        setProp: {
+            value: (name, value)=>{
+                if (appContext.server) {
+                    if (typeof value == 'boolean') {
+                        value = 'bool:' + String(value);
+                    } else if (typeof value == 'number') {
+                        value = 'num:' + String(value);
+                    } else if (typeof value != 'string') {
+                        console.warn(`setProp: The property '${name}' has an invalid value type of ${typeof value}`);
+                    }
+                    el.setAttribute(name, value);
+                }
+                const prop = {};
+                prop[name] = value;
+                addProps(componentProps, el, prop);
+            }
+        },
+        props: {
             get: ()=>{
                 return componentProps;
             }
         },
-        remove$: {
-            value: async ()=>{
-                await onCleanup(el);
+        unmount: {
+            value: async (element)=>{
+                await onCleanup(element || el);
             }
         },
-        removeChild$: {
-            value: async (childElement)=>{
-                await onCleanup(childElement);
-            }
-        },
-        appState$: {
+        appState: {
             get: ()=>{
-                return appState || el.ownerDocument.documentElement.appState$;
+                return appState || el.ownerDocument.documentElement.appState;
             }
         },
-        pageState$: {
+        pageState: {
             get: ()=>{
-                return pageState || el.ownerDocument.documentElement.pageState$;
+                return pageState || el.ownerDocument.documentElement.pageState;
             }
         },
-        state$: {
+        state: {
             get: ()=>{
                 return stateObject;
             }
@@ -420,6 +426,16 @@ function initElementAsComponent(el, parent, appState, pageState) {
     });
     if (appContext.server) {
         Object.defineProperties(el, {
+            checked: {
+                set: (value)=>{
+                    if (typeof value != 'boolean') return;
+                    if (value) el.setAttribute('checked', '');
+                    else el.removeAttribute('checked');
+                },
+                get: ()=>{
+                    return el.hasAttribute('checked');
+                }
+            },
             disabled: {
                 set: (value)=>{
                     if (typeof value != 'boolean') return;
@@ -427,7 +443,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     else el.removeAttribute('disabled');
                 },
                 get: ()=>{
-                    return el.getAttribute('disabled');
+                    return el.hasAttribute('disabled');
                 }
             },
             hidden: {
@@ -437,7 +453,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     else el.removeAttribute('hidden');
                 },
                 get: ()=>{
-                    return el.getAttribute('hidden');
+                    return el.hasAttribute('hidden');
                 }
             },
             readOnly: {
@@ -447,12 +463,21 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     else el.removeAttribute('readonly');
                 },
                 get: ()=>{
-                    return el.getAttribute('readonly');
+                    return el.hasAttribute('readonly');
                 }
             },
             style: {
                 get: ()=>{
                     return style;
+                }
+            },
+            value: {
+                set: (value)=>{
+                    if (value === undefined) el.removeAttribute('value');
+                    else el.setAttribute('value', value);
+                },
+                get: ()=>{
+                    return el.getAttribute('value') || '';
                 }
             }
         });
@@ -468,24 +493,24 @@ function initElementAsComponent(el, parent, appState, pageState) {
     return el;
 }
 function addMissingLifecycleMethods(el) {
-    if (typeof el.use$ == 'undefined') el.use$ = ()=>[];
-    if (typeof el.onInit$ == 'undefined') el.onInit$ = ()=>{};
-    if (typeof el.onStyle$ == 'undefined') el.onStyle$ = ()=>{};
-    if (typeof el.onTemplate$ == 'undefined') el.onTemplate$ = ()=>{};
-    if (typeof el.onRender$ == 'undefined') el.onRender$ = ()=>{};
-    if (typeof el.onHydrate$ == 'undefined') el.onHydrate$ = ()=>{};
-    if (typeof el.onReady$ == 'undefined') el.onReady$ = ()=>{};
-    if (typeof el.onCleanup$ == 'undefined') el.onCleanup$ = ()=>{};
+    if (typeof el.use == 'undefined') el.use = ()=>[];
+    if (typeof el.onInit == 'undefined') el.onInit = ()=>{};
+    if (typeof el.onStyle == 'undefined') el.onStyle = ()=>{};
+    if (typeof el.onTemplate == 'undefined') el.onTemplate = ()=>{};
+    if (typeof el.onRender == 'undefined') el.onRender = ()=>{};
+    if (typeof el.onHydrate == 'undefined') el.onHydrate = ()=>{};
+    if (typeof el.onReady == 'undefined') el.onReady = ()=>{};
+    if (typeof el.onCleanup == 'undefined') el.onCleanup = ()=>{};
 }
 async function onInit(el, props) {
     el.setAttribute('el-active', '');
-    await el.onInit$(props);
+    await el.init(props);
     el.removeAttribute('el-active');
 }
 async function onStyle(el, props) {
     const theme = props.theme !== undefined ? props.theme.value : '';
-    const themeId = el.is$ + (theme ? '_' + theme : '');
-    let css = el.onStyle$(props);
+    const themeId = el.compIs + (theme ? '_' + theme : '');
+    let css = el.onStyle(props);
     if (!css) return;
     if (css.endsWith('.css')) {
         const path = css;
@@ -502,8 +527,8 @@ async function onStyle(el, props) {
             } else {
                 content = await getResource(path) || '';
             }
-            if (theme) content = content.replaceAll('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
-            else content = content.replaceAll('[el]', `[el-is='${el.is$}']`);
+            if (theme) content = content.replaceAll('[el]', `[el-is='${el.compIs}'][data-theme='${theme}']`);
+            else content = content.replaceAll('[el]', `[el-is='${el.compIs}']`);
             el.setAttribute('data-theme', themeId);
             if (el.ownerDocument.getElementById(themeId)) return;
             const tag = el.ownerDocument.createElement('style');
@@ -519,8 +544,8 @@ async function onStyle(el, props) {
         }
     } else {
         if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-        if (theme) css = css.replaceAll('[el]', `[el-is='${el.is$}'][data-theme='${theme}']`);
-        else css = css.replaceAll('[el]', `[el-is='${el.is$}']`);
+        if (theme) css = css.replaceAll('[el]', `[el-is='${el.compIs}'][data-theme='${theme}']`);
+        else css = css.replaceAll('[el]', `[el-is='${el.compIs}']`);
         const tag = el.ownerDocument.createElement('style');
         tag.setAttribute('id', themeId);
         tag.textContent = css;
@@ -529,7 +554,7 @@ async function onStyle(el, props) {
 }
 async function onTemplate(el, props) {
     let content;
-    const template = el.onTemplate$(props);
+    const template = el.onTemplate(props);
     if (template && template.startsWith('/')) {
         const url = template;
         if (appContext.server) {
@@ -555,30 +580,30 @@ async function onTemplate(el, props) {
     initChildren(el);
 }
 async function onRender(el, props) {
-    await el.onRender$(props);
+    await el.onRender(props);
     if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
-    for(const id in el.children$){
-        const child = el.children$[id];
-        if (child.componentState$ == -1) await child.init$();
+    for(const id in el.components){
+        const child = el.components[id];
+        if (child.componentState == -1) await child.init();
     }
 }
 async function onResume(el) {
     await getDependencies(el);
     initChildren(el);
-    for(const id in el.children$){
-        const child = el.children$[id];
-        await child.init$();
+    for(const id in el.components){
+        const child = el.components[id];
+        await child.init();
     }
 }
 async function onHydrate(el, props) {
-    await el.onHydrate$(props);
-    for(const id in el.children$){
-        const child = el.children$[id];
-        if (child.componentState$ == 2) await child.init$();
+    await el.onHydrate(props);
+    for(const id in el.components){
+        const child = el.components[id];
+        if (child.componentState == 2) await child.init();
     }
 }
 async function onReady(el, props) {
-    await el.onReady$(props);
+    await el.onReady(props);
     onHydrateOn(el);
     const attrs = [
         'el-client-rendering',
@@ -593,16 +618,16 @@ async function onReady(el, props) {
     for (const attr of attrs)el.removeAttribute(attr);
 }
 function onHydrateOn(el) {
-    for (const entry of el.hydrateOnComponents$){
+    for (const entry of el.hydrateOnComponents){
         const component = entry.el;
         const hydrateOn = entry.hydrateOn;
         if (hydrateOn == 'idle' || hydrateOn.startsWith('idle:')) {
             const time = hydrateOn.startsWith('idle:') ? parseInt(hydrateOn.substring(5)) : 0;
             if (time) {
                 const callback = async ()=>{
-                    if (component.parent$ == null) return;
+                    if (component.parent == null) return;
                     await getDependencies(component);
-                    await component.init$();
+                    await component.init();
                 };
                 globalThis.requestIdleCallback(callback, {
                     timeout: time
@@ -611,16 +636,16 @@ function onHydrateOn(el) {
         } else if (hydrateOn == 'timeout' || hydrateOn.startsWith('timeout:')) {
             const time = hydrateOn.startsWith('timeout:') ? parseInt(hydrateOn.substring(8)) : 500;
             const callback = async ()=>{
-                if (component.parent$ == null) return;
+                if (component.parent == null) return;
                 await getDependencies(component);
-                await component.init$();
+                await component.init();
             };
             setTimeout(callback, time);
         } else if (hydrateOn == 'visible') {
-            component.hydrateOnCallback$ = async ()=>{
-                if (component.parent$ == null) return;
+            component.hydrateOnCallback = async ()=>{
+                if (component.parent == null) return;
                 await getDependencies(component);
-                await component.init$();
+                await component.init();
                 intersectionObserver.unobserve(component);
             };
             intersectionObserver.observe(component);
@@ -628,27 +653,27 @@ function onHydrateOn(el) {
             throw new RenderError(`Invalid el-hydrate-on attribute value: ${hydrateOn}`);
         }
     }
-    el.hydrateOnComponents$.clear();
+    el.hydrateOnComponents.clear();
 }
 async function onCleanup(el) {
     const desscendants = el.querySelectorAll(':scope [el-id]');
     for (const descendant of desscendants){
-        await descendant.onCleanup$();
-        descendant.parent$ = null;
+        await descendant.onCleanup();
+        descendant.parent = null;
     }
-    await el.onCleanup$();
+    await el.onCleanup();
     unwatchElementProps(el);
-    delete el.parent$.children$[el.id$];
+    delete el.parent.components[el.compId];
     setTimeout(()=>{
-        el.parent$ = null;
+        el.parent = null;
     }, 0);
     el.parentElement.removeChild(el);
 }
 function initChildren(el) {
     let children;
-    el.children$ = {};
-    if (el.componentState$ === 1) {
-        children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
+    el.components = {};
+    if (el.componentState === 1) {
+        children = el.querySelectorAll(`:scope [el-parent="${el.compId}"]`);
     } else {
         children = getChildComponents(el);
     }
@@ -656,9 +681,9 @@ function initChildren(el) {
         const childElement = initElementAsComponent(child, el);
         if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
         childElement.setAttribute('el-parent', el.getAttribute('el-id'));
-        childElement.parent$ = el;
-        const elId = childElement.id$;
-        el.children$[elId] = childElement;
+        childElement.parent = el;
+        const elId = childElement.compId;
+        el.components[elId] = childElement;
     }
 }
 function getChildComponents(parent) {
@@ -667,9 +692,9 @@ function getChildComponents(parent) {
     ];
     return components.filter((child)=>{
         let match = child.closest('[el-is]');
-        if (match.is$ == parent.is$) return true;
+        if (match.compIs == parent.compIs) return true;
         match = match.parentElement.closest('[el-id]');
-        if (match.id$ == parent.id$) return true;
+        if (match.compId == parent.compId) return true;
         return false;
     });
 }
@@ -685,13 +710,13 @@ function addProps(componentProps, el, props = {}) {
                 if (props[propName].startsWith('num:')) {
                     value = Number(props[propName].substring(4));
                     if (isNaN(value)) {
-                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid number`;
+                        throw `The attribute ${propName} on the element id="${el.id}" is not a valid number`;
                     }
                 } else if (props[propName].startsWith('bool:')) {
                     value = props[propName].substring(5);
                     value = value == 'true' ? true : value == 'false' ? false : null;
                     if (value === null) {
-                        throw `The attribute ${propName} on the element id="${el.uId$}" is not a valid boolean`;
+                        throw `The attribute ${propName} on the element id="${el.id}" is not a valid boolean`;
                     }
                 } else {
                     value = props[propName];
@@ -723,32 +748,32 @@ function getBoundEntity(el, propName, path) {
         'pageState'
     ].includes(arrPath[0])) {
         statePath = path;
-        value = el[arrPath[0] + '$'][0];
+        value = el[arrPath[0]][0];
         for(let i = 1; i < arrPath.length; i++){
             value = value[arrPath[i]];
         }
     } else if (arrPath[0] == 'state') {
-        let parentEl = el.parent$;
+        let parentEl = el.parent;
         let found = false;
-        while(parentEl.id$ != 'document' && !found){
-            value = parentEl[arrPath[0] + '$'][0];
+        while(parentEl.compId != 'document' && !found){
+            value = parentEl[arrPath[0]][0];
             for(let i = 1; i < arrPath.length; i++){
                 if (!value.hasOwnProperty(arrPath[i])) {
-                    parentEl = parentEl.parent$;
+                    parentEl = parentEl.parent;
                     break;
                 } else {
                     value = value[arrPath[i]];
-                    statePath = path.replace('state.', parentEl.uId$ + '.');
+                    statePath = path.replace('state.', parentEl.id + '.');
                     found = true;
                 }
             }
-            if (parentEl.id$ == 'document') {
-                statePath = path.replace('state.', parentEl.uId$ + '.');
+            if (parentEl.compId == 'document') {
+                statePath = path.replace('state.', parentEl.id + '.');
                 value = undefined;
             }
         }
     } else {
-        const parentProp = el.parent$.props$[arrPath[0]];
+        const parentProp = el.parent.props[arrPath[0]];
         value = parentProp.value;
         for(let i = 1; i < arrPath.length; i++){
             value = value[arrPath[i]];
@@ -766,35 +791,35 @@ function bind(el, propName, statePath) {
             'appState',
             'pageState'
         ].includes(arrPath[0])) {
-            observer = el.ownerDocument.getElementById(arrPath[0]).state$;
+            observer = el.ownerDocument.getElementById(arrPath[0]).state;
             path = statePath.replace(arrPath[0] + '.', 'state.');
         } else {
-            observer = el[arrPath[0] + '$'];
+            observer = el[arrPath[0]];
             path = statePath;
         }
         const watch = observer[1];
         const [unwatch, rewatch] = watch(path, fn, el);
-        el.props$[propName].unwatch = unwatch;
-        el.props$[propName].rewatch = rewatch;
+        el.props[propName].unwatch = unwatch;
+        el.props[propName].rewatch = rewatch;
     };
 }
 function unwatchElementProps(el) {
-    for(const id in el.children$){
-        unwatchElementProps(el.children$[id]);
+    for(const id in el.components){
+        unwatchElementProps(el.components[id]);
     }
-    for(const prop in el.props$){
-        const value = el.props$[prop];
+    for(const prop in el.props){
+        const value = el.props[prop];
         if (value.unwatch) {
             value.unwatch();
         }
     }
 }
 function reIndexStatePath(el, oldRoot, newRoot, depth) {
-    for(const id in el.children$){
-        reIndexStatePath(el.children$[id], oldRoot, newRoot, depth + 1);
+    for(const id in el.components){
+        reIndexStatePath(el.components[id], oldRoot, newRoot, depth + 1);
     }
-    for(const prop in el.props$){
-        let statePath = el.props$[prop].statePath;
+    for(const prop in el.props){
+        let statePath = el.props[prop].statePath;
         if (statePath) {
             if (depth === 0) {
                 statePath = statePath.replace(oldRoot, newRoot);
@@ -803,7 +828,7 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
             }
             const arrStatePath = statePath.split('.');
             arrStatePath[0] = 'state';
-            const value = el.props$[prop];
+            const value = el.props[prop];
             if (value.rewatch) value.rewatch(arrStatePath.join('.'));
         }
     }
@@ -827,9 +852,9 @@ async function insertElement(parent, element, action, elId, autoInit) {
     ]);
     initElementAsComponent(component, parent);
     component.setAttribute('id', `el${++idCount}`);
-    component.parent$ = parent;
-    component.setAttribute('el-parent', parent.id$);
-    parent.children$[element['el-id']] = component;
+    component.parent = parent;
+    component.setAttribute('el-parent', parent.compId);
+    parent.components[element['el-id']] = component;
     switch(action){
         case 'prepend':
             parent.prepend(component);
@@ -838,15 +863,15 @@ async function insertElement(parent, element, action, elId, autoInit) {
             parent.append(component);
             break;
         case 'before':
-            parent.children$[elId].before(component);
+            parent.components[elId].before(component);
             break;
         case 'after':
-            parent.children$[elId].after(component);
+            parent.components[elId].after(component);
             break;
         default:
             parent.append(component);
     }
-    if (autoInit) await component.init$(element.props);
+    if (autoInit) await component.init(element.props);
     return component;
 }
 function createComponent(param1, param2) {
@@ -1255,7 +1280,7 @@ async function getDependencies(el) {
     if ([
         1,
         2
-    ].includes(el.componentState$)) children = el.querySelectorAll(`:scope [el-parent="${el.id$}"]`);
+    ].includes(el.componentState)) children = el.querySelectorAll(`:scope [el-parent="${el.compId}"]`);
     else children = el.querySelectorAll(':scope [el-is]');
     children.forEach((component)=>{
         if (component.getAttribute('el-is') == 'component') return;
@@ -1352,7 +1377,7 @@ function setupIntersectionObserver() {
     intersectionObserver = new IntersectionObserver(async (entries)=>{
         for (const entry of entries){
             if (entry.isIntersecting) {
-                await entry.target.hydrateOnCallback$();
+                await entry.target.hydrateOnCallback();
             }
         }
     }, {
@@ -1361,45 +1386,45 @@ function setupIntersectionObserver() {
     });
 }
 createComponent('document', (el)=>{
-    el.define$({
-        onRender$: async (props)=>{
-            for(const id in el.children$){
-                const child = el.children$[id];
-                if (Array.isArray(child)) child.forEach(async (child)=>await child.init$(props));
-                else await child.init$(props);
+    el.define({
+        onRender: async (props)=>{
+            for(const id in el.components){
+                const child = el.components[id];
+                if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
+                else await child.init(props);
             }
         },
-        onHydrate$: async (props)=>{
-            for(const id in el.children$){
-                const child = el.children$[id];
-                if (Array.isArray(child)) child.forEach(async (child)=>await child.init$(props));
-                else await child.init$(props);
+        onHydrate: async (props)=>{
+            for(const id in el.components){
+                const child = el.components[id];
+                if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
+                else await child.init(props);
             }
         }
     });
 });
 createComponent('component', (el)=>{
-    el.define$({
-        clear$: async ()=>{
-            for(const key in el.children$)await el.children$[key].remove$();
+    el.define({
+        clear: async ()=>{
+            for(const key in el.components)await el.components[key].unmount();
         },
-        append$: async (element, autoInit = false)=>{
+        addFirst: async (element, autoInit = false)=>{
             const component = await insertElement(el, element, 'append', '', autoInit);
             return component;
         },
-        prepend$: async (element, autoInit = false)=>{
+        addLast: async (element, autoInit = false)=>{
             const component = await insertElement(el, element, 'prepend', '', autoInit);
             return component;
         },
-        before$: async (element, elId, autoInit = false)=>{
+        addBefore: async (element, elId, autoInit = false)=>{
             const component = await insertElement(el, element, 'before', elId, autoInit);
             return component;
         },
-        after$: async (element, elId, autoInit = false)=>{
+        addAfter: async (element, elId, autoInit = false)=>{
             const component = await insertElement(el, element, 'after', elId, autoInit);
             return component;
         },
-        text$: {
+        text: {
             set: (value)=>{
                 el.textContent = value;
             },
@@ -1407,7 +1432,7 @@ createComponent('component', (el)=>{
                 return el.textContent;
             }
         },
-        html$: {
+        html: {
             set: (value)=>{
                 el.innerHTML = value;
             },
@@ -1419,19 +1444,19 @@ createComponent('component', (el)=>{
 });
 createComponent('reactive-list', (el)=>{
     let listItems;
-    el.define$({
-        onRender$: async (props)=>{
+    el.define({
+        onRender: async (props)=>{
             listItems = transformSourceList(props);
             await clearComponents();
             await createComponents(props);
         },
-        onHydrate$: (props)=>{
+        onHydrate: (props)=>{
             props.src.onChange((src)=>{
                 props.src.value = src;
                 listItems = transformSourceList(props);
                 const currentOrder = [];
                 let index = 0;
-                for(const id in el.children$){
+                for(const id in el.components){
                     currentOrder.push({
                         id,
                         index: index++
@@ -1447,15 +1472,15 @@ createComponent('reactive-list', (el)=>{
                 }
                 reconcileDom(currentOrder, newOrder);
                 if (currentOrder.length === 0) {
-                    el.emit$('ItemsUpdated', null, {
+                    el.emit('ItemsUpdated', null, {
                         async: true
                     });
                 } else if (newOrder.length > currentOrder.length) {
-                    el.emit$('ItemsAdded', null, {
+                    el.emit('ItemsAdded', null, {
                         async: true
                     });
                 } else if (newOrder.length < currentOrder.length) {
-                    el.emit$('ItemsRemoved', null, {
+                    el.emit('ItemsRemoved', null, {
                         async: true
                     });
                 }
@@ -1470,8 +1495,8 @@ createComponent('reactive-list', (el)=>{
         return items;
     }
     async function clearComponents() {
-        for(const id in el.children$){
-            await el.removeChild$(el.children$[id]);
+        for(const id in el.components){
+            await el.unmount(el.components[id]);
         }
     }
     async function createComponents(props) {
@@ -1490,15 +1515,15 @@ createComponent('reactive-list', (el)=>{
         const nextById = newOrder.map((item)=>item.id.toString());
         for (const { id } of currentOrder){
             if (!nextById.includes(id)) {
-                const node = el.children$[id];
-                if (node && node.parent$ === el) {
-                    el.children$[id].remove$();
+                const node = el.components[id];
+                if (node && node.parent === el) {
+                    el.components[id].unmount();
                 }
             }
         }
         for(let i = 0; i < newOrder.length; i++){
             const { id } = newOrder[i];
-            const node = el.children$[id];
+            const node = el.components[id];
             if (node === undefined) {
                 let action;
                 let elId;
@@ -1507,9 +1532,9 @@ createComponent('reactive-list', (el)=>{
                 } else {
                     action = 'after', elId = newOrder[i - 1].id;
                 }
-                const propName = el.props$.alias.value || 'item';
+                const propName = el.props.alias.value || 'item';
                 await insertElement(el, {
-                    'el-is': el.props$.component.value,
+                    'el-is': el.props.component.value,
                     'el-id': id,
                     'data-index': `num:${i}`,
                     [`data-${propName}`]: 'bind:src.' + i
@@ -1521,13 +1546,13 @@ createComponent('reactive-list', (el)=>{
                 } else if (node !== referenceNode) {
                     el.insertBefore(node, referenceNode);
                 }
-                node.props$.index.value = i;
-                for(const prop in node.props$){
-                    const statePath = node.props$[prop].statePath;
+                node.props.index.value = i;
+                for(const prop in node.props){
+                    const statePath = node.props[prop].statePath;
                     if (statePath) {
                         const arrPath = statePath.split('.');
                         arrPath[arrPath.length - 1] = i.toString();
-                        reIndexStatePath(el.children$[id], statePath, arrPath.join('.'), 0);
+                        reIndexStatePath(el.components[id], statePath, arrPath.join('.'), 0);
                     }
                 }
             }
@@ -1535,107 +1560,68 @@ createComponent('reactive-list', (el)=>{
     }
 });
 createComponent('link', (el)=>{
-    let _onclick;
-    el.define$({
-        onRender$: ({ value, hidden, disabled, href })=>{
-            if (typeof value.value != 'undefined') {
-                el.text$ = value.value;
-            }
-            if (typeof hidden.value == 'boolean') {
-                el.hidden$ = hidden.value;
-            }
-            el.disabled$ = disabled.value || false;
-            el.href$ = href.value;
+    el.define({
+        onRender: ({ href, text })=>{
+            el.setAttribute('href', href.value);
+            el.textContent = text.value;
         },
-        onHydrate$: (props)=>{
-            const onclick = props.onclick.value || (()=>{});
-            if (typeof onclick != 'function') return;
-            el.removeEventListener('click', _onclick);
-            _onclick = (event)=>{
+        onHydrate: ({ href, disabled, onclick })=>{
+            href.onChange((value)=>el.setAttribute('href', value));
+            if (onclick.value === undefined) onclick.value = ()=>{};
+            el.addEventListener('click', (event)=>{
                 event.preventDefault();
-                if (el.disabled$) return;
-                if (onclick(event) === false) return;
-                if (el.href$) navigateTo(el.href$);
-                else if (el.getAttribute('href')) globalThis.location.href = el.getAttribute('href');
-            };
-            el.addEventListener('click', _onclick);
-        },
-        disabled$: {
-            set: (value)=>{
-                if (typeof value != 'boolean') return;
-                if (value) el.setAttribute('disabled', '');
-                else el.removeAttribute('disabled');
-            },
-            get: ()=>{
-                return el.hasAttribute('disabled');
-            }
-        },
-        href$: {
-            set: (value)=>{
-                if (typeof value != 'string') return;
-                el.setAttribute('data-href', value);
-                el.setAttribute('href', value);
-            },
-            get: ()=>{
-                return el.getAttribute('data-href');
-            }
-        },
-        text$: {
-            set: (value)=>{
-                el.textContent = value;
-            },
-            get: ()=>{
-                return el.textContent;
-            }
+                if (disabled.value) return;
+                if (onclick.value(event) === false) return;
+                if (href) navigateTo(href.value);
+                else if (el.getAttribute('href')) globalThis.location.href = el.getAttribute('href') || '';
+            });
         }
     });
 });
 createComponent('caption', (el)=>{
-    const [appState, watchAppState] = el.appState$;
-    const [pageState, watchPageState] = el.pageState$;
-    const [state] = el.state$;
-    el.define$({
-        onRender$: ({ params })=>{
+    const [appState, watchAppState] = el.appState;
+    const [pageState, watchPageState] = el.pageState;
+    const [state] = el.state;
+    el.define({
+        onRender: ({ params })=>{
             setCaption(params.value);
             state.params = params.value;
         },
-        onHydrate$: ()=>{
+        onHydrate: ({ params })=>{
+            params.onChange((value)=>{
+                setCaption(value);
+                state.params = value;
+            });
             watchAppState('appState.captionPack', ()=>{
                 setCaption(state.params);
             });
             watchPageState('pageState.captionPack', ()=>{
                 setCaption(state.params);
             });
-        },
-        param$: {
-            set: (value)=>{
-                setCaption(value);
-                state.params = value;
-            }
         }
     });
     function setCaption(params) {
         const caption = useCaptions(appState.captionPack || pageState.captionPack);
         if (params) {
             if (Array.isArray(params)) {
-                el.textContent = caption(el.id$, ...params);
+                el.textContent = caption(el.compId, ...params);
             } else {
                 try {
                     const paramsArray = JSON.parse(params);
-                    el.textContent = caption(el.id$, ...paramsArray);
+                    el.textContent = caption(el.compId, ...paramsArray);
                 } catch (e) {
-                    el.textContent = caption(el.id$, params);
+                    el.textContent = caption(el.compId, params);
                 }
             }
-        } else el.textContent = caption(el.id$);
+        } else el.textContent = caption(el.compId);
     }
 });
 createComponent('reactive-input', (el)=>{
-    el.define$({
-        onRender$: ({ value })=>{
-            el.setAttribute('value', value.value);
+    el.define({
+        onRender: ({ value })=>{
+            el.value = value.value;
         },
-        onHydrate$: ({ value })=>{
+        onHydrate: ({ value })=>{
             value.onChange((value)=>{
                 el.value = value;
             });
@@ -1646,11 +1632,11 @@ createComponent('reactive-input', (el)=>{
     });
 });
 createComponent('reactive-checkbox', (el)=>{
-    el.define$({
-        onRender$: ({ checked })=>{
-            el.setAttribute('checked', checked.value);
+    el.define({
+        onRender: ({ checked })=>{
+            el.checked = checked.value;
         },
-        onHydrate$: ({ checked })=>{
+        onHydrate: ({ checked })=>{
             checked.onChange((value)=>{
                 el.checked = value;
             });
@@ -1661,15 +1647,15 @@ createComponent('reactive-checkbox', (el)=>{
     });
 });
 createComponent('reactive-content', (el)=>{
-    el.define$({
-        onRender$: ({ content })=>{
+    el.define({
+        onRender: ({ content })=>{
             el.textContent = content.value;
         },
-        onHydrate$: ({ content })=>{
+        onHydrate: ({ content })=>{
             content.onChange((value)=>{
                 el.textContent = value;
             });
         }
     });
 });
-export { createComponent as createComponent$, deviceSubscribesTo as deviceSubscribesTo$, emit as emit$, extendedURL as url$, feature as feature$, elementFetch as fetch$, useCaptions as useCaptions$, navigateTo as navigateTo$, registerAllowedOrigin as registerAllowedOrigin$, registerCaptions as registerCaptions$, registerDependencies as registerDependencies$, registerServerDependencies as registerServerDependencies$, registerRoute as registerRoute$, renderDocument as renderDocument$, runAt as runAt$, subscribeTo as on$ };
+export { createComponent as createComponent, deviceSubscribesTo as deviceSubscribesTo, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerCaptions as registerCaptions, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useCaptions as useCaptions,  };
