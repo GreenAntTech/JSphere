@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.264');
+console.log('elementJS:', 'v1.0.0-preview.265');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -383,7 +383,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
         },
         setProp: {
             value: (name, value)=>{
-                if (appContext.server) {
+                if (appContext.server && !el.hasAttribute('data-' + name)) {
                     if (typeof value == 'boolean') {
                         value = 'bool:' + String(value);
                     } else if (typeof value == 'number') {
@@ -391,7 +391,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     } else if (typeof value != 'string') {
                         console.warn(`setProp: The property '${name}' has an invalid value type of ${typeof value}`);
                     }
-                    el.setAttribute(name, value);
+                    el.setAttribute('data-' + name, value);
                 }
                 const prop = {};
                 prop[name] = value;
@@ -504,7 +504,7 @@ function addMissingLifecycleMethods(el) {
 }
 async function onInit(el, props) {
     el.setAttribute('el-active', '');
-    await el.init(props);
+    await el.onInit(props);
     el.removeAttribute('el-active');
 }
 async function onStyle(el, props) {
