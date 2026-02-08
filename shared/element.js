@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.265');
+console.log('elementJS:', 'v1.0.0-preview.266');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -178,7 +178,7 @@ async function renderDocument(config, ctx) {
             await el.init();
             const components = el.querySelectorAll('[el-is]');
             for (const component of components){
-                if (component.state && Object.keys(component.state).length) component.setAttribute('el-state', JSON.stringify(component.state[0]));
+                if (Object.keys(component.state).length) component.setAttribute('el-state', JSON.stringify(component.state[0]));
             }
             el.removeAttribute('el-server-rendering');
             el.setAttribute('el-server-rendered', 'true');
@@ -239,12 +239,12 @@ function initElementAsComponent(el, parent, appState, pageState) {
     const componentIs = el.getAttribute('el-is') || 'component';
     const componentProps = {};
     const renderAt = el.getAttribute('el-render-at');
-    const stateObject = observe({}, 'state');
     const hydrateOnComponents = new Set();
     const style = parseStyle(el.getAttribute('style') || '');
     let isRoot = parent === null || parent.componentState === -1;
     let componentState = -1;
     let childComponents = {};
+    let stateObject = null;
     if (parent === null || parent.componentState === -1) isRoot = true;
     if (el.hasAttribute('el-comp-state')) {
         componentState = parseInt(el.getAttribute('el-comp-state'));
@@ -420,6 +420,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
         },
         state: {
             get: ()=>{
+                if (!stateObject) stateObject = observe({}, 'state');
                 return stateObject;
             }
         }
@@ -485,7 +486,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
     if (componentIs == 'component') el.setAttribute('el-is', 'component');
     if (registeredComponents[componentIs]) {
         if (el.hasAttribute('el-state')) {
-            Object.assign(stateObject[0], JSON.parse(el.getAttribute('el-state')));
+            Object.assign(el.state[0], JSON.parse(el.getAttribute('el-state')));
             el.removeAttribute('el-state');
         }
         registeredComponents[componentIs](el);
@@ -565,14 +566,14 @@ async function onTemplate(el, props) {
                 content = await getResource(url) || '';
                 if (content !== undefined) resourceCache.set(url, content);
             }
-            el.innerHTML = sanitize(content);
+            el.innerHTML = content;
         } else {
             content = await getResource(url) || '';
-            el.innerHTML = sanitize(content);
+            el.innerHTML = content;
         }
     } else if (template) {
         content = template;
-        el.innerHTML = sanitize(content);
+        el.innerHTML = content;
     } else if (template == '') {
         el.innerHTML = template;
     }
@@ -605,17 +606,7 @@ async function onHydrate(el, props) {
 async function onReady(el, props) {
     await el.onReady(props);
     onHydrateOn(el);
-    const attrs = [
-        'el-client-rendering',
-        'el-server-rendering',
-        'el-server-rendered',
-        'el-comp-state',
-        'el-parent'
-    ];
-    for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) attrs.push(attr.name);
-    }
-    for (const attr of attrs)el.removeAttribute(attr);
+    removeAttributes(el);
 }
 function onHydrateOn(el) {
     for (const entry of el.hydrateOnComponents){
@@ -692,9 +683,9 @@ function getChildComponents(parent) {
     ];
     return components.filter((child)=>{
         let match = child.closest('[el-is]');
-        if (match.compIs == parent.compIs) return true;
-        match = match.parentElement.closest('[el-id]');
-        if (match.compId == parent.compId) return true;
+        if (match.getAttribute('el-is') == parent.getAttribute('el-is')) return true;
+        match = child.parentElement.closest('[el-id]');
+        if (match.getAttribute('el-id') == parent.getAttribute('el-id')) return true;
         return false;
     });
 }
@@ -1360,9 +1351,18 @@ function parseStyle(style) {
     });
     return obj;
 }
-function sanitize(code) {
-    const sanitizedCode = code.replaceAll(/\?eTag=[a-zA-Z0-9:]+[\"]/g, '\"').replaceAll(/\?eTag=[a-zA-Z0-9:]+[\']/g, '\'');
-    return sanitizedCode;
+function removeAttributes(el) {
+    const attrs = [
+        'el-client-rendering',
+        'el-server-rendering',
+        'el-server-rendered',
+        'el-comp-state',
+        'el-parent'
+    ];
+    for (const attr of el.attributes){
+        if (attr.name.startsWith('data-')) attrs.push(attr.name);
+    }
+    for (const attr of attrs)el.removeAttribute(attr);
 }
 function serializeStyle(obj) {
     return Object.entries(obj).map(([k, v])=>`${k}:${v}`).join(";");
@@ -1658,4 +1658,4 @@ createComponent('reactive-content', (el)=>{
         }
     });
 });
-export { createComponent as createComponent, deviceSubscribesTo as deviceSubscribesTo, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerCaptions as registerCaptions, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useCaptions as useCaptions,  };
+export { createComponent as component, deviceSubscribesTo as deviceSubscribesTo, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerCaptions as registerCaptions, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useCaptions as useCaptions,  };
