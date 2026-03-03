@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.266');
+console.log('elementJS:', 'v1.0.0-preview.267');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -32,7 +32,7 @@ class RenderError extends Error {
     }
 }
 class Prop {
-    boundFunction = ()=>{};
+    boundFunctions = new Set();
     propValue = undefined;
     constructor(value){
         this.propValue = value;
@@ -42,35 +42,52 @@ class Prop {
     }
     set value(value) {
         this.propValue = value;
-        this.boundFunction(this.propValue);
+        this.boundFunctions.forEach((fn)=>fn(this.propValue));
     }
     onChange(fn) {
-        this.boundFunction = fn;
+        this.boundFunctions.add(fn);
+        fn(this.propValue);
+        return ()=>{
+            this.boundFunctions.delete(fn);
+        };
     }
 }
 class StateProp {
-    _propValue = undefined;
-    _statePath = undefined;
-    _onChange = ()=>{};
-    constructor(statePath, value, fn){
-        this._statePath = statePath;
-        this._propValue = value;
-        this._onChange = fn;
+    boundFunctions = new Set();
+    isBound = false;
+    stateObj = undefined;
+    path = undefined;
+    propName = undefined;
+    bindFunction = ()=>{};
+    constructor(statePath, stateObj, stateObjPropName, bindFunction){
+        this.path = statePath;
+        this.stateObj = stateObj;
+        this.propName = stateObjPropName;
+        this.bindFunction = bindFunction;
     }
     get statePath() {
-        return this._statePath;
+        return this.statePath;
     }
     set statePath(value) {
-        this._statePath = value;
+        this.statePath = value;
     }
     get value() {
-        return this._propValue;
+        return this.stateObj[this.propName];
     }
     set value(value) {
-        this._propValue = value;
+        this.stateObj[this.propName] = value;
     }
     onChange(fn) {
-        this._onChange(fn);
+        if (!this.isBound) {
+            this.bindFunction(()=>{
+                this.boundFunctions.forEach((fn)=>fn(this.stateObj[this.propName]));
+            });
+        }
+        this.boundFunctions.add(fn);
+        fn(this.stateObj[this.propName]);
+        return ()=>{
+            this.boundFunctions.delete(fn);
+        };
     }
 }
 const extendedURL = {};
@@ -171,27 +188,27 @@ async function renderDocument(config, ctx) {
         if (appContext.server) {
             setExtendedURL(ctx.request.url);
             const el = appContext.documentElement = await getDocumentElement(config);
-            el.setAttribute('el-is', 'document');
-            el.setAttribute('el-id', 'document');
+            el.setAttribute('data-is', 'document');
+            el.setAttribute('data-id', 'document');
             el.setAttribute('el-server-rendering', 'true');
             initElementAsComponent(el, null, appState, pageState);
             await el.init();
-            const components = el.querySelectorAll('[el-is]');
+            const components = el.querySelectorAll('[data-is]');
             for (const component of components){
                 if (Object.keys(component.state).length) component.setAttribute('el-state', JSON.stringify(component.state[0]));
             }
             el.removeAttribute('el-server-rendering');
             el.setAttribute('el-server-rendered', 'true');
             el.setAttribute('el-state', JSON.stringify(config.pageState));
-            el.setAttribute('el-id-count', idCount.toString());
+            el.setAttribute('data-id-count', idCount.toString());
             return el;
         } else {
             const el = document.documentElement;
-            el.setAttribute('el-is', 'document');
-            el.setAttribute('el-id', 'document');
+            el.setAttribute('data-is', 'document');
+            el.setAttribute('data-id', 'document');
             if (el.hasAttribute('el-server-rendered')) {
-                idCount = parseInt(el.getAttribute('el-id-count'));
-                el.removeAttribute('el-id-count');
+                idCount = parseInt(el.getAttribute('data-id-count'));
+                el.removeAttribute('data-id-count');
             } else {
                 el.setAttribute('el-client-rendering', 'true');
             }
@@ -235,8 +252,8 @@ async function getDocumentElement(config) {
     return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
 }
 function initElementAsComponent(el, parent, appState, pageState) {
-    const componentId = el.getAttribute('el-id');
-    const componentIs = el.getAttribute('el-is') || 'component';
+    const componentId = el.dataset.id;
+    const componentIs = el.dataset.is;
     const componentProps = {};
     const renderAt = el.getAttribute('el-render-at');
     const hydrateOnComponents = new Set();
@@ -294,6 +311,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 }
                 if (componentState === 1) {
                     addPropsFromAttributes(componentProps, el);
+                    addProps(componentProps, el, props);
                     await onResume(el);
                     componentState = 2;
                     if (!isRoot) return childComponents;
@@ -308,6 +326,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                         el.removeAttribute('el-hydrate-on');
                         return;
                     }
+                    addPropsFromAttributes(componentProps, el);
                     addProps(componentProps, el, props);
                     await loadDependencies(el.use(componentProps));
                     await onHydrate(el, componentProps);
@@ -423,6 +442,11 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 if (!stateObject) stateObject = observe({}, 'state');
                 return stateObject;
             }
+        },
+        hasState: {
+            get: ()=>{
+                return stateObject ? true : false;
+            }
         }
     });
     if (appContext.server) {
@@ -483,7 +507,6 @@ function initElementAsComponent(el, parent, appState, pageState) {
             }
         });
     }
-    if (componentIs == 'component') el.setAttribute('el-is', 'component');
     if (registeredComponents[componentIs]) {
         if (el.hasAttribute('el-state')) {
             Object.assign(el.state[0], JSON.parse(el.getAttribute('el-state')));
@@ -528,8 +551,8 @@ async function onStyle(el, props) {
             } else {
                 content = await getResource(path) || '';
             }
-            if (theme) content = content.replaceAll('[el]', `[el-is='${el.compIs}'][data-theme='${theme}']`);
-            else content = content.replaceAll('[el]', `[el-is='${el.compIs}']`);
+            if (theme) content = content.replaceAll('[el]', `[data-is='${el.compIs}'][data-theme='${theme}']`);
+            else content = content.replaceAll('[el]', `[data-is='${el.compIs}']`);
             el.setAttribute('data-theme', themeId);
             if (el.ownerDocument.getElementById(themeId)) return;
             const tag = el.ownerDocument.createElement('style');
@@ -545,8 +568,8 @@ async function onStyle(el, props) {
         }
     } else {
         if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-        if (theme) css = css.replaceAll('[el]', `[el-is='${el.compIs}'][data-theme='${theme}']`);
-        else css = css.replaceAll('[el]', `[el-is='${el.compIs}']`);
+        if (theme) css = css.replaceAll('[el]', `[data-is='${el.compIs}'][data-theme='${theme}']`);
+        else css = css.replaceAll('[el]', `[data-is='${el.compIs}']`);
         const tag = el.ownerDocument.createElement('style');
         tag.setAttribute('id', themeId);
         tag.textContent = css;
@@ -585,6 +608,7 @@ async function onRender(el, props) {
     if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
     for(const id in el.components){
         const child = el.components[id];
+        if (child.compId === undefined) continue;
         if (child.componentState == -1) await child.init();
     }
 }
@@ -593,6 +617,7 @@ async function onResume(el) {
     initChildren(el);
     for(const id in el.components){
         const child = el.components[id];
+        if (child.compId === undefined) continue;
         await child.init();
     }
 }
@@ -618,7 +643,7 @@ function onHydrateOn(el) {
                 const callback = async ()=>{
                     if (component.parent == null) return;
                     await getDependencies(component);
-                    await component.init();
+                    await component.init(entry.props);
                 };
                 globalThis.requestIdleCallback(callback, {
                     timeout: time
@@ -629,14 +654,14 @@ function onHydrateOn(el) {
             const callback = async ()=>{
                 if (component.parent == null) return;
                 await getDependencies(component);
-                await component.init();
+                await component.init(entry.props);
             };
             setTimeout(callback, time);
         } else if (hydrateOn == 'visible') {
             component.hydrateOnCallback = async ()=>{
                 if (component.parent == null) return;
                 await getDependencies(component);
-                await component.init();
+                await component.init(entry.props);
                 intersectionObserver.unobserve(component);
             };
             intersectionObserver.observe(component);
@@ -647,8 +672,9 @@ function onHydrateOn(el) {
     el.hydrateOnComponents.clear();
 }
 async function onCleanup(el) {
-    const desscendants = el.querySelectorAll(':scope [el-id]');
-    for (const descendant of desscendants){
+    const descendants = el.querySelectorAll(':scope [data-id]');
+    for (const descendant of descendants){
+        if (descendant.compId === undefined) continue;
         await descendant.onCleanup();
         descendant.parent = null;
     }
@@ -669,28 +695,34 @@ function initChildren(el) {
         children = getChildComponents(el);
     }
     for (const child of children){
-        const childElement = initElementAsComponent(child, el);
-        if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
-        childElement.setAttribute('el-parent', el.getAttribute('el-id'));
-        childElement.parent = el;
-        const elId = childElement.compId;
-        el.components[elId] = childElement;
+        if (!child.hasAttribute('data-is')) {
+            child.setAttribute('el-parent', el.dataset.id);
+            child.parent = el;
+            el.components[child.dataset.id] = child;
+        } else {
+            const childElement = initElementAsComponent(child, el);
+            if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
+            childElement.setAttribute('el-parent', el.dataset.id);
+            childElement.parent = el;
+            const elId = childElement.compId;
+            el.components[elId] = childElement;
+        }
     }
 }
 function getChildComponents(parent) {
     const components = [
-        ...parent.querySelectorAll('[el-id]')
+        ...parent.querySelectorAll('[data-id]')
     ];
     return components.filter((child)=>{
-        let match = child.closest('[el-is]');
-        if (match.getAttribute('el-is') == parent.getAttribute('el-is')) return true;
-        match = child.parentElement.closest('[el-id]');
-        if (match.getAttribute('el-id') == parent.getAttribute('el-id')) return true;
+        const match = child.parentElement.closest('[data-is]');
+        if (match === parent) return true;
         return false;
     });
 }
 function addProps(componentProps, el, props = {}) {
     const newProps = {};
+    delete props.is;
+    delete props.id;
     for(const propName in props){
         if (componentProps[propName]) continue;
         if (typeof props[propName] == 'string') {
@@ -709,6 +741,12 @@ function addProps(componentProps, el, props = {}) {
                     if (value === null) {
                         throw `The attribute ${propName} on the element id="${el.id}" is not a valid boolean`;
                     }
+                } else if (props[propName].startsWith('json:')) {
+                    try {
+                        value = JSON.parse(props[propName].substring(5));
+                    } catch (e) {
+                        throw `The attribute ${propName} on the element id="${el.id}" is not valid JSON: ${e.message}`;
+                    }
                 } else {
                     value = props[propName];
                 }
@@ -723,56 +761,63 @@ function addProps(componentProps, el, props = {}) {
 }
 function addPropsFromAttributes(componentProps, el) {
     const attrs = {};
-    for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) {
-            const propName = kebabToCamelCase(attr.name.substring(5));
-            attrs[propName] = attr.value || true;
-        }
+    for(const attr in el.dataset){
+        attrs[attr] = el.dataset[attr] || true;
     }
     addProps(componentProps, el, attrs);
 }
 function getBoundEntity(el, propName, path) {
     const arrPath = path.split('.');
-    let statePath = '', value;
+    const stateObjPropName = arrPath[arrPath.length - 1];
+    let statePath = '', stateObj;
     if ([
         'appState',
         'pageState'
     ].includes(arrPath[0])) {
         statePath = path;
-        value = el[arrPath[0]][0];
-        for(let i = 1; i < arrPath.length; i++){
-            value = value[arrPath[i]];
+        stateObj = el[arrPath[0]][0];
+        for(let i = 1; i < arrPath.length - 1; i++){
+            stateObj = stateObj[arrPath[i]];
         }
     } else if (arrPath[0] == 'state') {
         let parentEl = el.parent;
         let found = false;
         while(parentEl.compId != 'document' && !found){
-            value = parentEl[arrPath[0]][0];
-            for(let i = 1; i < arrPath.length; i++){
-                if (!value.hasOwnProperty(arrPath[i])) {
-                    parentEl = parentEl.parent;
-                    break;
-                } else {
-                    value = value[arrPath[i]];
-                    statePath = path.replace('state.', parentEl.id + '.');
-                    found = true;
+            if (!parentEl.hasState) {
+                parentEl = parentEl.parent;
+            } else {
+                stateObj = parentEl[arrPath[0]][0];
+                for(let i = 1; i < arrPath.length; i++){
+                    if (!stateObj.hasOwnProperty(arrPath[i])) {
+                        parentEl = parentEl.parent;
+                        break;
+                    } else if (i === arrPath.length - 1) {
+                        statePath = path.replace('state.', parentEl.id + '.');
+                        found = true;
+                    } else {
+                        stateObj = stateObj[arrPath[i]];
+                    }
                 }
             }
             if (parentEl.compId == 'document') {
                 statePath = path.replace('state.', parentEl.id + '.');
-                value = undefined;
+                stateObj = undefined;
             }
         }
     } else {
         const parentProp = el.parent.props[arrPath[0]];
-        value = parentProp.value;
-        for(let i = 1; i < arrPath.length; i++){
-            value = value[arrPath[i]];
+        if (arrPath.length === 1) {
+            return el.parent.props[arrPath[0]];
+        } else {
+            stateObj = parentProp.value;
+            for(let i = 1; i < arrPath.length - 1; i++){
+                stateObj = stateObj[arrPath[i]];
+            }
+            arrPath.shift();
+            statePath = parentProp.statePath + '.' + arrPath.join('.');
         }
-        arrPath.shift();
-        statePath = parentProp.statePath + '.' + arrPath.join('.');
     }
-    return new StateProp(statePath, value, bind(el, propName, statePath));
+    return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
 }
 function bind(el, propName, statePath) {
     return (fn)=>{
@@ -796,7 +841,9 @@ function bind(el, propName, statePath) {
 }
 function unwatchElementProps(el) {
     for(const id in el.components){
-        unwatchElementProps(el.components[id]);
+        const child = el.components[id];
+        if (child.compId === undefined) continue;
+        unwatchElementProps(child);
     }
     for(const prop in el.props){
         const value = el.props[prop];
@@ -807,7 +854,9 @@ function unwatchElementProps(el) {
 }
 function reIndexStatePath(el, oldRoot, newRoot, depth) {
     for(const id in el.components){
-        reIndexStatePath(el.components[id], oldRoot, newRoot, depth + 1);
+        const child = el.components[id];
+        if (child.compId === undefined) continue;
+        reIndexStatePath(child, oldRoot, newRoot, depth + 1);
     }
     for(const prop in el.props){
         let statePath = el.props[prop].statePath;
@@ -839,13 +888,13 @@ async function insertElement(parent, element, action, elId, autoInit) {
         component.setAttribute(prop, element[prop]);
     }
     await loadDependencies([
-        element['el-is']
+        element['data-is']
     ]);
     initElementAsComponent(component, parent);
     component.setAttribute('id', `el${++idCount}`);
     component.parent = parent;
     component.setAttribute('el-parent', parent.compId);
-    parent.components[element['el-id']] = component;
+    parent.components[element['data-id']] = component;
     switch(action){
         case 'prepend':
             parent.prepend(component);
@@ -865,7 +914,7 @@ async function insertElement(parent, element, action, elId, autoInit) {
     if (autoInit) await component.init(element.props);
     return component;
 }
-function createComponent(param1, param2) {
+function component(param1, param2) {
     if (typeof param1 == 'string') {
         registeredComponents[param1] = param2;
         return param1;
@@ -1021,7 +1070,7 @@ function observe(objectToObserve, name, config) {
                             result = target[key].apply(target, args);
                         }
                         receiver.forEach((item, index)=>{
-                            item.__path__ = `${path}.${index}`;
+                            if (typeof path === 'object') item.__path__ = `${path}.${index}`;
                         });
                         const rootState = path.split('.')[0];
                         const parentPath = path.substring(0, path.lastIndexOf('.'));
@@ -1262,22 +1311,21 @@ function deepEqual(a, b) {
 async function getDependencies(el) {
     const dependencies = [];
     if (![
-        'component',
         'document',
         'link',
         'list'
-    ].includes(el.getAttribute('el-is'))) dependencies.push(el.getAttribute('el-is'));
+    ].includes(el.dataset.is)) dependencies.push(el.dataset.is);
     let children;
     if ([
         1,
         2
     ].includes(el.componentState)) children = el.querySelectorAll(`:scope [el-parent="${el.compId}"]`);
-    else children = el.querySelectorAll(':scope [el-is]');
+    else children = el.querySelectorAll(':scope [data-is]');
     children.forEach((component)=>{
-        if (component.getAttribute('el-is') == 'component') return;
-        else if (appContext.server && component.getAttribute('el-render-at') == 'client') return;
+        if (component.dataset.is === undefined) return;
+        if (appContext.server && component.getAttribute('el-render-at') == 'client') return;
         else if (appContext.client && component.getAttribute('el-render-at') == 'server') return;
-        dependencies.push(component.getAttribute('el-is'));
+        dependencies.push(component.dataset.is);
     });
     await loadDependencies(dependencies);
 }
@@ -1317,14 +1365,10 @@ async function importModule(url) {
         throw new RenderError(`Either the requested resource or one of its dependencies was not found: ${url}`);
     }
 }
-function kebabToCamelCase(kebabCaseString) {
-    return kebabCaseString.replace(/-([a-z])/g, (g)=>g[1].toUpperCase());
-}
 async function loadDependencies(dependencies) {
     try {
         const imports = dependencies.map((dependency)=>{
             if (![
-                'component',
                 'document',
                 'link',
                 'list'
@@ -1359,8 +1403,11 @@ function removeAttributes(el) {
         'el-comp-state',
         'el-parent'
     ];
-    for (const attr of el.attributes){
-        if (attr.name.startsWith('data-')) attrs.push(attr.name);
+    for(const attr in el.dataset){
+        if (![
+            'id',
+            'is'
+        ].includes(attr)) attrs.push('data-' + attr);
     }
     for (const attr of attrs)el.removeAttribute(attr);
 }
@@ -1385,11 +1432,32 @@ function setupIntersectionObserver() {
         threshold: 0
     });
 }
-createComponent('document', (el)=>{
+component('component', (el)=>{
+    el.define({
+        text: {
+            set: (value)=>{
+                el.textContent = value;
+            },
+            get: ()=>{
+                return el.textContent;
+            }
+        },
+        html: {
+            set: (value)=>{
+                el.innerHTML = value;
+            },
+            get: ()=>{
+                return el.innerHTML;
+            }
+        }
+    });
+});
+component('document', (el)=>{
     el.define({
         onRender: async (props)=>{
             for(const id in el.components){
                 const child = el.components[id];
+                if (child.compId === undefined) continue;
                 if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
                 else await child.init(props);
             }
@@ -1397,13 +1465,14 @@ createComponent('document', (el)=>{
         onHydrate: async (props)=>{
             for(const id in el.components){
                 const child = el.components[id];
+                if (child.compId === undefined) continue;
                 if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
                 else await child.init(props);
             }
         }
     });
 });
-createComponent('component', (el)=>{
+component('list', (el)=>{
     el.define({
         clear: async ()=>{
             for(const key in el.components)await el.components[key].unmount();
@@ -1423,26 +1492,10 @@ createComponent('component', (el)=>{
         addAfter: async (element, elId, autoInit = false)=>{
             const component = await insertElement(el, element, 'after', elId, autoInit);
             return component;
-        },
-        text: {
-            set: (value)=>{
-                el.textContent = value;
-            },
-            get: ()=>{
-                return el.textContent;
-            }
-        },
-        html: {
-            set: (value)=>{
-                el.innerHTML = value;
-            },
-            get: ()=>{
-                return el.innerHTML;
-            }
         }
     });
 });
-createComponent('reactive-list', (el)=>{
+component('reactive-list', (el)=>{
     let listItems;
     el.define({
         onRender: async (props)=>{
@@ -1504,8 +1557,8 @@ createComponent('reactive-list', (el)=>{
         const propName = props.alias.value || 'item';
         for(const id in listItems){
             await insertElement(el, {
-                'el-is': props.component.value,
-                'el-id': id,
+                'data-is': props.component.value,
+                'data-id': id,
                 'data-index': `num:${index}`,
                 [`data-${propName}`]: 'bind:src.' + index++
             }, 'append', '', true);
@@ -1534,8 +1587,8 @@ createComponent('reactive-list', (el)=>{
                 }
                 const propName = el.props.alias.value || 'item';
                 await insertElement(el, {
-                    'el-is': el.props.component.value,
-                    'el-id': id,
+                    'data-is': el.props.component.value,
+                    'data-id': id,
                     'data-index': `num:${i}`,
                     [`data-${propName}`]: 'bind:src.' + i
                 }, action, elId, true);
@@ -1559,7 +1612,7 @@ createComponent('reactive-list', (el)=>{
         }
     }
 });
-createComponent('link', (el)=>{
+component('link', (el)=>{
     el.define({
         onRender: ({ href, text })=>{
             el.setAttribute('href', href.value);
@@ -1578,7 +1631,7 @@ createComponent('link', (el)=>{
         }
     });
 });
-createComponent('caption', (el)=>{
+component('caption', (el)=>{
     const [appState, watchAppState] = el.appState;
     const [pageState, watchPageState] = el.pageState;
     const [state] = el.state;
@@ -1616,37 +1669,85 @@ createComponent('caption', (el)=>{
         } else el.textContent = caption(el.compId);
     }
 });
-createComponent('reactive-input', (el)=>{
+component('reactive-input', (el)=>{
+    el.define({
+        onRender: ({ checked, value })=>{
+            if (el.type == 'checkbox' && checked) {
+                if (Array.isArray(checked.value)) {
+                    el.checked = checked.value.includes(el.value);
+                } else {
+                    el.checked = checked.value === el.value;
+                }
+            } else if (el.type == 'radio' && checked) {
+                el.checked = checked.value == el.value;
+            } else {
+                el.value = value.value;
+            }
+        },
+        onHydrate: ({ checked, value })=>{
+            if (el.type == 'checkbox') {
+                checked.onChange(()=>{
+                    if (Array.isArray(checked.value)) {
+                        el.checked = checked.value.includes(el.value);
+                    } else {
+                        el.checked = checked.value === el.value;
+                    }
+                });
+                el.addEventListener('change', ()=>{
+                    if (Array.isArray(checked.value)) {
+                        if (el.checked) {
+                            checked.value.push(el.value);
+                        } else {
+                            const newList = checked.value.filter((item)=>item !== el.value);
+                            checked.value = newList;
+                        }
+                    } else {
+                        checked.value === el.value;
+                    }
+                });
+            } else if (el.type == 'radio') {
+                checked.onChange((value)=>{
+                    el.checked = value === el.value;
+                });
+                el.addEventListener('change', ()=>{
+                    checked.value = el.value;
+                });
+            } else {
+                value.onChange((value)=>{
+                    el.value = value;
+                });
+                el.addEventListener('input', ()=>{
+                    value.value = el.value;
+                });
+            }
+        }
+    });
+});
+component('reactive-select', (el)=>{
     el.define({
         onRender: ({ value })=>{
-            el.value = value.value;
+            if (value) {
+                const options = el.querySelectorAll('option');
+                for (const option of options){
+                    if (option.getAttribute('value') == value.value) {
+                        option.setAttribute('selected', '');
+                    } else {
+                        option.removeAttribute('selected');
+                    }
+                }
+            }
         },
         onHydrate: ({ value })=>{
             value.onChange((value)=>{
                 el.value = value;
             });
-            el.addEventListener('input', ()=>{
+            el.addEventListener('change', ()=>{
                 value.value = el.value;
             });
         }
     });
 });
-createComponent('reactive-checkbox', (el)=>{
-    el.define({
-        onRender: ({ checked })=>{
-            el.checked = checked.value;
-        },
-        onHydrate: ({ checked })=>{
-            checked.onChange((value)=>{
-                el.checked = value;
-            });
-            el.addEventListener('input', ()=>{
-                checked.value = el.checked;
-            });
-        }
-    });
-});
-createComponent('reactive-content', (el)=>{
+component('reactive-content', (el)=>{
     el.define({
         onRender: ({ content })=>{
             el.textContent = content.value;
@@ -1658,4 +1759,4 @@ createComponent('reactive-content', (el)=>{
         }
     });
 });
-export { createComponent as component, deviceSubscribesTo as deviceSubscribesTo, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerCaptions as registerCaptions, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useCaptions as useCaptions,  };
+export { component as component, deviceSubscribesTo as deviceSubscribesTo, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerCaptions as registerCaptions, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useCaptions as useCaptions,  };
