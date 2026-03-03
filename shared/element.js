@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.267');
+console.log('elementJS:', 'v1.0.0-preview.268');
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -200,15 +200,15 @@ async function renderDocument(config, ctx) {
             el.removeAttribute('el-server-rendering');
             el.setAttribute('el-server-rendered', 'true');
             el.setAttribute('el-state', JSON.stringify(config.pageState));
-            el.setAttribute('data-id-count', idCount.toString());
+            el.setAttribute('el-id-count', idCount.toString());
             return el;
         } else {
             const el = document.documentElement;
             el.setAttribute('data-is', 'document');
             el.setAttribute('data-id', 'document');
             if (el.hasAttribute('el-server-rendered')) {
-                idCount = parseInt(el.getAttribute('data-id-count'));
-                el.removeAttribute('data-id-count');
+                idCount = parseInt(el.getAttribute('el-id-count'));
+                el.removeAttribute('el-id-count');
             } else {
                 el.setAttribute('el-client-rendering', 'true');
             }
@@ -625,6 +625,7 @@ async function onHydrate(el, props) {
     await el.onHydrate(props);
     for(const id in el.components){
         const child = el.components[id];
+        if (child.compId === undefined) continue;
         if (child.componentState == 2) await child.init();
     }
 }
