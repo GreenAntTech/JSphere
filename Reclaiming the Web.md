@@ -12,9 +12,7 @@ It's time to reconsider. What if our frameworks were designed to work *with* the
 
 ---
 
-## Reclaiming the Web: Why Frameworks Should Work *With* the DOM, Not Against It
-
-### II. The "True" Abstractions of the Web: HTML, CSS, JavaScript
+### The "True" Abstractions of the Web: HTML, CSS, JavaScript
 
 Before we delve into the complexities introduced by modern web development, it's crucial to first re-establish a foundational understanding of the web's original and enduring abstractions. These are not mere technologies; they are powerful, declarative, and programmatic interfaces designed to work in harmony, forming the bedrock of every web page. They are the true DOM abstractions, providing a clear separation of concerns that, when respected, leads to robust and maintainable applications.
 
@@ -40,9 +38,7 @@ These three technologies—HTML, CSS, and JavaScript—each fulfill a distinct a
 
 ---
 
-## Reclaiming the Web: Why Frameworks Should Work *With* the DOM, Not Against It
-
-### III. The Abstraction of Abstractions: Where the Friction Begins
+### The Abstraction of Abstractions: Where the Friction Begins
 
 With a clear understanding of HTML, CSS, and JavaScript as the web's native abstractions, we can now examine where the modern development landscape often introduces complexity. Many contemporary web frameworks, while offering undeniable power and productivity gains, do so by building their *own* layers of abstraction on top of these foundational technologies. This "abstraction of abstractions" can inadvertently create ceremony, friction, and a disconnect from the very platform they aim to simplify.
 
@@ -74,9 +70,7 @@ In essence, while the intention behind these abstractions is often to simplify d
 
 ---
 
-## Reclaiming the Web: Why Frameworks Should Work *With* the DOM, Not Against It
-
-### IV. `elementJS`: Working *With* the DOM, Not Against It
+### `elementJS`: Working *With* the DOM, Not Against It
 
 Having explored the foundational abstractions of the web and the complexities introduced by abstracting them away, we now turn our attention to an alternative approach. What if a framework were built not to replace HTML, CSS, and JavaScript, but to thoughtfully enhance them, allowing developers to harness the native power of the browser without the added layers of indirection? This is precisely the philosophy behind `elementJS`.
 
@@ -183,9 +177,7 @@ By staying true to HTML, CSS, and JavaScript, `elementJS` offers a refreshing ap
 
 ---
 
-## Reclaiming the Web: Why Frameworks Should Work *With* the DOM, Not Against It
-
-### V. The Benefits of the `elementJS` Approach
+### The Benefits of the `elementJS` Approach
 
 The deliberate choice to embrace and enhance the native abstractions of HTML, CSS, and JavaScript, rather than to abstract them away, yields a multitude of tangible benefits for `elementJS` developers. This philosophy translates directly into applications that are more performant, flexible, and fundamentally aligned with the principles of the open web.
 
@@ -224,9 +216,7 @@ In summary, `elementJS` offers a compelling vision for web development: one wher
 
 ---
 
-## Reclaiming the Web: Why Frameworks Should Work *With* the DOM, Not Against It
-
-### VI. Conclusion: A Call for a Paradigm Shift
+### Conclusion: A Call for a Paradigm Shift
 
 We stand at a critical juncture in web development. The pursuit of ever-more powerful and dynamic applications has, in many cases, led us down a path of increasing abstraction. While often well-intentioned, this "abstraction of abstractions" has introduced layers of complexity, ceremony, and friction that can distance developers from the very platform they are building upon. The native, foundational abstractions of HTML for structure, CSS for styling, and JavaScript for behavior have been, at times, obscured or even actively worked against, leading to an impedance mismatch that costs productivity and performance.
 
