@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.269');
+console.log('elementJS:', 'v1.0.0-preview.270');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -1710,7 +1710,7 @@ component('translate', (el)=>{
         }
     });
     function setCaption(params) {
-        const translate = useTranslationPack(appState.captionPack || pageState.captionPack);
+        const translate = useTranslationPack(appState.activeTranslationPack || pageState.activeTranslationPack);
         if (params) {
             if (Array.isArray(params)) {
                 el.textContent = translate(el.compId, ...params);
