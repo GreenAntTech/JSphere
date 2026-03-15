@@ -1,4 +1,14 @@
-console.log('elementJS:', 'v1.0.0-preview.268');
+console.log('elementJS:', 'v1.0.0-preview.269');
+const Symbols = {
+    use: Symbol('use'),
+    onInit: Symbol('onInit'),
+    onStyle: Symbol('onStyle'),
+    onTemplate: Symbol('onTemplate'),
+    onRender: Symbol('onRender'),
+    onHydrate: Symbol('onHydrate'),
+    onReady: Symbol('onReady'),
+    onCleanup: Symbol('onCleanup')
+};
 const appContext = {
     server: globalThis.Deno ? true : false,
     client: globalThis.Deno ? false : true,
@@ -44,9 +54,9 @@ class Prop {
         this.propValue = value;
         this.boundFunctions.forEach((fn)=>fn(this.propValue));
     }
-    onChange(fn) {
+    onChange(fn, execute = false) {
         this.boundFunctions.add(fn);
-        fn(this.propValue);
+        if (execute) fn(this.propValue);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -66,10 +76,10 @@ class StateProp {
         this.bindFunction = bindFunction;
     }
     get statePath() {
-        return this.statePath;
+        return this.path;
     }
     set statePath(value) {
-        this.statePath = value;
+        this.path = value;
     }
     get value() {
         return this.stateObj[this.propName];
@@ -77,14 +87,14 @@ class StateProp {
     set value(value) {
         this.stateObj[this.propName] = value;
     }
-    onChange(fn) {
+    onChange(fn, execute = false) {
         if (!this.isBound) {
             this.bindFunction(()=>{
                 this.boundFunctions.forEach((fn)=>fn(this.stateObj[this.propName]));
             });
         }
         this.boundFunctions.add(fn);
-        fn(this.stateObj[this.propName]);
+        if (execute) fn(this.stateObj[this.propName]);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -95,7 +105,7 @@ const feature = new Feature(getFeatureFlags());
 const registeredAllowedOrigins = [
     ''
 ];
-const registeredCaptions = {};
+const registeredTranslations = {};
 const registeredComponents = {};
 const registeredDependencies = {};
 const registeredServerDependencies = {};
@@ -216,6 +226,10 @@ async function renderDocument(config, ctx) {
                 Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
                 el.removeAttribute('el-state');
             }
+            const scripts = el.querySelectorAll('script[data-ssr-incl]');
+            for (const script of scripts){
+                script.removeAttribute('data-ssr-incl');
+            }
             initElementAsComponent(el, null, appState, pageState);
             setExtendedURL(globalThis.location);
             setupIntersectionObserver();
@@ -249,7 +263,13 @@ async function getDocumentElement(config) {
             throw new RenderError('FileNotFound');
         }
     }
-    return appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
+    const docEl = appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
+    const scripts = docEl.querySelectorAll('script[data-ssr-incl]');
+    for (const script of scripts){
+        await importModule(script.getAttribute('src'));
+        script.removeAttribute('data-ssr-incl');
+    }
+    return docEl;
 }
 function initElementAsComponent(el, parent, appState, pageState) {
     const componentId = el.dataset.id;
@@ -277,6 +297,19 @@ function initElementAsComponent(el, parent, appState, pageState) {
                             value: userDefinedProperties[prop]
                         };
                     }
+                    if ([
+                        'use',
+                        'onInit',
+                        'onStyle',
+                        'onTemplate',
+                        'onRender',
+                        'onHydrate',
+                        'onReady',
+                        'onCleanup'
+                    ].includes(prop)) {
+                        userDefinedProperties[Symbols[prop]] = userDefinedProperties[prop];
+                        delete userDefinedProperties[prop];
+                    }
                 }
                 Object.defineProperties(el, userDefinedProperties);
             }
@@ -294,7 +327,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 if (componentState === 0) {
                     addPropsFromAttributes(componentProps, el);
                     addProps(componentProps, el, props);
-                    await loadDependencies(el.use(componentProps));
+                    await loadDependencies(el[Symbols.use](componentProps));
                     await onInit(el, componentProps);
                     await onStyle(el, componentProps);
                     await onTemplate(el, componentProps);
@@ -328,7 +361,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     }
                     addPropsFromAttributes(componentProps, el);
                     addProps(componentProps, el, props);
-                    await loadDependencies(el.use(componentProps));
+                    await loadDependencies(el[Symbols.use](componentProps));
                     await onHydrate(el, componentProps);
                     await onReady(el, componentProps);
                     componentState = -1;
@@ -447,6 +480,35 @@ function initElementAsComponent(el, parent, appState, pageState) {
             get: ()=>{
                 return stateObject ? true : false;
             }
+        },
+        unmountComponents: {
+            value: async ()=>{
+                for(const key in el.components)await el.components[key].unmount();
+            }
+        },
+        addFirst: {
+            value: async (element, autoInit = false)=>{
+                const component = await insertElement(el, element, 'append', '', autoInit);
+                return component;
+            }
+        },
+        addLast: {
+            value: async (element, autoInit = false)=>{
+                const component = await insertElement(el, element, 'prepend', '', autoInit);
+                return component;
+            }
+        },
+        addBefore: {
+            value: async (element, elId, autoInit = false)=>{
+                const component = await insertElement(el, element, 'before', elId, autoInit);
+                return component;
+            }
+        },
+        addAfter: {
+            value: async (element, elId, autoInit = false)=>{
+                const component = await insertElement(el, element, 'after', elId, autoInit);
+                return component;
+            }
         }
     });
     if (appContext.server) {
@@ -517,24 +579,24 @@ function initElementAsComponent(el, parent, appState, pageState) {
     return el;
 }
 function addMissingLifecycleMethods(el) {
-    if (typeof el.use == 'undefined') el.use = ()=>[];
-    if (typeof el.onInit == 'undefined') el.onInit = ()=>{};
-    if (typeof el.onStyle == 'undefined') el.onStyle = ()=>{};
-    if (typeof el.onTemplate == 'undefined') el.onTemplate = ()=>{};
-    if (typeof el.onRender == 'undefined') el.onRender = ()=>{};
-    if (typeof el.onHydrate == 'undefined') el.onHydrate = ()=>{};
-    if (typeof el.onReady == 'undefined') el.onReady = ()=>{};
-    if (typeof el.onCleanup == 'undefined') el.onCleanup = ()=>{};
+    if (typeof el[Symbols.use] == 'undefined') el[Symbols.use] = ()=>[];
+    if (typeof el[Symbols.onInit] == 'undefined') el[Symbols.onInit] = ()=>{};
+    if (typeof el[Symbols.onStyle] == 'undefined') el[Symbols.onStyle] = ()=>{};
+    if (typeof el[Symbols.onTemplate] == 'undefined') el[Symbols.onTemplate] = ()=>{};
+    if (typeof el[Symbols.onRender] == 'undefined') el[Symbols.onRender] = ()=>{};
+    if (typeof el[Symbols.onHydrate] == 'undefined') el[Symbols.onHydrate] = ()=>{};
+    if (typeof el[Symbols.onReady] == 'undefined') el[Symbols.onReady] = ()=>{};
+    if (typeof el[Symbols.onCleanup] == 'undefined') el[Symbols.onCleanup] = ()=>{};
 }
 async function onInit(el, props) {
     el.setAttribute('el-active', '');
-    await el.onInit(props);
+    await el[Symbols.onInit](props);
     el.removeAttribute('el-active');
 }
 async function onStyle(el, props) {
     const theme = props.theme !== undefined ? props.theme.value : '';
     const themeId = el.compIs + (theme ? '_' + theme : '');
-    let css = el.onStyle(props);
+    let css = el[Symbols.onStyle](props);
     if (!css) return;
     if (css.endsWith('.css')) {
         const path = css;
@@ -578,7 +640,7 @@ async function onStyle(el, props) {
 }
 async function onTemplate(el, props) {
     let content;
-    const template = el.onTemplate(props);
+    const template = el[Symbols.onTemplate](props);
     if (template && template.startsWith('/')) {
         const url = template;
         if (appContext.server) {
@@ -604,7 +666,7 @@ async function onTemplate(el, props) {
     initChildren(el);
 }
 async function onRender(el, props) {
-    await el.onRender(props);
+    await el[Symbols.onRender](props);
     if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
     for(const id in el.components){
         const child = el.components[id];
@@ -622,7 +684,7 @@ async function onResume(el) {
     }
 }
 async function onHydrate(el, props) {
-    await el.onHydrate(props);
+    await el[Symbols.onHydrate](props);
     for(const id in el.components){
         const child = el.components[id];
         if (child.compId === undefined) continue;
@@ -630,7 +692,7 @@ async function onHydrate(el, props) {
     }
 }
 async function onReady(el, props) {
-    await el.onReady(props);
+    await el[Symbols.onReady](props);
     onHydrateOn(el);
     removeAttributes(el);
 }
@@ -676,10 +738,10 @@ async function onCleanup(el) {
     const descendants = el.querySelectorAll(':scope [data-id]');
     for (const descendant of descendants){
         if (descendant.compId === undefined) continue;
-        await descendant.onCleanup();
+        await descendant[Symbols.onCleanup]();
         descendant.parent = null;
     }
-    await el.onCleanup();
+    await el[Symbols.onCleanup]();
     unwatchElementProps(el);
     delete el.parent.components[el.compId];
     setTimeout(()=>{
@@ -691,19 +753,19 @@ function initChildren(el) {
     let children;
     el.components = {};
     if (el.componentState === 1) {
-        children = el.querySelectorAll(`:scope [el-parent="${el.compId}"]`);
+        children = el.querySelectorAll(`:scope [el-parent="${el.id}"]`);
     } else {
         children = getChildComponents(el);
     }
     for (const child of children){
         if (!child.hasAttribute('data-is')) {
-            child.setAttribute('el-parent', el.dataset.id);
+            child.setAttribute('el-parent', el.id);
             child.parent = el;
             el.components[child.dataset.id] = child;
         } else {
             const childElement = initElementAsComponent(child, el);
             if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
-            childElement.setAttribute('el-parent', el.dataset.id);
+            childElement.setAttribute('el-parent', el.id);
             childElement.parent = el;
             const elId = childElement.compId;
             el.components[elId] = childElement;
@@ -878,6 +940,7 @@ async function insertElement(parent, element, action, elId, autoInit) {
     const tagNameMap = {
         ul: 'li',
         ol: 'li',
+        table: 'tr',
         thead: 'tr',
         tbody: 'tr'
     };
@@ -894,7 +957,7 @@ async function insertElement(parent, element, action, elId, autoInit) {
     initElementAsComponent(component, parent);
     component.setAttribute('id', `el${++idCount}`);
     component.parent = parent;
-    component.setAttribute('el-parent', parent.compId);
+    component.setAttribute('el-parent', parent.id);
     parent.components[element['data-id']] = component;
     switch(action){
         case 'prepend':
@@ -1239,8 +1302,8 @@ function observe(objectToObserve, name, config) {
 function registerAllowedOrigin(uri) {
     registeredAllowedOrigins.push(uri);
 }
-function registerCaptions(name, captions) {
-    registeredCaptions[name] = captions;
+function registerTranslationPack(name, translations) {
+    registeredTranslations[name] = translations;
 }
 function registerDependencies(dependencies) {
     Object.assign(registeredDependencies, dependencies);
@@ -1276,16 +1339,16 @@ function subscribeTo(subject, handler) {
         }
     };
 }
-function useCaptions(name) {
+function useTranslationPack(name) {
     return (value, ...args)=>{
-        const captionPack = registeredCaptions[name] || {};
-        let caption = captionPack[value] || value;
+        const translationPack = registeredTranslations[name] || {};
+        let translation = translationPack[value] || value;
         if (args && args.length > 0) {
             for(let i = 0; i < args.length; i++){
-                caption = caption.replaceAll('{' + (i + 1) + '}', args[i]);
+                translation = translation.replaceAll('{' + (i + 1) + '}', args[i]);
             }
         }
-        return caption;
+        return translation;
     };
 }
 function deepEqual(a, b) {
@@ -1320,7 +1383,7 @@ async function getDependencies(el) {
     if ([
         1,
         2
-    ].includes(el.componentState)) children = el.querySelectorAll(`:scope [el-parent="${el.compId}"]`);
+    ].includes(el.componentState)) children = el.querySelectorAll(`:scope [el-parent="${el.id}"]`);
     else children = el.querySelectorAll(':scope [data-is]');
     children.forEach((component)=>{
         if (component.dataset.is === undefined) return;
@@ -1398,6 +1461,7 @@ function parseStyle(style) {
 }
 function removeAttributes(el) {
     const attrs = [
+        'el-render-at',
         'el-client-rendering',
         'el-server-rendering',
         'el-server-rendered',
@@ -1473,29 +1537,6 @@ component('document', (el)=>{
         }
     });
 });
-component('list', (el)=>{
-    el.define({
-        clear: async ()=>{
-            for(const key in el.components)await el.components[key].unmount();
-        },
-        addFirst: async (element, autoInit = false)=>{
-            const component = await insertElement(el, element, 'append', '', autoInit);
-            return component;
-        },
-        addLast: async (element, autoInit = false)=>{
-            const component = await insertElement(el, element, 'prepend', '', autoInit);
-            return component;
-        },
-        addBefore: async (element, elId, autoInit = false)=>{
-            const component = await insertElement(el, element, 'before', elId, autoInit);
-            return component;
-        },
-        addAfter: async (element, elId, autoInit = false)=>{
-            const component = await insertElement(el, element, 'after', elId, autoInit);
-            return component;
-        }
-    });
-});
 component('reactive-list', (el)=>{
     let listItems;
     el.define({
@@ -1519,8 +1560,13 @@ component('reactive-list', (el)=>{
                 const newOrder = [];
                 index = 0;
                 for (const item of props.src.value){
+                    const id = [
+                        'string',
+                        'number',
+                        'boolean'
+                    ].includes(typeof item) ? String(item) : item.id;
                     newOrder.push({
-                        id: item.id,
+                        id,
                         index: index++
                     });
                 }
@@ -1544,7 +1590,15 @@ component('reactive-list', (el)=>{
     function transformSourceList(props) {
         const items = {};
         for (const item of props.src.value){
-            items[String(item[props.componentId.value])] = item;
+            if ([
+                'string',
+                'number',
+                'boolean'
+            ].includes(typeof item)) {
+                items[String(item)] = item;
+            } else {
+                items[String(item[props.componentId.value])] = item;
+            }
         }
         return items;
     }
@@ -1555,7 +1609,7 @@ component('reactive-list', (el)=>{
     }
     async function createComponents(props) {
         let index = 0;
-        const propName = props.alias.value || 'item';
+        const propName = props.alias ? props.alias.value : 'item';
         for(const id in listItems){
             await insertElement(el, {
                 'data-is': props.component.value,
@@ -1586,7 +1640,7 @@ component('reactive-list', (el)=>{
                 } else {
                     action = 'after', elId = newOrder[i - 1].id;
                 }
-                const propName = el.props.alias.value || 'item';
+                const propName = el.props.alias ? el.props.alias.value : 'item';
                 await insertElement(el, {
                     'data-is': el.props.component.value,
                     'data-id': id,
@@ -1616,23 +1670,24 @@ component('reactive-list', (el)=>{
 component('link', (el)=>{
     el.define({
         onRender: ({ href, text })=>{
-            el.setAttribute('href', href.value);
-            el.textContent = text.value;
+            if (href) el.setAttribute('href', href.value);
+            if (text) el.textContent = text.value;
         },
         onHydrate: ({ href, disabled, onclick })=>{
-            href.onChange((value)=>el.setAttribute('href', value));
-            if (onclick.value === undefined) onclick.value = ()=>{};
+            let onClick = ()=>true;
+            if (href) href.onChange((value)=>el.setAttribute('href', value));
+            if (onclick) onClick = onclick.value;
             el.addEventListener('click', (event)=>{
                 event.preventDefault();
-                if (disabled.value) return;
-                if (onclick.value(event) === false) return;
+                if (disabled && disabled.value) return;
+                if (onClick(event) === false) return;
                 if (href) navigateTo(href.value);
                 else if (el.getAttribute('href')) globalThis.location.href = el.getAttribute('href') || '';
             });
         }
     });
 });
-component('caption', (el)=>{
+component('translate', (el)=>{
     const [appState, watchAppState] = el.appState;
     const [pageState, watchPageState] = el.pageState;
     const [state] = el.state;
@@ -1646,28 +1701,28 @@ component('caption', (el)=>{
                 setCaption(value);
                 state.params = value;
             });
-            watchAppState('appState.captionPack', ()=>{
+            watchAppState('appState.activeTranslationPack', ()=>{
                 setCaption(state.params);
             });
-            watchPageState('pageState.captionPack', ()=>{
+            watchPageState('pageState.activeTranslationPack', ()=>{
                 setCaption(state.params);
             });
         }
     });
     function setCaption(params) {
-        const caption = useCaptions(appState.captionPack || pageState.captionPack);
+        const translate = useTranslationPack(appState.captionPack || pageState.captionPack);
         if (params) {
             if (Array.isArray(params)) {
-                el.textContent = caption(el.compId, ...params);
+                el.textContent = translate(el.compId, ...params);
             } else {
                 try {
                     const paramsArray = JSON.parse(params);
-                    el.textContent = caption(el.compId, ...paramsArray);
+                    el.textContent = translate(el.compId, ...paramsArray);
                 } catch (e) {
-                    el.textContent = caption(el.compId, params);
+                    el.textContent = translate(el.compId, params);
                 }
             }
-        } else el.textContent = caption(el.compId);
+        } else el.textContent = translate(el.compId);
     }
 });
 component('reactive-input', (el)=>{
@@ -1760,4 +1815,4 @@ component('reactive-content', (el)=>{
         }
     });
 });
-export { component as component, deviceSubscribesTo as deviceSubscribesTo, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerCaptions as registerCaptions, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useCaptions as useCaptions,  };
+export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useTranslationPack as useTranslationPack,  };
