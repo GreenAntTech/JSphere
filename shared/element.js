@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.270');
+console.log('elementJS:', 'v1.0.0-preview.271');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -44,6 +44,8 @@ class RenderError extends Error {
 class Prop {
     boundFunctions = new Set();
     propValue = undefined;
+    unwatchFn = ()=>{};
+    rewatchFn = ()=>{};
     constructor(value){
         this.propValue = value;
     }
@@ -53,6 +55,18 @@ class Prop {
     set value(value) {
         this.propValue = value;
         this.boundFunctions.forEach((fn)=>fn(this.propValue));
+    }
+    get unwatch() {
+        return this.unwatchFn;
+    }
+    set unwatch(value) {
+        this.unwatchFn = value;
+    }
+    get rewatch() {
+        return this.rewatchFn;
+    }
+    set rewatch(value) {
+        this.rewatchFn = value;
     }
     onChange(fn, execute = false) {
         this.boundFunctions.add(fn);
@@ -69,6 +83,8 @@ class StateProp {
     path = undefined;
     propName = undefined;
     bindFunction = ()=>{};
+    unwatchFn = ()=>{};
+    rewatchFn = ()=>{};
     constructor(statePath, stateObj, stateObjPropName, bindFunction){
         this.path = statePath;
         this.stateObj = stateObj;
@@ -86,6 +102,18 @@ class StateProp {
     }
     set value(value) {
         this.stateObj[this.propName] = value;
+    }
+    get unwatch() {
+        return this.unwatchFn;
+    }
+    set unwatch(value) {
+        this.unwatchFn = value;
+    }
+    get rewatch() {
+        return this.rewatchFn;
+    }
+    set rewatch(value) {
+        this.rewatchFn = value;
     }
     onChange(fn, execute = false) {
         if (!this.isBound) {
@@ -199,7 +227,6 @@ async function renderDocument(config, ctx) {
             setExtendedURL(ctx.request.url);
             const el = appContext.documentElement = await getDocumentElement(config);
             el.setAttribute('data-is', 'document');
-            el.setAttribute('data-id', 'document');
             el.setAttribute('el-server-rendering', 'true');
             initElementAsComponent(el, null, appState, pageState);
             await el.init();
@@ -215,7 +242,6 @@ async function renderDocument(config, ctx) {
         } else {
             const el = document.documentElement;
             el.setAttribute('data-is', 'document');
-            el.setAttribute('data-id', 'document');
             if (el.hasAttribute('el-server-rendered')) {
                 idCount = parseInt(el.getAttribute('el-id-count'));
                 el.removeAttribute('el-id-count');
@@ -272,8 +298,9 @@ async function getDocumentElement(config) {
     return docEl;
 }
 function initElementAsComponent(el, parent, appState, pageState) {
-    const componentId = el.dataset.id;
-    const componentIs = el.dataset.is;
+    const isParts = el.dataset.is.split(':');
+    const componentIs = isParts[0];
+    const componentId = isParts[1];
     const componentProps = {};
     const renderAt = el.getAttribute('el-render-at');
     const hydrateOnComponents = new Set();
@@ -381,7 +408,9 @@ function initElementAsComponent(el, parent, appState, pageState) {
         },
         emit: {
             value: (event, data, config = {})=>{
+                const bubbles = config.bubbles !== false || false;
                 Object.assign(config, {
+                    bubbles,
                     detail: data
                 });
                 const async = config.async;
@@ -513,6 +542,15 @@ function initElementAsComponent(el, parent, appState, pageState) {
     });
     if (appContext.server) {
         Object.defineProperties(el, {
+            alt: {
+                set: (value)=>{
+                    if (value === undefined) el.removeAttribute('alt');
+                    else el.setAttribute('alt', value);
+                },
+                get: ()=>{
+                    return el.getAttribute('alt') || '';
+                }
+            },
             checked: {
                 set: (value)=>{
                     if (typeof value != 'boolean') return;
@@ -553,9 +591,27 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     return el.hasAttribute('readonly');
                 }
             },
+            src: {
+                set: (value)=>{
+                    if (value === undefined) el.removeAttribute('src');
+                    else el.setAttribute('src', value);
+                },
+                get: ()=>{
+                    return el.getAttribute('src') || '';
+                }
+            },
             style: {
                 get: ()=>{
                     return style;
+                }
+            },
+            title: {
+                set: (value)=>{
+                    if (value === undefined) el.removeAttribute('title');
+                    else el.setAttribute('title', value);
+                },
+                get: ()=>{
+                    return el.getAttribute('title') || '';
                 }
             },
             value: {
@@ -613,8 +669,8 @@ async function onStyle(el, props) {
             } else {
                 content = await getResource(path) || '';
             }
-            if (theme) content = content.replaceAll('[el]', `[data-is='${el.compIs}'][data-theme='${theme}']`);
-            else content = content.replaceAll('[el]', `[data-is='${el.compIs}']`);
+            if (theme) content = content.replaceAll('[el]', `[data-is^='${el.compIs}:'][data-theme='${theme}']`);
+            else content = content.replaceAll('[el]', `[data-is^='${el.compIs}:']`);
             el.setAttribute('data-theme', themeId);
             if (el.ownerDocument.getElementById(themeId)) return;
             const tag = el.ownerDocument.createElement('style');
@@ -630,8 +686,8 @@ async function onStyle(el, props) {
         }
     } else {
         if (el.ownerDocument.head.querySelector(`[id="${themeId}"]`)) return;
-        if (theme) css = css.replaceAll('[el]', `[data-is='${el.compIs}'][data-theme='${theme}']`);
-        else css = css.replaceAll('[el]', `[data-is='${el.compIs}']`);
+        if (theme) css = css.replaceAll('[el]', `[data-is^='${el.compIs}:'][data-theme='${theme}']`);
+        else css = css.replaceAll('[el]', `[data-is^='${el.compIs}:']`);
         const tag = el.ownerDocument.createElement('style');
         tag.setAttribute('id', themeId);
         tag.textContent = css;
@@ -670,7 +726,6 @@ async function onRender(el, props) {
     if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
     for(const id in el.components){
         const child = el.components[id];
-        if (child.compId === undefined) continue;
         if (child.componentState == -1) await child.init();
     }
 }
@@ -679,7 +734,6 @@ async function onResume(el) {
     initChildren(el);
     for(const id in el.components){
         const child = el.components[id];
-        if (child.compId === undefined) continue;
         await child.init();
     }
 }
@@ -687,7 +741,6 @@ async function onHydrate(el, props) {
     await el[Symbols.onHydrate](props);
     for(const id in el.components){
         const child = el.components[id];
-        if (child.compId === undefined) continue;
         if (child.componentState == 2) await child.init();
     }
 }
@@ -735,9 +788,8 @@ function onHydrateOn(el) {
     el.hydrateOnComponents.clear();
 }
 async function onCleanup(el) {
-    const descendants = el.querySelectorAll(':scope [data-id]');
+    const descendants = el.querySelectorAll(':scope [data-is]');
     for (const descendant of descendants){
-        if (descendant.compId === undefined) continue;
         await descendant[Symbols.onCleanup]();
         descendant.parent = null;
     }
@@ -758,23 +810,23 @@ function initChildren(el) {
         children = getChildComponents(el);
     }
     for (const child of children){
-        if (!child.hasAttribute('data-is')) {
-            child.setAttribute('el-parent', el.id);
-            child.parent = el;
-            el.components[child.dataset.id] = child;
-        } else {
-            const childElement = initElementAsComponent(child, el);
-            if (!childElement.hasAttribute('id')) childElement.setAttribute('id', `el${++idCount}`);
-            childElement.setAttribute('el-parent', el.id);
-            childElement.parent = el;
-            const elId = childElement.compId;
-            el.components[elId] = childElement;
+        if (!child.hasAttribute('el-parent')) {
+            if (!child.hasAttribute('id')) child.setAttribute('id', `el${++idCount}`);
+            const isParts = child.getAttribute('data-is').split(':');
+            if (!isParts[1]) {
+                child.setAttribute('data-is', `${isParts[0]}:${child.getAttribute('id')}`);
+            }
         }
+        const childElement = initElementAsComponent(child, el);
+        childElement.setAttribute('el-parent', el.id);
+        childElement.parent = el;
+        const elId = childElement.compId;
+        el.components[elId] = childElement;
     }
 }
 function getChildComponents(parent) {
     const components = [
-        ...parent.querySelectorAll('[data-id]')
+        ...parent.querySelectorAll('[data-is]')
     ];
     return components.filter((child)=>{
         const match = child.parentElement.closest('[data-is]');
@@ -832,55 +884,44 @@ function addPropsFromAttributes(componentProps, el) {
 function getBoundEntity(el, propName, path) {
     const arrPath = path.split('.');
     const stateObjPropName = arrPath[arrPath.length - 1];
-    let statePath = '', stateObj;
     if ([
         'appState',
         'pageState'
     ].includes(arrPath[0])) {
-        statePath = path;
-        stateObj = el[arrPath[0]][0];
+        const statePath = path;
+        let stateObj = el[arrPath[0]][0];
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
+        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
     } else if (arrPath[0] == 'state') {
-        let parentEl = el.parent;
-        let found = false;
-        while(parentEl.compId != 'document' && !found){
-            if (!parentEl.hasState) {
-                parentEl = parentEl.parent;
-            } else {
-                stateObj = parentEl[arrPath[0]][0];
-                for(let i = 1; i < arrPath.length; i++){
-                    if (!stateObj.hasOwnProperty(arrPath[i])) {
-                        parentEl = parentEl.parent;
-                        break;
-                    } else if (i === arrPath.length - 1) {
-                        statePath = path.replace('state.', parentEl.id + '.');
-                        found = true;
-                    } else {
-                        stateObj = stateObj[arrPath[i]];
-                    }
-                }
-            }
-            if (parentEl.compId == 'document') {
-                statePath = path.replace('state.', parentEl.id + '.');
-                stateObj = undefined;
-            }
+        let stateObj = el.parent[arrPath[0]][0];
+        for(let i = 1; i < arrPath.length - 1; i++){
+            stateObj = stateObj[arrPath[i]];
         }
+        arrPath[0] = el.parent.id;
+        const statePath = arrPath.join('.');
+        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
     } else {
         const parentProp = el.parent.props[arrPath[0]];
         if (arrPath.length === 1) {
-            return el.parent.props[arrPath[0]];
-        } else {
-            stateObj = parentProp.value;
+            return parentProp;
+        } else if (parentProp.statePath) {
+            let stateObj = parentProp.value;
             for(let i = 1; i < arrPath.length - 1; i++){
                 stateObj = stateObj[arrPath[i]];
             }
             arrPath.shift();
-            statePath = parentProp.statePath + '.' + arrPath.join('.');
+            const statePath = parentProp.statePath + '.' + arrPath.join('.');
+            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+        } else {
+            let value = parentProp.value;
+            for(let i = 1; i < arrPath.length; i++){
+                value = value[arrPath[i]];
+            }
+            return new Prop(value);
         }
     }
-    return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
 }
 function bind(el, propName, statePath) {
     return (fn)=>{
@@ -905,7 +946,6 @@ function bind(el, propName, statePath) {
 function unwatchElementProps(el) {
     for(const id in el.components){
         const child = el.components[id];
-        if (child.compId === undefined) continue;
         unwatchElementProps(child);
     }
     for(const prop in el.props){
@@ -918,7 +958,6 @@ function unwatchElementProps(el) {
 function reIndexStatePath(el, oldRoot, newRoot, depth) {
     for(const id in el.components){
         const child = el.components[id];
-        if (child.compId === undefined) continue;
         reIndexStatePath(child, oldRoot, newRoot, depth + 1);
     }
     for(const prop in el.props){
@@ -936,29 +975,38 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
         }
     }
 }
-async function insertElement(parent, element, action, elId, autoInit) {
-    const tagNameMap = {
-        ul: 'li',
-        ol: 'li',
-        table: 'tr',
-        thead: 'tr',
-        tbody: 'tr'
-    };
-    if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
-    else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
-    const component = parent.ownerDocument.createElement(element.tagName);
-    for(const prop in element){
-        if (prop == 'tagName' || prop == 'props') continue;
-        component.setAttribute(prop, element[prop]);
+async function insertElement(parent, component, action, elId, autoInit) {
+    if (!component.nodeType) {
+        const tagNameMap = {
+            ul: 'li',
+            ol: 'li',
+            table: 'tr',
+            thead: 'tr',
+            tbody: 'tr'
+        };
+        const element = component;
+        if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
+        else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
+        component = parent.ownerDocument.createElement(element.tagName);
+        for(const prop in element){
+            if (prop == 'tagName' || prop == 'props') continue;
+            component.setAttribute(prop, element[prop]);
+        }
+    }
+    const isParts = component.getAttribute('data-is').split(':');
+    const compIs = isParts[0];
+    const compId = isParts[1];
+    if (!component.hasAttribute('id')) component.setAttribute('id', `el${++idCount}`);
+    if (!compId) {
+        component.setAttribute('data-is', `${isParts[0]}:${component.getAttribute('id')})`);
     }
     await loadDependencies([
-        element['data-is']
+        compIs
     ]);
     initElementAsComponent(component, parent);
-    component.setAttribute('id', `el${++idCount}`);
     component.parent = parent;
     component.setAttribute('el-parent', parent.id);
-    parent.components[element['data-id']] = component;
+    parent.components[compId] = component;
     switch(action){
         case 'prepend':
             parent.prepend(component);
@@ -975,7 +1023,7 @@ async function insertElement(parent, element, action, elId, autoInit) {
         default:
             parent.append(component);
     }
-    if (autoInit) await component.init(element.props);
+    if (autoInit) await component.init(component.props);
     return component;
 }
 function component(param1, param2) {
@@ -1062,7 +1110,6 @@ function observe(objectToObserve, name, config) {
                 return value;
             },
             set (target, key, value, receiver) {
-                if (value && value.__proxy__) return true;
                 if (key == '__path__') {
                     path = value;
                     if (Array.isArray(receiver)) {
@@ -1373,12 +1420,16 @@ function deepEqual(a, b) {
     return false;
 }
 async function getDependencies(el) {
+    const isParts = el.dataset.is.split(':');
+    const elIs = isParts[0];
     const dependencies = [];
     if (![
+        'el',
         'document',
         'link',
-        'list'
-    ].includes(el.dataset.is)) dependencies.push(el.dataset.is);
+        'list',
+        'translate'
+    ].includes(elIs)) dependencies.push(elIs);
     let children;
     if ([
         1,
@@ -1386,10 +1437,11 @@ async function getDependencies(el) {
     ].includes(el.componentState)) children = el.querySelectorAll(`:scope [el-parent="${el.id}"]`);
     else children = el.querySelectorAll(':scope [data-is]');
     children.forEach((component)=>{
-        if (component.dataset.is === undefined) return;
+        const compParts = component.dataset.is.split(':');
+        const compIs = compParts[0];
         if (appContext.server && component.getAttribute('el-render-at') == 'client') return;
         else if (appContext.client && component.getAttribute('el-render-at') == 'server') return;
-        dependencies.push(component.dataset.is);
+        dependencies.push(compIs);
     });
     await loadDependencies(dependencies);
 }
@@ -1433,9 +1485,11 @@ async function loadDependencies(dependencies) {
     try {
         const imports = dependencies.map((dependency)=>{
             if (![
+                'el',
                 'document',
                 'link',
-                'list'
+                'list',
+                'translate'
             ].includes(dependency)) {
                 let modulePath = registeredDependencies[dependency];
                 if (appContext.server) modulePath = registeredServerDependencies[dependency] || modulePath;
@@ -1497,22 +1551,127 @@ function setupIntersectionObserver() {
         threshold: 0
     });
 }
-component('component', (el)=>{
+component('el', (el)=>{
     el.define({
-        text: {
-            set: (value)=>{
-                el.textContent = value;
-            },
-            get: ()=>{
-                return el.textContent;
+        onRender: (props)=>{
+            for(const name in props){
+                if (name == 'checked') {
+                    if (el.type == 'checkbox') {
+                        if (Array.isArray(props[name].value)) {
+                            el.checked = props[name].value.includes(el.value);
+                        } else if (typeof props[name].value == 'boolean') {
+                            el.checked = props[name].value;
+                        } else {
+                            el.checked = props[name].value === el.value;
+                        }
+                    } else if (el.type == 'radio') {
+                        if (typeof props[name].value == 'boolean') {
+                            el.checked = props[name].value;
+                        } else {
+                            el.checked = props[name].value === el.value;
+                        }
+                    }
+                } else if (name == 'class') {
+                    el.className = props[name].value;
+                } else if (name == 'text') {
+                    el.textContent = props[name].value;
+                } else if (name == 'value') {
+                    el.value = props[name].value;
+                } else if (name == 'visible') {
+                    el.hidden = !props[name].value;
+                } else if (name.startsWith('style:')) {
+                    const styleProp = name.split(':')[1];
+                    el.style[styleProp] = props[name].value;
+                } else {
+                    el[name] = props[name].value;
+                }
             }
         },
-        html: {
-            set: (value)=>{
-                el.innerHTML = value;
-            },
-            get: ()=>{
-                return el.innerHTML;
+        onHydrate: (props)=>{
+            console.log('PROPS:', props);
+            for(const name in props){
+                if (name == 'checked') {
+                    if (el.type == 'checkbox') {
+                        props[name].onChange((value)=>{
+                            if (el.type == 'checkbox') {
+                                if (Array.isArray(props[name].value)) {
+                                    el.checked = props[name].value.includes(el.value);
+                                } else if (typeof value == 'boolean') {
+                                    el.checked = value;
+                                } else {
+                                    el.checked = value === el.value;
+                                }
+                            } else if (el.type == 'radio') {
+                                if (typeof value == 'boolean') {
+                                    el.checked = value;
+                                } else {
+                                    el.checked = value === el.value;
+                                }
+                            }
+                        });
+                        el.addEventListener('change', ()=>{
+                            if (Array.isArray(props[name].value)) {
+                                if (el.checked) {
+                                    props[name].value.push(el.value);
+                                } else {
+                                    const newList = props[name].value.filter((item)=>item !== el.value);
+                                    props[name].value = newList;
+                                }
+                            } else {
+                                props[name].value === el.value;
+                            }
+                        });
+                    } else if (el.type == 'radio') {
+                        props[name].onChange((value)=>{
+                            el.checked = value === el.value;
+                        });
+                        el.addEventListener('change', ()=>{
+                            props[name].value = el.value;
+                        });
+                    }
+                } else if (name == 'class') {
+                    props[name].onChange((value)=>{
+                        el.className = value;
+                    }, true);
+                } else if (name.startsWith('on:')) {
+                    props[name].onChange((value)=>{
+                        const onProp = name.replace(':', '');
+                        if (typeof value == 'function') {
+                            el[onProp] = value;
+                        } else if (typeof value == 'string') {
+                            el[onProp] = ()=>{
+                                el.emit(value, el.id);
+                            };
+                        }
+                    }, true);
+                } else if (name == 'text') {
+                    props[name].onChange((value)=>{
+                        el.textContent = value;
+                    }, true);
+                    el.addEventListener('input', ()=>{
+                        props[name].value = el.textContent;
+                    });
+                } else if (name == 'value') {
+                    props[name].onChange((value)=>{
+                        el.value = value;
+                    }, true);
+                    el.addEventListener('input', ()=>{
+                        props[name].value = el.value;
+                    });
+                } else if (name == 'visible') {
+                    props[name].onChange((value)=>{
+                        el.hidden = !value;
+                    }, true);
+                } else if (name.startsWith('style:')) {
+                    props[name].onChange((value)=>{
+                        const styleProp = name.split(':')[1];
+                        el.style[styleProp] = value;
+                    }, true);
+                } else {
+                    props[name].onChange((value)=>{
+                        el[name] = value;
+                    }, true);
+                }
             }
         }
     });
@@ -1522,7 +1681,6 @@ component('document', (el)=>{
         onRender: async (props)=>{
             for(const id in el.components){
                 const child = el.components[id];
-                if (child.compId === undefined) continue;
                 if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
                 else await child.init(props);
             }
@@ -1530,17 +1688,19 @@ component('document', (el)=>{
         onHydrate: async (props)=>{
             for(const id in el.components){
                 const child = el.components[id];
-                if (child.compId === undefined) continue;
                 if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
                 else await child.init(props);
             }
         }
     });
 });
-component('reactive-list', (el)=>{
+component('list', (el)=>{
     let listItems;
+    const templateFragment = el.firstElementChild.content.firstElementChild;
+    el.firstElementChild.remove();
     el.define({
         onRender: async (props)=>{
+            if (!props.componentId) el.setProp('componentId', 'id');
             listItems = transformSourceList(props);
             await clearComponents();
             await createComponents(props);
@@ -1560,11 +1720,7 @@ component('reactive-list', (el)=>{
                 const newOrder = [];
                 index = 0;
                 for (const item of props.src.value){
-                    const id = [
-                        'string',
-                        'number',
-                        'boolean'
-                    ].includes(typeof item) ? String(item) : item.id;
+                    const id = item.id;
                     newOrder.push({
                         id,
                         index: index++
@@ -1590,15 +1746,7 @@ component('reactive-list', (el)=>{
     function transformSourceList(props) {
         const items = {};
         for (const item of props.src.value){
-            if ([
-                'string',
-                'number',
-                'boolean'
-            ].includes(typeof item)) {
-                items[String(item)] = item;
-            } else {
-                items[String(item[props.componentId.value])] = item;
-            }
+            items[String(item[props.componentId.value])] = item;
         }
         return items;
     }
@@ -1611,12 +1759,12 @@ component('reactive-list', (el)=>{
         let index = 0;
         const propName = props.alias ? props.alias.value : 'item';
         for(const id in listItems){
-            await insertElement(el, {
-                'data-is': props.component.value,
-                'data-id': id,
-                'data-index': `num:${index}`,
-                [`data-${propName}`]: 'bind:src.' + index++
-            }, 'append', '', true);
+            const component = el.ownerDocument.importNode(templateFragment, true);
+            const compIs = component.dataset.is + ':' + id;
+            component.setAttribute('data-is', compIs);
+            component.setAttribute(`data-${propName}`, `bind:src.${index}`);
+            component.setAttribute('data-index', String(index++));
+            await insertElement(el, component, 'append', '', true);
         }
     }
     async function reconcileDom(currentOrder, newOrder) {
@@ -1640,13 +1788,13 @@ component('reactive-list', (el)=>{
                 } else {
                     action = 'after', elId = newOrder[i - 1].id;
                 }
-                const propName = el.props.alias ? el.props.alias.value : 'item';
-                await insertElement(el, {
-                    'data-is': el.props.component.value,
-                    'data-id': id,
-                    'data-index': `num:${i}`,
-                    [`data-${propName}`]: 'bind:src.' + i
-                }, action, elId, true);
+                const propName = el.props.alias && el.props.alias.value ? el.props.alias.value : 'item';
+                const component = el.ownerDocument.importNode(templateFragment, true);
+                const compIs = component.dataset.is + ':' + id;
+                component.setAttribute('data-is', compIs);
+                component.setAttribute(`data-${propName}`, `bind:src.${i}`);
+                component.setAttribute('data-index', String(i));
+                await insertElement(el, component, action, elId, true);
             } else {
                 const referenceNode = el.childNodes[i];
                 if (i === 0) {
@@ -1724,95 +1872,5 @@ component('translate', (el)=>{
             }
         } else el.textContent = translate(el.compId);
     }
-});
-component('reactive-input', (el)=>{
-    el.define({
-        onRender: ({ checked, value })=>{
-            if (el.type == 'checkbox' && checked) {
-                if (Array.isArray(checked.value)) {
-                    el.checked = checked.value.includes(el.value);
-                } else {
-                    el.checked = checked.value === el.value;
-                }
-            } else if (el.type == 'radio' && checked) {
-                el.checked = checked.value == el.value;
-            } else {
-                el.value = value.value;
-            }
-        },
-        onHydrate: ({ checked, value })=>{
-            if (el.type == 'checkbox') {
-                checked.onChange(()=>{
-                    if (Array.isArray(checked.value)) {
-                        el.checked = checked.value.includes(el.value);
-                    } else {
-                        el.checked = checked.value === el.value;
-                    }
-                });
-                el.addEventListener('change', ()=>{
-                    if (Array.isArray(checked.value)) {
-                        if (el.checked) {
-                            checked.value.push(el.value);
-                        } else {
-                            const newList = checked.value.filter((item)=>item !== el.value);
-                            checked.value = newList;
-                        }
-                    } else {
-                        checked.value === el.value;
-                    }
-                });
-            } else if (el.type == 'radio') {
-                checked.onChange((value)=>{
-                    el.checked = value === el.value;
-                });
-                el.addEventListener('change', ()=>{
-                    checked.value = el.value;
-                });
-            } else {
-                value.onChange((value)=>{
-                    el.value = value;
-                });
-                el.addEventListener('input', ()=>{
-                    value.value = el.value;
-                });
-            }
-        }
-    });
-});
-component('reactive-select', (el)=>{
-    el.define({
-        onRender: ({ value })=>{
-            if (value) {
-                const options = el.querySelectorAll('option');
-                for (const option of options){
-                    if (option.getAttribute('value') == value.value) {
-                        option.setAttribute('selected', '');
-                    } else {
-                        option.removeAttribute('selected');
-                    }
-                }
-            }
-        },
-        onHydrate: ({ value })=>{
-            value.onChange((value)=>{
-                el.value = value;
-            });
-            el.addEventListener('change', ()=>{
-                value.value = el.value;
-            });
-        }
-    });
-});
-component('reactive-content', (el)=>{
-    el.define({
-        onRender: ({ content })=>{
-            el.textContent = content.value;
-        },
-        onHydrate: ({ content })=>{
-            content.onChange((value)=>{
-                el.textContent = value;
-            });
-        }
-    });
 });
 export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useTranslationPack as useTranslationPack,  };
