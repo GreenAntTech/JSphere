@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.271');
+console.log('elementJS:', 'v1.0.0-preview.272');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -123,6 +123,43 @@ class StateProp {
         }
         this.boundFunctions.add(fn);
         if (execute) fn(this.stateObj[this.propName]);
+        return ()=>{
+            this.boundFunctions.delete(fn);
+        };
+    }
+}
+class ComputedState {
+    computed = true;
+    boundFunctions = new Set();
+    propValue = undefined;
+    unwatchFn = ()=>{};
+    rewatchFn = ()=>{};
+    static isComputed(obj) {
+        return obj == null ? undefined : obj.computed;
+    }
+    constructor(){}
+    get value() {
+        return this.propValue;
+    }
+    set value(value) {
+        this.propValue = value;
+        this.boundFunctions.forEach((fn)=>fn(this.propValue));
+    }
+    get unwatch() {
+        return this.unwatchFn;
+    }
+    set unwatch(value) {
+        this.unwatchFn = value;
+    }
+    get rewatch() {
+        return this.rewatchFn;
+    }
+    set rewatch(value) {
+        this.rewatchFn = value;
+    }
+    onChange(fn, execute = false) {
+        this.boundFunctions.add(fn);
+        if (execute) fn(this.propValue);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -893,15 +930,23 @@ function getBoundEntity(el, propName, path) {
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+        if (ComputedState.isComputed(stateObj[arrPath[arrPath.length - 1]])) {
+            return stateObj[arrPath[arrPath.length - 1]];
+        } else {
+            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+        }
     } else if (arrPath[0] == 'state') {
         let stateObj = el.parent[arrPath[0]][0];
+        arrPath[0] = el.parent.id;
+        const statePath = arrPath.join('.');
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        arrPath[0] = el.parent.id;
-        const statePath = arrPath.join('.');
-        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+        if (ComputedState.isComputed(stateObj[arrPath[arrPath.length - 1]])) {
+            return stateObj[arrPath[arrPath.length - 1]];
+        } else {
+            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+        }
     } else {
         const parentProp = el.parent.props[arrPath[0]];
         if (arrPath.length === 1) {
@@ -1087,22 +1132,17 @@ function observe(objectToObserve, name, config) {
     const observablesCache = new WeakMap();
     const watchList = new Map();
     let listenerId = 0;
-    let activeCompute = null;
     function objectAccessor(path) {
         return {
             get (target, key, receiver) {
                 if (key === '__proxy__') return true;
+                if (key == '__path__') return path;
                 const value = Reflect.get(target, key, receiver);
-                if (activeCompute) {
-                    activeCompute.deps.add({
-                        path
-                    });
-                }
                 if (Array.isArray(value) && !value.__proxy__) {
                     const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
-                } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
+                } else if (typeof value === 'object' && value !== null && !ComputedState.isComputed(value) && !value.__proxy__) {
                     const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
@@ -1144,6 +1184,7 @@ function observe(objectToObserve, name, config) {
         return {
             get (target, key, receiver) {
                 if (key === '__proxy__') return true;
+                if (key == '__path__') return path;
                 const mutatingMethods = [
                     'push',
                     'pop',
@@ -1157,11 +1198,6 @@ function observe(objectToObserve, name, config) {
                     'swap'
                 ];
                 if (mutatingMethods.includes(key)) {
-                    if (activeCompute) {
-                        activeCompute.deps.add({
-                            path
-                        });
-                    }
                     return function(...args) {
                         let result, oldValue;
                         if (key === 'replace') {
@@ -1195,11 +1231,6 @@ function observe(objectToObserve, name, config) {
                         }
                         return result;
                     };
-                }
-                if (activeCompute) {
-                    activeCompute.deps.add({
-                        path
-                    });
                 }
                 const value = Reflect.get(target, key, receiver);
                 if (Array.isArray(value) && !value.__proxy__) {
@@ -1296,35 +1327,21 @@ function observe(objectToObserve, name, config) {
             }
         ];
     }
-    function compute(fn, el) {
-        let cachedValue;
-        let dirty = true;
-        const deps = new Set();
-        const recompute = ()=>{
-            deps.forEach(({ path })=>{
-                const listeners = watchList.get(path);
-                if (listeners) listeners.delete(markDirty);
-            });
-            deps.clear();
-            activeCompute = {
-                deps
+    function compute(deps, fn, el) {
+        const computeObj = new ComputedState();
+        computeObj.value = fn();
+        for (const prop of deps){
+            const cb = ()=>{
+                computeObj.value = fn();
             };
-            cachedValue = fn();
-            activeCompute = null;
-            dirty = false;
-            deps.forEach(({ path })=>{
-                watch(path, markDirty, el);
-            });
-        };
-        function markDirty() {
-            dirty = true;
-        }
-        return {
-            get value () {
-                if (dirty) recompute();
-                return cachedValue;
+            if (Array.isArray(prop)) {
+                for (const item of prop){
+                    if (item.__path__) watch(item.__path__, cb, el);
+                }
             }
-        };
+            watch(prop.__path__, cb, el);
+        }
+        return computeObj;
     }
     function persistState() {
         localStorage.setItem(config.key, JSON.stringify(proxy));
@@ -1582,13 +1599,12 @@ component('el', (el)=>{
                 } else if (name.startsWith('style:')) {
                     const styleProp = name.split(':')[1];
                     el.style[styleProp] = props[name].value;
-                } else {
+                } else if (name in el) {
                     el[name] = props[name].value;
                 }
             }
         },
         onHydrate: (props)=>{
-            console.log('PROPS:', props);
             for(const name in props){
                 if (name == 'checked') {
                     if (el.type == 'checkbox') {
@@ -1618,7 +1634,7 @@ component('el', (el)=>{
                                     props[name].value = newList;
                                 }
                             } else {
-                                props[name].value === el.value;
+                                props[name].value = el.checked;
                             }
                         });
                     } else if (el.type == 'radio') {
@@ -1697,7 +1713,6 @@ component('document', (el)=>{
 component('list', (el)=>{
     let listItems;
     const templateFragment = el.firstElementChild.content.firstElementChild;
-    el.firstElementChild.remove();
     el.define({
         onRender: async (props)=>{
             if (!props.componentId) el.setProp('componentId', 'id');
@@ -1741,6 +1756,9 @@ component('list', (el)=>{
                     });
                 }
             });
+        },
+        onReady: ()=>{
+            el.firstElementChild.remove();
         }
     });
     function transformSourceList(props) {
