@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.273');
+console.log('elementJS:', 'v1.0.0-preview.274');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -42,10 +42,14 @@ class RenderError extends Error {
     }
 }
 class Prop {
+    isProp = true;
     boundFunctions = new Set();
     propValue = undefined;
     unwatchFn = ()=>{};
     rewatchFn = ()=>{};
+    static isProp(obj) {
+        return obj == null ? undefined : obj.isProp;
+    }
     constructor(value){
         this.propValue = value;
     }
@@ -77,6 +81,7 @@ class Prop {
     }
 }
 class StateProp {
+    isStateProp = true;
     boundFunctions = new Set();
     isBound = false;
     stateObj = undefined;
@@ -85,6 +90,9 @@ class StateProp {
     bindFunction = ()=>{};
     unwatchFn = ()=>{};
     rewatchFn = ()=>{};
+    static isStateProp(obj) {
+        return obj == null ? undefined : obj.isStateProp;
+    }
     constructor(statePath, stateObj, stateObjPropName, bindFunction){
         this.path = statePath;
         this.stateObj = stateObj;
@@ -129,13 +137,13 @@ class StateProp {
     }
 }
 class DerivedState {
-    derived = true;
+    isDerived = true;
     boundFunctions = new Set();
     propValue = undefined;
     unwatchFn = ()=>{};
     rewatchFn = ()=>{};
     static isDerived(obj) {
-        return obj == null ? undefined : obj.derived;
+        return obj == null ? undefined : obj.isDerived;
     }
     constructor(){}
     get value() {
@@ -514,6 +522,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 const prop = {};
                 prop[name] = value;
                 addProps(componentProps, el, prop);
+                return componentProps[name];
             }
         },
         props: {
@@ -1330,17 +1339,27 @@ function observe(objectToObserve, name, config) {
     function derive(fn, deps) {
         const derivedObj = new DerivedState();
         derivedObj.value = fn();
-        for (const prop of deps){
+        deps.forEach((prop, index)=>{
             const cb = ()=>{
                 derivedObj.value = fn();
             };
             if (Array.isArray(prop)) {
                 for (const item of prop){
-                    if (item.__path__) watch(item.__path__, cb);
+                    if (Prop.isProp(item) || StateProp.isStateProp(item)) {
+                        item.onChange(()=>cb());
+                    } else if (item.__path__) {
+                        watch(item.__path__, cb);
+                    }
                 }
             }
-            watch(prop.__path__, cb);
-        }
+            if (Prop.isProp(prop) || StateProp.isStateProp(prop)) {
+                prop.onChange(()=>cb());
+            } else if (prop !== null && prop !== undefined && prop.__path__) {
+                watch(prop.__path__, cb);
+            } else {
+                throw `Dependency ${index} cannot be tracked as it has a value of:${prop}`;
+            }
+        });
         return derivedObj;
     }
     function persistState() {
