@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.272');
+console.log('elementJS:', 'v1.0.0-preview.273');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -128,14 +128,14 @@ class StateProp {
         };
     }
 }
-class ComputedState {
-    computed = true;
+class DerivedState {
+    derived = true;
     boundFunctions = new Set();
     propValue = undefined;
     unwatchFn = ()=>{};
     rewatchFn = ()=>{};
-    static isComputed(obj) {
-        return obj == null ? undefined : obj.computed;
+    static isDerived(obj) {
+        return obj == null ? undefined : obj.derived;
     }
     constructor(){}
     get value() {
@@ -930,7 +930,7 @@ function getBoundEntity(el, propName, path) {
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        if (ComputedState.isComputed(stateObj[arrPath[arrPath.length - 1]])) {
+        if (DerivedState.isDerived(stateObj[arrPath[arrPath.length - 1]])) {
             return stateObj[arrPath[arrPath.length - 1]];
         } else {
             return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
@@ -942,7 +942,7 @@ function getBoundEntity(el, propName, path) {
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        if (ComputedState.isComputed(stateObj[arrPath[arrPath.length - 1]])) {
+        if (DerivedState.isDerived(stateObj[arrPath[arrPath.length - 1]])) {
             return stateObj[arrPath[arrPath.length - 1]];
         } else {
             return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
@@ -982,7 +982,7 @@ function bind(el, propName, statePath) {
             observer = el[arrPath[0]];
             path = statePath;
         }
-        const watch = observer[1];
+        const watch = observer[2];
         const [unwatch, rewatch] = watch(path, fn, el);
         el.props[propName].unwatch = unwatch;
         el.props[propName].rewatch = rewatch;
@@ -1142,7 +1142,7 @@ function observe(objectToObserve, name, config) {
                     const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
-                } else if (typeof value === 'object' && value !== null && !ComputedState.isComputed(value) && !value.__proxy__) {
+                } else if (typeof value === 'object' && value !== null && !DerivedState.isDerived(value) && !value.__proxy__) {
                     const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
@@ -1327,21 +1327,21 @@ function observe(objectToObserve, name, config) {
             }
         ];
     }
-    function compute(deps, fn, el) {
-        const computeObj = new ComputedState();
-        computeObj.value = fn();
+    function derive(fn, deps) {
+        const derivedObj = new DerivedState();
+        derivedObj.value = fn();
         for (const prop of deps){
             const cb = ()=>{
-                computeObj.value = fn();
+                derivedObj.value = fn();
             };
             if (Array.isArray(prop)) {
                 for (const item of prop){
-                    if (item.__path__) watch(item.__path__, cb, el);
+                    if (item.__path__) watch(item.__path__, cb);
                 }
             }
-            watch(prop.__path__, cb, el);
+            watch(prop.__path__, cb);
         }
-        return computeObj;
+        return derivedObj;
     }
     function persistState() {
         localStorage.setItem(config.key, JSON.stringify(proxy));
@@ -1359,8 +1359,8 @@ function observe(objectToObserve, name, config) {
     }
     return [
         proxy,
-        watch,
-        compute
+        derive,
+        watch
     ];
 }
 function registerAllowedOrigin(uri) {
@@ -1775,7 +1775,7 @@ component('list', (el)=>{
     }
     async function createComponents(props) {
         let index = 0;
-        const propName = props.alias ? props.alias.value : 'item';
+        const propName = props.item && props.item.value ? props.item.value : 'item';
         for(const id in listItems){
             const component = el.ownerDocument.importNode(templateFragment, true);
             const compIs = component.dataset.is + ':' + id;
@@ -1806,7 +1806,7 @@ component('list', (el)=>{
                 } else {
                     action = 'after', elId = newOrder[i - 1].id;
                 }
-                const propName = el.props.alias && el.props.alias.value ? el.props.alias.value : 'item';
+                const propName = el.props.item && el.props.item.value ? el.props.item.value : 'item';
                 const component = el.ownerDocument.importNode(templateFragment, true);
                 const compIs = component.dataset.is + ':' + id;
                 component.setAttribute('data-is', compIs);
@@ -1854,8 +1854,8 @@ component('link', (el)=>{
     });
 });
 component('translate', (el)=>{
-    const [appState, watchAppState] = el.appState;
-    const [pageState, watchPageState] = el.pageState;
+    const [appState, _deriveAppState, watchAppState] = el.appState;
+    const [pageState, _derivePageState, watchPageState] = el.pageState;
     const [state] = el.state;
     el.define({
         onRender: ({ params })=>{
