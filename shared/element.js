@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.274');
+console.log('elementJS:', 'v1.0.0-preview.275');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -520,6 +520,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     el.setAttribute('data-' + name, value);
                 }
                 const prop = {};
+                name = toCamelCase(name);
                 prop[name] = value;
                 addProps(componentProps, el, prop);
                 return componentProps[name];
@@ -1544,8 +1545,8 @@ function parseStyle(style) {
     const obj = {};
     style.split(";").forEach((rule)=>{
         if (!rule) return;
-        const [key, val] = rule.split(":");
-        if (key && val) obj[key.trim()] = val.trim();
+        const [key, value] = rule.split(":");
+        if (key && value) obj[key.trim()] = value.trim();
     });
     return obj;
 }
@@ -1587,6 +1588,9 @@ function setupIntersectionObserver() {
         threshold: 0
     });
 }
+const toCamelCase = (str)=>{
+    return str.replace(/-([a-z])/g, (_match, letter)=>letter.toUpperCase());
+};
 component('el', (el)=>{
     el.define({
         onRender: (props)=>{
@@ -1609,8 +1613,14 @@ component('el', (el)=>{
                     }
                 } else if (name == 'class') {
                     el.className = props[name].value;
-                } else if (name == 'text') {
-                    el.textContent = props[name].value;
+                } else if (name.startsWith('class:')) {
+                    const parts = name.split(':');
+                    if (parts.length === 2) {
+                        const className = parts[1];
+                        el.classList.toggle(className, props[name].value);
+                    } else if (name == 'text') {
+                        el.textContent = props[name].value;
+                    }
                 } else if (name == 'value') {
                     el.value = props[name].value;
                 } else if (name == 'visible') {
@@ -1667,7 +1677,15 @@ component('el', (el)=>{
                 } else if (name == 'class') {
                     props[name].onChange((value)=>{
                         el.className = value;
-                    }, true);
+                    });
+                } else if (name.startsWith('class:')) {
+                    props[name].onChange((value)=>{
+                        const parts = name.split(':');
+                        if (parts.length === 2) {
+                            const className = parts[1];
+                            el.classList.toggle(className, value);
+                        }
+                    });
                 } else if (name.startsWith('on:')) {
                     props[name].onChange((value)=>{
                         const onProp = name.replace(':', '');
@@ -1675,37 +1693,37 @@ component('el', (el)=>{
                             el[onProp] = value;
                         } else if (typeof value == 'string') {
                             el[onProp] = ()=>{
-                                el.emit(value, el.id);
+                                el.emit(value, el);
                             };
                         }
-                    }, true);
+                    });
                 } else if (name == 'text') {
                     props[name].onChange((value)=>{
                         el.textContent = value;
-                    }, true);
+                    });
                     el.addEventListener('input', ()=>{
                         props[name].value = el.textContent;
                     });
                 } else if (name == 'value') {
                     props[name].onChange((value)=>{
                         el.value = value;
-                    }, true);
+                    });
                     el.addEventListener('input', ()=>{
                         props[name].value = el.value;
                     });
                 } else if (name == 'visible') {
                     props[name].onChange((value)=>{
                         el.hidden = !value;
-                    }, true);
+                    });
                 } else if (name.startsWith('style:')) {
                     props[name].onChange((value)=>{
                         const styleProp = name.split(':')[1];
                         el.style[styleProp] = value;
-                    }, true);
+                    });
                 } else {
                     props[name].onChange((value)=>{
                         el[name] = value;
-                    }, true);
+                    });
                 }
             }
         }
