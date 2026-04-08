@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.275');
+console.log('elementJS:', 'v1.0.0-preview.276');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -42,6 +42,7 @@ class RenderError extends Error {
     }
 }
 class Prop {
+    el = null;
     isProp = true;
     boundFunctions = new Set();
     propValue = undefined;
@@ -50,7 +51,8 @@ class Prop {
     static isProp(obj) {
         return obj == null ? undefined : obj.isProp;
     }
-    constructor(value){
+    constructor(value, el){
+        this.el = el;
         this.propValue = value;
     }
     get value() {
@@ -74,13 +76,14 @@ class Prop {
     }
     onChange(fn, execute = false) {
         this.boundFunctions.add(fn);
-        if (execute) fn(this.propValue);
+        if (execute || this.el.hydratedOn) fn(this.propValue);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
     }
 }
 class StateProp {
+    el = null;
     isStateProp = true;
     boundFunctions = new Set();
     isBound = false;
@@ -93,7 +96,8 @@ class StateProp {
     static isStateProp(obj) {
         return obj == null ? undefined : obj.isStateProp;
     }
-    constructor(statePath, stateObj, stateObjPropName, bindFunction){
+    constructor(statePath, stateObj, stateObjPropName, bindFunction, el){
+        this.el = el;
         this.path = statePath;
         this.stateObj = stateObj;
         this.propName = stateObjPropName;
@@ -130,7 +134,7 @@ class StateProp {
             });
         }
         this.boundFunctions.add(fn);
-        if (execute) fn(this.stateObj[this.propName]);
+        if (execute || this.el.hydratedOn) fn(this.stateObj[this.propName]);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -354,6 +358,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
     let componentState = -1;
     let childComponents = {};
     let stateObject = null;
+    let hydratedOn = false;
     if (parent === null || parent.componentState === -1) isRoot = true;
     if (el.hasAttribute('el-comp-state')) {
         componentState = parseInt(el.getAttribute('el-comp-state'));
@@ -428,6 +433,7 @@ function initElementAsComponent(el, parent, appState, pageState) {
                             props: componentProps,
                             hydrateOn: el.getAttribute('el-hydrate-on')
                         });
+                        hydratedOn = true;
                         el.removeAttribute('el-hydrate-on');
                         return;
                     }
@@ -492,6 +498,11 @@ function initElementAsComponent(el, parent, appState, pageState) {
         componentState: {
             get: ()=>{
                 return componentState;
+            }
+        },
+        hydratedOn: {
+            get: ()=>{
+                return hydratedOn;
             }
         },
         hydrateOnComponents: {
@@ -912,10 +923,10 @@ function addProps(componentProps, el, props = {}) {
                 } else {
                     value = props[propName];
                 }
-                props[propName] = new Prop(value);
+                props[propName] = new Prop(value, el);
             }
         } else {
-            props[propName] = new Prop(props[propName]);
+            props[propName] = new Prop(props[propName], el);
         }
         newProps[propName] = props[propName];
     }
@@ -943,7 +954,7 @@ function getBoundEntity(el, propName, path) {
         if (DerivedState.isDerived(stateObj[arrPath[arrPath.length - 1]])) {
             return stateObj[arrPath[arrPath.length - 1]];
         } else {
-            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
         }
     } else if (arrPath[0] == 'state') {
         let stateObj = el.parent[arrPath[0]][0];
@@ -955,7 +966,7 @@ function getBoundEntity(el, propName, path) {
         if (DerivedState.isDerived(stateObj[arrPath[arrPath.length - 1]])) {
             return stateObj[arrPath[arrPath.length - 1]];
         } else {
-            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
         }
     } else {
         const parentProp = el.parent.props[arrPath[0]];
@@ -968,13 +979,13 @@ function getBoundEntity(el, propName, path) {
             }
             arrPath.shift();
             const statePath = parentProp.statePath + '.' + arrPath.join('.');
-            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath));
+            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
         } else {
             let value = parentProp.value;
             for(let i = 1; i < arrPath.length; i++){
                 value = value[arrPath[i]];
             }
-            return new Prop(value);
+            return new Prop(value, el);
         }
     }
 }
@@ -1618,9 +1629,18 @@ component('el', (el)=>{
                     if (parts.length === 2) {
                         const className = parts[1];
                         el.classList.toggle(className, props[name].value);
-                    } else if (name == 'text') {
-                        el.textContent = props[name].value;
                     }
+                } else if (name.startsWith('on:')) {
+                    const onProp = name.replace(':', '');
+                    if (typeof props[name].value == 'function') {
+                        el[onProp] = props[name].value;
+                    } else if (typeof props[name].value == 'string') {
+                        el[onProp] = ()=>{
+                            el.emit(props[name].value, el);
+                        };
+                    }
+                } else if (name == 'text') {
+                    el.textContent = props[name].value;
                 } else if (name == 'value') {
                     el.value = props[name].value;
                 } else if (name == 'visible') {
