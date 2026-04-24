@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.279');
+console.log('elementJS:', 'v1.0.0-preview.280');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -376,7 +376,7 @@ class StateProp {
     }
     set pipeChain(value) {
         this.propPipeChain = value;
-        this.pipedPropValue = this.propPipeChain.getValue(value);
+        this.pipedPropValue = this.propPipeChain.getValue(this.value);
     }
     get pipedValue() {
         return this.pipedPropValue;
@@ -1295,6 +1295,7 @@ function addProps(componentProps, el, props = {}) {
                 }
                 propValue = new Prop(value, el);
             }
+            propValue.pipeChain = pipeChain;
         } else {
             propValue = new Prop(propValue, el);
         }
