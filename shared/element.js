@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.278');
+console.log('elementJS:', 'v1.0.0-preview.279');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -515,6 +515,36 @@ async function processPopStateEvent() {
         }
     }
 }
+async function serverRenderDocument(htmlOrFile, ctx) {
+    try {
+        if (!htmlOrFile) {
+            throw new RenderError('Either a file path or HTML content must be provided');
+        }
+        if (!ctx || typeof ctx !== 'object') {
+            throw new RenderError('Invalid server context object provided');
+        }
+        if (!appContext.server) return;
+        appContext.ctx = ctx;
+        const pageState = observe({}, 'pageState');
+        const el = appContext.documentElement = await getDocumentElement(htmlOrFile);
+        el.setAttribute('data-is', 'document');
+        el.setAttribute('el-server-rendering', 'true');
+        initElementAsComponent(el, null, null, pageState, ctx);
+        await el.init();
+        const components = el.querySelectorAll('[data-is]');
+        for (const component of components){
+            if (Object.keys(component.state).length) component.setAttribute('el-state', JSON.stringify(component.state[0]));
+        }
+        el.removeAttribute('el-server-rendering');
+        el.setAttribute('el-server-rendered', 'true');
+        el.setAttribute('el-state', JSON.stringify(el.pageState[0]));
+        el.setAttribute('el-id-count', idCount.toString());
+        return el;
+    } catch (e) {
+        console.error('Render error:', e);
+        throw e;
+    }
+}
 async function renderDocument() {
     try {
         if (appContext.server) return;
@@ -547,6 +577,23 @@ async function renderDocument() {
         console.error('Render error:', e);
         throw e;
     }
+}
+async function getDocumentElement(htmlOrFile) {
+    let html;
+    if (htmlOrFile.startsWith('/')) {
+        html = await getResource(htmlOrFile);
+        if (!html) {
+            console.error('Could not create document element - file not found: ', htmlOrFile);
+            throw new RenderError('FileNotFound');
+        }
+    }
+    const docEl = appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
+    const scripts = docEl.querySelectorAll('script[data-ssr-script]');
+    for (const script of scripts){
+        await importModule(script.getAttribute('src'));
+        script.removeAttribute('data-ssr-script');
+    }
+    return docEl;
 }
 function initElementAsComponent(el, parent, appState, pageState, ctx) {
     const isParts = el.dataset.is.split(':');
@@ -2278,4 +2325,4 @@ component('translate', (el)=>{
         } else el.textContent = translate(el.compId);
     }
 });
-export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useTranslationPack as useTranslationPack,  };
+export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack,  };
