@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.276');
+console.log('elementJS:', 'v1.0.0-preview.277');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -15,23 +15,268 @@ const appContext = {
     documentElement: null,
     ctx: null
 };
-class Feature {
-    featureFlags = [];
-    constructor(flags){
-        this.featureFlags = flags;
+const pipes = {
+    currency (value, currency = 'USD', display = 'symbol', digits, locale = 'en') {
+        const options = {
+            style: 'currency',
+            currency
+        };
+        if (display === 'code') {
+            options.currencyDisplay = 'code';
+        } else if (display === 'symbol') {
+            options.currencyDisplay = 'symbol';
+        } else if (display === 'symbol-narrow') {
+            options.currencyDisplay = 'narrowSymbol';
+        }
+        if (digits) {
+            const match = digits.match(/(\d+)\.(\d+)-(\d+)/);
+            if (match) {
+                const [, minInt, minFrac, maxFrac] = match;
+                options.minimumIntegerDigits = +minInt;
+                options.minimumFractionDigits = +minFrac;
+                options.maximumFractionDigits = +maxFrac;
+            }
+        }
+        return new Intl.NumberFormat(locale, options).format(value);
+    },
+    date (value, format = 'mediumDate', locale = 'en-US', timezone) {
+        let date = value instanceof Date ? value : new Date(value);
+        if ('__target__' in date) date = date.__target__;
+        const tz = normalizeTimezone(timezone);
+        if (tz && tz.type === 'offset') {
+            date = shiftDateByOffset(date, tz.offsetMinutes);
+        }
+        const predefined = {
+            short: {
+                dateStyle: 'short',
+                timeStyle: 'short'
+            },
+            medium: {
+                dateStyle: 'medium',
+                timeStyle: 'medium'
+            },
+            long: {
+                dateStyle: 'long',
+                timeStyle: 'long'
+            },
+            full: {
+                dateStyle: 'full',
+                timeStyle: 'full'
+            },
+            shortDate: {
+                dateStyle: 'short'
+            },
+            mediumDate: {
+                dateStyle: 'medium'
+            },
+            longDate: {
+                dateStyle: 'long'
+            },
+            fullDate: {
+                dateStyle: 'full'
+            },
+            shortTime: {
+                timeStyle: 'short'
+            },
+            mediumTime: {
+                timeStyle: 'medium'
+            },
+            longTime: {
+                timeStyle: 'long'
+            },
+            fullTime: {
+                timeStyle: 'full'
+            }
+        };
+        const options = predefined[format];
+        if (options) {
+            return new Intl.DateTimeFormat(locale, {
+                ...options,
+                ...tz && tz.type === 'iana' ? {
+                    timeZone: tz.value
+                } : {}
+            }).format(date);
+        }
+        return formatDateCustom(date, format, locale, tz);
+    },
+    number (value, digitsInfo, locale = 'en-US') {
+        if (value == null || isNaN(value)) return null;
+        const { minIntegerDigits, minFractionDigits, maxFractionDigits } = parseDigitsInfo(digitsInfo);
+        const formatter = new Intl.NumberFormat(locale, {
+            minimumIntegerDigits: minIntegerDigits,
+            minimumFractionDigits: minFractionDigits,
+            maximumFractionDigits: maxFractionDigits
+        });
+        return formatter.format(value);
+    },
+    lowercase (value) {
+        if (value == null) return value;
+        return String(value).toLowerCase();
+    },
+    uppercase (value) {
+        if (value == null) return value;
+        return String(value).toUpperCase();
+    },
+    titlecase (value) {
+        if (value == null) return value;
+        return String(value).toLowerCase().replace(/\b\w/g, (__char)=>__char.toUpperCase());
+    },
+    percent (value, digitsInfo, locale = 'en-US') {
+        if (value == null || isNaN(value)) return null;
+        const { minIntegerDigits, minFractionDigits, maxFractionDigits } = parseDigitsInfo(digitsInfo);
+        const formatter = new Intl.NumberFormat(locale, {
+            style: 'percent',
+            minimumIntegerDigits: minIntegerDigits,
+            minimumFractionDigits: minFractionDigits,
+            maximumFractionDigits: maxFractionDigits
+        });
+        return formatter.format(value);
     }
+};
+function parseDigitsInfo(digitsInfo) {
+    let minIntegerDigits = 1;
+    let minFractionDigits = 0;
+    let maxFractionDigits = 3;
+    if (!digitsInfo) {
+        return {
+            minIntegerDigits,
+            minFractionDigits,
+            maxFractionDigits
+        };
+    }
+    const match = digitsInfo.match(/^(\d+)?\.?(\d+)?-?(\d+)?$/);
+    if (!match) {
+        throw new Error(`Invalid digitsInfo format: "${digitsInfo}"`);
+    }
+    const [, intPart, minFrac, maxFrac] = match;
+    if (intPart !== undefined) minIntegerDigits = +intPart;
+    if (minFrac !== undefined) minFractionDigits = +minFrac;
+    if (maxFrac !== undefined) maxFractionDigits = +maxFrac;
+    return {
+        minIntegerDigits,
+        minFractionDigits,
+        maxFractionDigits
+    };
+}
+function normalizeTimezone(tz) {
+    if (!tz) return null;
+    if (tz === 'UTC' || tz === 'Z') {
+        return {
+            type: 'iana',
+            value: 'UTC'
+        };
+    }
+    if (tz.includes('/')) {
+        return {
+            type: 'iana',
+            value: tz
+        };
+    }
+    const match = tz.match(/^([+-])(\d{2}):?(\d{2})$/);
+    if (match) {
+        const [, sign, h, m] = match;
+        const minutes = parseInt(h) * 60 + parseInt(m);
+        return {
+            type: 'offset',
+            offsetMinutes: sign === '+' ? minutes : -minutes
+        };
+    }
+    return null;
+}
+function formatDateCustom(date, format, locale, tz) {
+    const intlOptions = {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+        ...tz && tz.type === 'iana' ? {
+            timeZone: tz.value
+        } : {}
+    };
+    const parts = new Intl.DateTimeFormat(locale, intlOptions).formatToParts(date);
+    const map = Object.fromEntries(parts.map((p)=>[
+            p.type,
+            p.value
+        ]));
+    const tokens = {
+        yyyy: map.year,
+        yy: map.year.slice(-2),
+        MMMM: new Intl.DateTimeFormat(locale, {
+            month: 'long',
+            ...tz?.type === 'iana' && {
+                timeZone: tz.value
+            }
+        }).format(date),
+        MMM: map.month,
+        MM: String(date.getMonth() + 1).padStart(2, '0'),
+        M: date.getMonth() + 1,
+        dd: map.day,
+        d: Number(map.day),
+        EEEE: map.weekday,
+        hh: map.hour.padStart(2, '0'),
+        h: Number(map.hour),
+        mm: map.minute,
+        m: Number(map.minute),
+        ss: map.second,
+        s: Number(map.second),
+        a: map.dayPeriod || ''
+    };
+    format = format.replace(/'([^']+)'/g, (_, literal)=>`__LITERAL_${literal}__`);
+    let result = format;
+    for (const key of Object.keys(tokens).sort((a, b)=>b.length - a.length)){
+        result = result.replace(new RegExp(key, 'g'), tokens[key]);
+    }
+    return result.replace(/__LITERAL_(.*?)__/g, (_, literal)=>literal);
+}
+function shiftDateByOffset(date, offsetMinutes) {
+    const localOffset = date.getTimezoneOffset();
+    const diff = offsetMinutes + localOffset;
+    return new Date(date.getTime() + diff * 60000);
+}
+class Pipe {
+    name;
+    args;
+    fn;
+    constructor(expression){
+        const [name, ...args] = expression.split(':');
+        this.name = name;
+        this.args = args;
+        this.fn = pipes[name];
+        if (!this.fn) {
+            throw new Error(`Pipe "${name}" not found`);
+        }
+    }
+    getValue(value) {
+        return this.fn(value, ...this.args);
+    }
+}
+class PipeChain {
+    pipes;
+    constructor(expression){
+        this.pipes = expression.map((val)=>new Pipe(val.trim()));
+    }
+    getValue(value) {
+        return this.pipes.reduce((val, pipe)=>pipe.getValue(val), value);
+    }
+}
+class Feature {
+    featureFlags = null;
+    constructor(){}
     async flag(obj) {
+        if (this.featureFlags === null) {
+            this.featureFlags = appContext.ctx ? appContext.ctx.feature.featureFlags : getFeatureFlags();
+        }
         for(const prop in obj){
-            let found = false;
             const flags = prop.split(',');
             for (const flag of flags){
                 if (this.featureFlags.includes(flag) || flag == 'default') {
-                    await obj[prop]();
-                    found = true;
-                    break;
+                    return await obj[prop]();
                 }
             }
-            if (found) break;
         }
     }
 }
@@ -46,6 +291,8 @@ class Prop {
     isProp = true;
     boundFunctions = new Set();
     propValue = undefined;
+    pipedPropValue = undefined;
+    propPipeChain = undefined;
     unwatchFn = ()=>{};
     rewatchFn = ()=>{};
     static isProp(obj) {
@@ -60,7 +307,15 @@ class Prop {
     }
     set value(value) {
         this.propValue = value;
-        this.boundFunctions.forEach((fn)=>fn(this.propValue));
+        this.pipedPropValue = this.propPipeChain.getValue(value);
+        this.boundFunctions.forEach((fn)=>fn(this.propValue, this.pipedPropValue));
+    }
+    set pipeChain(value) {
+        this.propPipeChain = value;
+        this.pipedPropValue = this.propPipeChain.getValue(this.propValue);
+    }
+    get pipedValue() {
+        return this.pipedPropValue;
     }
     get unwatch() {
         return this.unwatchFn;
@@ -76,7 +331,7 @@ class Prop {
     }
     onChange(fn, execute = false) {
         this.boundFunctions.add(fn);
-        if (execute || this.el.hydratedOn) fn(this.propValue);
+        if (execute || this.el.hydratedOn) fn(this.propValue, this.pipedPropValue);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -90,6 +345,8 @@ class StateProp {
     stateObj = undefined;
     path = undefined;
     propName = undefined;
+    pipedPropValue = undefined;
+    propPipeChain = undefined;
     bindFunction = ()=>{};
     unwatchFn = ()=>{};
     rewatchFn = ()=>{};
@@ -107,13 +364,22 @@ class StateProp {
         return this.path;
     }
     set statePath(value) {
+        this.pipedPropValue = this.propPipeChain.getValue(value);
         this.path = value;
     }
     get value() {
-        return this.stateObj[this.propName];
+        const value = this.stateObj[this.propName];
+        return DerivedState.isDerived(value) ? value.value : value;
     }
     set value(value) {
         this.stateObj[this.propName] = value;
+    }
+    set pipeChain(value) {
+        this.propPipeChain = value;
+        this.pipedPropValue = this.propPipeChain.getValue(value);
+    }
+    get pipedValue() {
+        return this.pipedPropValue;
     }
     get unwatch() {
         return this.unwatchFn;
@@ -130,11 +396,15 @@ class StateProp {
     onChange(fn, execute = false) {
         if (!this.isBound) {
             this.bindFunction(()=>{
-                this.boundFunctions.forEach((fn)=>fn(this.stateObj[this.propName]));
+                this.boundFunctions.forEach((fn)=>{
+                    const value = this.stateObj[this.propName];
+                    this.pipedPropValue = this.propPipeChain.getValue(value);
+                    fn(value, this.pipedPropValue);
+                });
             });
         }
         this.boundFunctions.add(fn);
-        if (execute || this.el.hydratedOn) fn(this.stateObj[this.propName]);
+        if (execute || this.el.hydratedOn) fn(this.stateObj[this.propName], this.pipedPropValue);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -144,8 +414,6 @@ class DerivedState {
     isDerived = true;
     boundFunctions = new Set();
     propValue = undefined;
-    unwatchFn = ()=>{};
-    rewatchFn = ()=>{};
     static isDerived(obj) {
         return obj == null ? undefined : obj.isDerived;
     }
@@ -157,18 +425,6 @@ class DerivedState {
         this.propValue = value;
         this.boundFunctions.forEach((fn)=>fn(this.propValue));
     }
-    get unwatch() {
-        return this.unwatchFn;
-    }
-    set unwatch(value) {
-        this.unwatchFn = value;
-    }
-    get rewatch() {
-        return this.rewatchFn;
-    }
-    set rewatch(value) {
-        this.rewatchFn = value;
-    }
     onChange(fn, execute = false) {
         this.boundFunctions.add(fn);
         if (execute) fn(this.propValue);
@@ -177,8 +433,7 @@ class DerivedState {
         };
     }
 }
-const extendedURL = {};
-const feature = new Feature(getFeatureFlags());
+const feature = new Feature();
 const registeredAllowedOrigins = [
     ''
 ];
@@ -246,7 +501,6 @@ function isValidMessage(data) {
     return typeof data === 'object' && data !== null && 'subject' in data && typeof data.subject === 'string';
 }
 async function processPopStateEvent() {
-    setExtendedURL(globalThis.location);
     for(const routePath in registeredRoutes){
         const route = {
             path: routePath,
@@ -255,103 +509,51 @@ async function processPopStateEvent() {
         const pattern = new globalThis.URLPattern({
             pathname: route.path
         });
-        if (pattern.test(extendedURL.href)) {
+        if (pattern.test(globalThis.location.href)) {
             await route.handler();
             break;
         }
     }
 }
-async function renderDocument(config, ctx) {
+async function renderDocument() {
     try {
-        if (!config) config = {};
-        if (!config.pageState) config.pageState = {};
-        validateInputs(config, ctx);
-        appContext.ctx = ctx;
+        if (appContext.server) return;
         const appState = observe({}, 'appState', {
             persist: true,
-            key: 'elementJS_appState_' + (ctx ? ctx.request.url.hostname : globalThis.location.hostname)
+            key: 'elementJS_appState_' + globalThis.location.hostname
         });
-        const pageState = observe(config.pageState, 'pageState');
-        if (appContext.server) {
-            setExtendedURL(ctx.request.url);
-            const el = appContext.documentElement = await getDocumentElement(config);
-            el.setAttribute('data-is', 'document');
-            el.setAttribute('el-server-rendering', 'true');
-            initElementAsComponent(el, null, appState, pageState);
-            await el.init();
-            const components = el.querySelectorAll('[data-is]');
-            for (const component of components){
-                if (Object.keys(component.state).length) component.setAttribute('el-state', JSON.stringify(component.state[0]));
-            }
-            el.removeAttribute('el-server-rendering');
-            el.setAttribute('el-server-rendered', 'true');
-            el.setAttribute('el-state', JSON.stringify(config.pageState));
-            el.setAttribute('el-id-count', idCount.toString());
-            return el;
+        const pageState = observe({}, 'pageState');
+        const el = document.documentElement;
+        el.setAttribute('data-is', 'document');
+        if (el.hasAttribute('el-server-rendered')) {
+            idCount = parseInt(el.getAttribute('el-id-count'));
+            el.removeAttribute('el-id-count');
         } else {
-            const el = document.documentElement;
-            el.setAttribute('data-is', 'document');
-            if (el.hasAttribute('el-server-rendered')) {
-                idCount = parseInt(el.getAttribute('el-id-count'));
-                el.removeAttribute('el-id-count');
-            } else {
-                el.setAttribute('el-client-rendering', 'true');
-            }
-            if (el.hasAttribute('el-state')) {
-                Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
-                el.removeAttribute('el-state');
-            }
-            const scripts = el.querySelectorAll('script[data-ssr-incl]');
-            for (const script of scripts){
-                script.removeAttribute('data-ssr-incl');
-            }
-            initElementAsComponent(el, null, appState, pageState);
-            setExtendedURL(globalThis.location);
-            setupIntersectionObserver();
-            await el.init();
-            return el;
+            el.setAttribute('el-client-rendering', 'true');
         }
+        if (el.hasAttribute('el-state')) {
+            Object.assign(pageState[0], JSON.parse(el.getAttribute('el-state')));
+            el.removeAttribute('el-state');
+        }
+        const scripts = el.querySelectorAll('script[data-ssr-script]');
+        for (const script of scripts){
+            script.removeAttribute('data-ssr-script');
+        }
+        initElementAsComponent(el, null, appState, pageState);
+        setupIntersectionObserver();
+        await el.init();
+        return el;
     } catch (e) {
         console.error('Render error:', e);
         throw e;
     }
 }
-function validateInputs(config, ctx) {
-    if (appContext.server) {
-        if (!config || typeof config !== 'object') {
-            throw new RenderError('Invalid config object provided');
-        }
-        if (!ctx || typeof ctx !== 'object') {
-            throw new RenderError('Invalid server context object provided');
-        }
-        if (!config.file && !config.html) {
-            throw new RenderError('Either file path or HTML content must be provided');
-        }
-    }
-}
-async function getDocumentElement(config) {
-    let html = config.html;
-    if (!html && config.file) {
-        html = await getResource(config.file);
-        if (!html) {
-            console.error('Could not create document element - file not found: ', config.file);
-            throw new RenderError('FileNotFound');
-        }
-    }
-    const docEl = appContext.ctx.parser.parseFromString(html, 'text/html').documentElement;
-    const scripts = docEl.querySelectorAll('script[data-ssr-incl]');
-    for (const script of scripts){
-        await importModule(script.getAttribute('src'));
-        script.removeAttribute('data-ssr-incl');
-    }
-    return docEl;
-}
-function initElementAsComponent(el, parent, appState, pageState) {
+function initElementAsComponent(el, parent, appState, pageState, ctx) {
     const isParts = el.dataset.is.split(':');
     const componentIs = isParts[0];
     const componentId = isParts[1];
     const componentProps = {};
-    const renderAt = el.getAttribute('el-render-at');
+    const renderAt = el.getAttribute('data-render-at');
     const hydrateOnComponents = new Set();
     const style = parseStyle(el.getAttribute('style') || '');
     let isRoot = parent === null || parent.componentState === -1;
@@ -420,21 +622,19 @@ function initElementAsComponent(el, parent, appState, pageState) {
                     if (!isRoot) return childComponents;
                 }
                 if (componentState === 1) {
-                    addPropsFromAttributes(componentProps, el);
-                    addProps(componentProps, el, props);
                     await onResume(el);
                     componentState = 2;
                     if (!isRoot) return childComponents;
                 }
                 if (componentState === 2) {
-                    if (el.hasAttribute('el-hydrate-on')) {
+                    if (el.hasAttribute('data-hydrate-on')) {
                         el.parent.hydrateOnComponents.add({
                             el,
                             props: componentProps,
-                            hydrateOn: el.getAttribute('el-hydrate-on')
+                            hydrateOn: el.getAttribute('data-hydrate-on')
                         });
                         hydratedOn = true;
-                        el.removeAttribute('el-hydrate-on');
+                        el.removeAttribute('data-hydrate-on');
                         return;
                     }
                     addPropsFromAttributes(componentProps, el);
@@ -477,13 +677,9 @@ function initElementAsComponent(el, parent, appState, pageState) {
         },
         on: {
             value: (event, handler)=>{
-                const wrappedHandler = (event)=>{
-                    if (event.detail) handler(event.detail);
-                    else handler(event);
-                };
-                el.addEventListener(event, wrappedHandler);
+                el.addEventListener(event, handler);
                 return ()=>{
-                    el.removeEventListener(event, wrappedHandler);
+                    el.removeEventListener(event, handler);
                 };
             }
         },
@@ -571,6 +767,15 @@ function initElementAsComponent(el, parent, appState, pageState) {
         unmountComponents: {
             value: async ()=>{
                 for(const key in el.components)await el.components[key].unmount();
+            }
+        },
+        url: {
+            get: ()=>{
+                if (appContext.server) {
+                    return ctx ? ctx.request.url : el.ownerDocument.documentElement.url;
+                } else {
+                    return globalThis.location;
+                }
             }
         },
         addFirst: {
@@ -670,6 +875,15 @@ function initElementAsComponent(el, parent, appState, pageState) {
                 },
                 get: ()=>{
                     return el.getAttribute('title') || '';
+                }
+            },
+            type: {
+                set: (value)=>{
+                    if (value === undefined) el.removeAttribute('type');
+                    else el.setAttribute('type', value);
+                },
+                get: ()=>{
+                    return el.getAttribute('type') || '';
                 }
             },
             value: {
@@ -780,6 +994,47 @@ async function onTemplate(el, props) {
     initChildren(el);
 }
 async function onRender(el, props) {
+    for(const name in props){
+        if (name == 'class') {
+            const value = props[name].value;
+            if (typeof value == 'string') {
+                el.className = value;
+            } else if (Array.isArray(value)) {
+                el.className = value.join(' ');
+            } else if (typeof value == 'object') {
+                const names = [];
+                for(const key in value){
+                    if (value[key]) names.push(key);
+                }
+                el.className = names.join(' ');
+            }
+        } else if (name.startsWith('class:')) {
+            const parts = name.split(':');
+            if (parts.length === 2) {
+                const className = parts[1];
+                el.classList.toggle(className, props[name].value);
+            }
+        } else if (name == 'hidden') {
+            el.hidden = props[name].value;
+        } else if (name == 'visible') {
+            el.hidden = !props[name].value;
+        } else if (name == 'style') {
+            const value = props[name].value;
+            if (typeof value == 'string') {
+                const styles = parseStyle(value);
+                for(const key in styles){
+                    if (styles[key]) el.style[key] = styles[key];
+                }
+            } else if (typeof value == 'object' && !Array.isArray(value)) {
+                for(const key in value){
+                    if (value[key]) el.style[key] = value[key];
+                }
+            }
+        } else if (name.startsWith('style:')) {
+            const styleProp = name.split(':')[1];
+            el.style[styleProp] = props[name].value;
+        }
+    }
     await el[Symbols.onRender](props);
     if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
     for(const id in el.components){
@@ -796,6 +1051,68 @@ async function onResume(el) {
     }
 }
 async function onHydrate(el, props) {
+    for(const name in props){
+        if (name == 'class') {
+            props[name].onChange((value)=>{
+                if (typeof value == 'string') {
+                    el.className = value;
+                } else if (Array.isArray(value)) {
+                    el.className = value.join(' ');
+                } else if (typeof value == 'object') {
+                    const names = [];
+                    for(const key in value){
+                        if (value[key]) names.push(key);
+                    }
+                    el.className = names.join(' ');
+                }
+            });
+        } else if (name.startsWith('class:')) {
+            props[name].onChange((value)=>{
+                const parts = name.split(':');
+                if (parts.length === 2) {
+                    const className = parts[1];
+                    el.classList.toggle(className, value);
+                }
+            });
+        } else if (name == 'hidden') {
+            props[name].onChange((value)=>{
+                el.hidden = value;
+            });
+        } else if (name.startsWith('on:')) {
+            props[name].onChange((value)=>{
+                const onProp = name.replace(':', '');
+                if (typeof value == 'function') {
+                    el[onProp] = value;
+                } else if (typeof value == 'string') {
+                    el[onProp] = (data)=>{
+                        el.emit(value, data);
+                    };
+                }
+            });
+        } else if (name == 'visible') {
+            props[name].onChange((value)=>{
+                el.hidden = !value;
+            });
+        } else if (name == 'style') {
+            props[name].onChange((value)=>{
+                if (typeof value == 'string') {
+                    const styles = parseStyle(value);
+                    for(const key in styles){
+                        if (styles[key]) el.style[key] = styles[key];
+                    }
+                } else if (typeof value == 'object' && !Array.isArray(value)) {
+                    for(const key in value){
+                        if (value[key]) el.style[key] = value[key];
+                    }
+                }
+            });
+        } else if (name.startsWith('style:')) {
+            props[name].onChange((value)=>{
+                const styleProp = name.split(':')[1];
+                el.style[styleProp] = value;
+            });
+        }
+    }
     await el[Symbols.onHydrate](props);
     for(const id in el.components){
         const child = el.components[id];
@@ -805,7 +1122,7 @@ async function onHydrate(el, props) {
 async function onReady(el, props) {
     await el[Symbols.onReady](props);
     onHydrateOn(el);
-    removeAttributes(el);
+    if (el.pageState[0].__dev__ != true) removeAttributes(el);
 }
 function onHydrateOn(el) {
     for (const entry of el.hydrateOnComponents){
@@ -840,7 +1157,7 @@ function onHydrateOn(el) {
             };
             intersectionObserver.observe(component);
         } else {
-            throw new RenderError(`Invalid el-hydrate-on attribute value: ${hydrateOn}`);
+            throw new RenderError(`Invalid data-hydrate-on attribute value: ${hydrateOn}`);
         }
     }
     el.hydrateOnComponents.clear();
@@ -897,38 +1214,44 @@ function addProps(componentProps, el, props = {}) {
     delete props.is;
     delete props.id;
     for(const propName in props){
+        let pipeChain;
+        let propValue = props[propName];
         if (componentProps[propName]) continue;
         if (typeof props[propName] == 'string') {
-            if (props[propName].startsWith('bind:')) {
-                props[propName] = getBoundEntity(el, propName, props[propName].substring(5));
+            const arrPropValue = props[propName].split('|');
+            propValue = arrPropValue[0];
+            arrPropValue.splice(0, 1);
+            pipeChain = new PipeChain(arrPropValue);
+            if (propValue.startsWith('bind:')) {
+                propValue = getBoundEntity(el, propName, propValue.substring(5));
             } else {
                 let value;
-                if (props[propName].startsWith('num:')) {
-                    value = Number(props[propName].substring(4));
+                if (propValue.startsWith('num:')) {
+                    value = Number(propValue.substring(4));
                     if (isNaN(value)) {
                         throw `The attribute ${propName} on the element id="${el.id}" is not a valid number`;
                     }
-                } else if (props[propName].startsWith('bool:')) {
-                    value = props[propName].substring(5);
+                } else if (propValue.startsWith('bool:')) {
+                    value = propValue.substring(5);
                     value = value == 'true' ? true : value == 'false' ? false : null;
                     if (value === null) {
                         throw `The attribute ${propName} on the element id="${el.id}" is not a valid boolean`;
                     }
-                } else if (props[propName].startsWith('json:')) {
+                } else if (propValue.startsWith('json:')) {
                     try {
-                        value = JSON.parse(props[propName].substring(5));
+                        value = JSON.parse(propValue.substring(5));
                     } catch (e) {
                         throw `The attribute ${propName} on the element id="${el.id}" is not valid JSON: ${e.message}`;
                     }
                 } else {
-                    value = props[propName];
+                    value = propValue;
                 }
-                props[propName] = new Prop(value, el);
+                propValue = new Prop(value, el);
             }
         } else {
-            props[propName] = new Prop(props[propName], el);
+            propValue = new Prop(propValue, el);
         }
-        newProps[propName] = props[propName];
+        newProps[propName] = propValue;
     }
     Object.assign(componentProps, newProps);
 }
@@ -951,11 +1274,7 @@ function getBoundEntity(el, propName, path) {
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        if (DerivedState.isDerived(stateObj[arrPath[arrPath.length - 1]])) {
-            return stateObj[arrPath[arrPath.length - 1]];
-        } else {
-            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
-        }
+        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
     } else if (arrPath[0] == 'state') {
         let stateObj = el.parent[arrPath[0]][0];
         arrPath[0] = el.parent.id;
@@ -963,11 +1282,7 @@ function getBoundEntity(el, propName, path) {
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        if (DerivedState.isDerived(stateObj[arrPath[arrPath.length - 1]])) {
-            return stateObj[arrPath[arrPath.length - 1]];
-        } else {
-            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
-        }
+        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
     } else {
         const parentProp = el.parent.props[arrPath[0]];
         if (arrPath.length === 1) {
@@ -1106,7 +1421,7 @@ async function elementFetch(path, options = {
 }) {
     let url = path;
     if (appContext.server) {
-        url = `${extendedURL.protocol}//127.0.0.1:${extendedURL.port || '80'}${path}`;
+        url = `${appContext.ctx.request.url.protocol}//127.0.0.1:${appContext.ctx.request.url.port || '80'}${path}`;
         if (options && options.headers === undefined) options.headers = [];
         options.headers.push([
             'element-server-request',
@@ -1167,6 +1482,8 @@ function observe(objectToObserve, name, config) {
                     const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
+                } else if (DerivedState.isDerived(value)) {
+                    return value.value;
                 }
                 return value;
             },
@@ -1186,17 +1503,10 @@ function observe(objectToObserve, name, config) {
                 const oldValue = receiver[key];
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
-                if (result) {
-                    const rootState = path.split('.')[0];
-                    let listeners = watchList.get(`${path}.${key}`);
-                    if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
-                    listeners = watchList.get(`${path}`);
-                    if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
-                    if (path != rootState) {
-                        listeners = watchList.get(rootState);
-                        if (listeners) listeners.forEach((listener)=>listener(receiver, key, oldValue));
-                    }
+                if (DerivedState.isDerived(value)) {
+                    value.onChange((value)=>processListeners(`${path}.${key}`, value, key));
                 }
+                if (result) processListeners(`${path}.${key}`, value, key, oldValue);
                 return result;
             }
         };
@@ -1240,16 +1550,7 @@ function observe(objectToObserve, name, config) {
                         receiver.forEach((item, index)=>{
                             if (typeof path === 'object') item.__path__ = `${path}.${index}`;
                         });
-                        const rootState = path.split('.')[0];
-                        const parentPath = path.substring(0, path.lastIndexOf('.'));
-                        let listeners = watchList.get(path);
-                        if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
-                        listeners = watchList.get(parentPath);
-                        if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
-                        if (parentPath != rootState) {
-                            listeners = watchList.get(rootState);
-                            if (listeners) listeners.forEach((listener)=>listener(parentTarget, parentKey, oldValue));
-                        }
+                        if (result) processListeners(path, parentTarget, parentKey, oldValue);
                         return result;
                     };
                 }
@@ -1281,21 +1582,25 @@ function observe(objectToObserve, name, config) {
                 const oldValue = receiver[key];
                 if (deepEqual(value, oldValue)) return true;
                 const result = Reflect.set(target, key, value, receiver);
-                if (result) {
-                    const rootState = path.split('.')[0];
-                    const parentPath = path.substring(0, path.lastIndexOf('.'));
-                    let listeners = watchList.get(path);
-                    if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
-                    listeners = watchList.get(parentPath);
-                    if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
-                    if (parentPath != rootState) {
-                        listeners = watchList.get(rootState);
-                        if (listeners) listeners.forEach((listener)=>listener(parentTarget[parentKey], key, oldValue));
-                    }
+                if (DerivedState.isDerived(value)) {
+                    value.onChange((value)=>processListeners(`${path}.${key}`, value, key));
                 }
+                if (result) processListeners(path, parentTarget[parentKey], key, oldValue);
                 return result;
             }
         };
+    }
+    function processListeners(path, value, key, oldValue) {
+        const rootState = path.split('.')[0];
+        const parentPath = path.substring(0, path.lastIndexOf('.'));
+        let listeners = watchList.get(path);
+        if (listeners) listeners.forEach((listener)=>listener(value, key, oldValue));
+        listeners = watchList.get(parentPath);
+        if (listeners) listeners.forEach((listener)=>listener(value, key, oldValue));
+        if (parentPath != rootState) {
+            listeners = watchList.get(rootState);
+            if (listeners) listeners.forEach((listener)=>listener(value, key, oldValue));
+        }
     }
     function makeObservable(obj) {
         if (!obj || typeof obj !== 'object') {
@@ -1335,13 +1640,17 @@ function observe(objectToObserve, name, config) {
         return [
             ()=>{
                 const listeners = watchList.get(currentPath);
-                listeners.delete(entryId);
-                if (listeners.size === 0) watchList.delete(currentPath);
+                if (listeners) {
+                    listeners.delete(entryId);
+                    if (listeners.size === 0) watchList.delete(currentPath);
+                }
             },
             (newPath)=>{
                 let listeners = watchList.get(currentPath);
-                listeners.delete(entryId);
-                if (listeners.size === 0) watchList.delete(currentPath);
+                if (listeners) {
+                    listeners.delete(entryId);
+                    if (listeners.size === 0) watchList.delete(currentPath);
+                }
                 currentPath = newPath;
                 listeners = getListeners(currentPath);
                 listeners.set(entryId, getListener(currentPath, fn, el));
@@ -1363,8 +1672,7 @@ function observe(objectToObserve, name, config) {
                         watch(item.__path__, cb);
                     }
                 }
-            }
-            if (Prop.isProp(prop) || StateProp.isStateProp(prop)) {
+            } else if (Prop.isProp(prop) || StateProp.isStateProp(prop)) {
                 prop.onChange(()=>cb());
             } else if (prop !== null && prop !== undefined && prop.__path__) {
                 watch(prop.__path__, cb);
@@ -1468,16 +1776,9 @@ function deepEqual(a, b) {
     return false;
 }
 async function getDependencies(el) {
-    const isParts = el.dataset.is.split(':');
-    const elIs = isParts[0];
-    const dependencies = [];
-    if (![
-        'el',
-        'document',
-        'link',
-        'list',
-        'translate'
-    ].includes(elIs)) dependencies.push(elIs);
+    const dependencies = [
+        el.dataset.is.split(':')[0]
+    ];
     let children;
     if ([
         1,
@@ -1487,17 +1788,15 @@ async function getDependencies(el) {
     children.forEach((component)=>{
         const compParts = component.dataset.is.split(':');
         const compIs = compParts[0];
-        if (appContext.server && component.getAttribute('el-render-at') == 'client') return;
-        else if (appContext.client && component.getAttribute('el-render-at') == 'server') return;
-        dependencies.push(compIs);
+        if (appContext.server && component.getAttribute('data-render-at') == 'client') return;
+        else if (appContext.client && component.getAttribute('data-render-at') == 'server') return;
+        if (!dependencies.includes(compIs)) dependencies.push(compIs);
     });
-    await loadDependencies(dependencies);
+    if (dependencies.length > 0) await loadDependencies(dependencies);
 }
 function getFeatureFlags() {
-    if (appContext.client) {
-        const featureFlags = globalThis.document.cookie.split('; ').find((row)=>row.startsWith('featureFlags='));
-        if (featureFlags) return featureFlags.split('=')[1].split(':');
-    }
+    const featureFlags = globalThis.document.cookie.split('; ').find((row)=>row.startsWith('featureFlags='));
+    if (featureFlags) return featureFlags.split('=')[1].split(':');
     return [];
 }
 async function getResource(path) {
@@ -1538,11 +1837,11 @@ async function loadDependencies(dependencies) {
                 'link',
                 'list',
                 'translate'
-            ].includes(dependency)) {
+            ].includes(dependency) && !registeredComponents[dependency]) {
                 let modulePath = registeredDependencies[dependency];
                 if (appContext.server) modulePath = registeredServerDependencies[dependency] || modulePath;
                 if (!modulePath) {
-                    if (!registeredComponents[dependency]) console.warn(`Dependency '${dependency}' not registered`);
+                    console.warn(`Dependency '${dependency}' not registered`);
                 } else return importModule(modulePath);
             }
         }).filter((value)=>Boolean(value));
@@ -1563,7 +1862,7 @@ function parseStyle(style) {
 }
 function removeAttributes(el) {
     const attrs = [
-        'el-render-at',
+        'data-render-at',
         'el-client-rendering',
         'el-server-rendering',
         'el-server-rendered',
@@ -1580,12 +1879,6 @@ function removeAttributes(el) {
 }
 function serializeStyle(obj) {
     return Object.entries(obj).map(([k, v])=>`${k}:${v}`).join(";");
-}
-function setExtendedURL(url) {
-    const searchParams = {};
-    if (url.searchParams) url.searchParams.forEach((value, key)=>searchParams[key] = value);
-    else new URLSearchParams(url.search).forEach((value, key)=>searchParams[key] = value);
-    extendedURL.hash = url.hash, extendedURL.host = url.host, extendedURL.hostname = url.hostname, extendedURL.href = url.href, extendedURL.origin = url.origin, extendedURL.pathname = url.pathname, extendedURL.port = url.port, extendedURL.protocol = url.protocol, extendedURL.search = url.search, extendedURL.searchParams = searchParams;
 }
 function setupIntersectionObserver() {
     intersectionObserver = new IntersectionObserver(async (entries)=>{
@@ -1623,28 +1916,42 @@ component('el', (el)=>{
                         }
                     }
                 } else if (name == 'class') {
-                    el.className = props[name].value;
+                    const value = props[name].value;
+                    if (typeof value == 'string') {
+                        el.className = value;
+                    } else if (Array.isArray(value)) {
+                        el.className = value.join(' ');
+                    } else if (typeof value == 'object') {
+                        const names = [];
+                        for(const key in value){
+                            if (value[key]) names.push(key);
+                        }
+                        el.className = names.join(' ');
+                    }
                 } else if (name.startsWith('class:')) {
                     const parts = name.split(':');
                     if (parts.length === 2) {
                         const className = parts[1];
                         el.classList.toggle(className, props[name].value);
                     }
-                } else if (name.startsWith('on:')) {
-                    const onProp = name.replace(':', '');
-                    if (typeof props[name].value == 'function') {
-                        el[onProp] = props[name].value;
-                    } else if (typeof props[name].value == 'string') {
-                        el[onProp] = ()=>{
-                            el.emit(props[name].value, el);
-                        };
-                    }
                 } else if (name == 'text') {
-                    el.textContent = props[name].value;
+                    el.textContent = props[name].pipedValue || props[name].value;
                 } else if (name == 'value') {
                     el.value = props[name].value;
                 } else if (name == 'visible') {
                     el.hidden = !props[name].value;
+                } else if (name == 'style') {
+                    const value = props[name].value;
+                    if (typeof value == 'string') {
+                        const styles = parseStyle(value);
+                        for(const key in styles){
+                            if (styles[key]) el.style[key] = styles[key];
+                        }
+                    } else if (typeof value == 'object' && !Array.isArray(value)) {
+                        for(const key in value){
+                            if (value[key]) el.style[key] = value[key];
+                        }
+                    }
                 } else if (name.startsWith('style:')) {
                     const styleProp = name.split(':')[1];
                     el.style[styleProp] = props[name].value;
@@ -1696,7 +2003,17 @@ component('el', (el)=>{
                     }
                 } else if (name == 'class') {
                     props[name].onChange((value)=>{
-                        el.className = value;
+                        if (typeof value == 'string') {
+                            el.className = value;
+                        } else if (Array.isArray(value)) {
+                            el.className = value.join(' ');
+                        } else if (typeof value == 'object') {
+                            const names = [];
+                            for(const key in value){
+                                if (value[key]) names.push(key);
+                            }
+                            el.className = names.join(' ');
+                        }
                     });
                 } else if (name.startsWith('class:')) {
                     props[name].onChange((value)=>{
@@ -1712,14 +2029,14 @@ component('el', (el)=>{
                         if (typeof value == 'function') {
                             el[onProp] = value;
                         } else if (typeof value == 'string') {
-                            el[onProp] = ()=>{
-                                el.emit(value, el);
+                            el[onProp] = (data)=>{
+                                el.emit(value, data);
                             };
                         }
-                    });
+                    }, true);
                 } else if (name == 'text') {
-                    props[name].onChange((value)=>{
-                        el.textContent = value;
+                    props[name].onChange((value, pipedValue)=>{
+                        el.textContent = pipedValue || value;
                     });
                     el.addEventListener('input', ()=>{
                         props[name].value = el.textContent;
@@ -1734,6 +2051,19 @@ component('el', (el)=>{
                 } else if (name == 'visible') {
                     props[name].onChange((value)=>{
                         el.hidden = !value;
+                    });
+                } else if (name == 'style') {
+                    props[name].onChange((value)=>{
+                        if (typeof value == 'string') {
+                            const styles = parseStyle(value);
+                            for(const key in styles){
+                                if (styles[key]) el.style[key] = styles[key];
+                            }
+                        } else if (typeof value == 'object' && !Array.isArray(value)) {
+                            for(const key in value){
+                                if (value[key]) el.style[key] = value[key];
+                            }
+                        }
                     });
                 } else if (name.startsWith('style:')) {
                     props[name].onChange((value)=>{
@@ -1948,4 +2278,4 @@ component('translate', (el)=>{
         } else el.textContent = translate(el.compId);
     }
 });
-export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, extendedURL as url, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useTranslationPack as useTranslationPack,  };
+export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, subscribeTo as on, useTranslationPack as useTranslationPack,  };
