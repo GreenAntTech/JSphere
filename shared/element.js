@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.280');
+console.log('elementJS:', 'v1.0.0-preview.281');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -1747,7 +1747,8 @@ function observe(objectToObserve, name, config) {
     return [
         proxy,
         derive,
-        watch
+        watch,
+        watchList
     ];
 }
 function registerAllowedOrigin(uri) {
@@ -1944,6 +1945,8 @@ const toCamelCase = (str)=>{
     return str.replace(/-([a-z])/g, (_match, letter)=>letter.toUpperCase());
 };
 component('el', (el)=>{
+    const [pageState, _derivePageState, watchPageState] = el.pageState;
+    let unwatchPageState;
     el.define({
         onRender: (props)=>{
             for(const name in props){
@@ -2003,6 +2006,9 @@ component('el', (el)=>{
                 } else if (name.startsWith('style:')) {
                     const styleProp = name.split(':')[1];
                     el.style[styleProp] = props[name].value;
+                } else if (name == 'translate') {
+                    if (props['params'] === undefined) el.setProp('params', 'json:[]');
+                    translate(props[name].value, props['params'].value);
                 } else if (name in el) {
                     el[name] = props[name].value;
                 }
@@ -2118,14 +2124,35 @@ component('el', (el)=>{
                         const styleProp = name.split(':')[1];
                         el.style[styleProp] = value;
                     });
+                } else if (name == 'translate') {
+                    if (props['params'] === undefined) el.setProp('params', 'json:[]');
+                    props[name].onChange((value)=>{
+                        translate(value, props['params'].value);
+                    });
+                    props['params'].onChange((value)=>{
+                        translate(props['translate'].value, value);
+                    });
+                    unwatchPageState = watchPageState('pageState.activeTranslationPack', ()=>{
+                        translate(props['translate'].value, props['params'].value);
+                    })[0];
                 } else {
                     props[name].onChange((value)=>{
                         el[name] = value;
                     });
                 }
             }
+        },
+        onCleanup: ()=>{
+            unwatchPageState();
         }
     });
+    function translate(value, params) {
+        const translateText = useTranslationPack(pageState.activeTranslationPack);
+        if (Array.isArray(params)) {
+            console.log('params', ...params);
+            el.textContent = translateText(value, ...params);
+        } else el.textContent = translateText(value);
+    }
 });
 component('document', (el)=>{
     el.define({
