@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.281');
+console.log('elementJS:', 'v1.0.0-preview.282');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -2149,7 +2149,6 @@ component('el', (el)=>{
     function translate(value, params) {
         const translateText = useTranslationPack(pageState.activeTranslationPack);
         if (Array.isArray(params)) {
-            console.log('params', ...params);
             el.textContent = translateText(value, ...params);
         } else el.textContent = translateText(value);
     }
