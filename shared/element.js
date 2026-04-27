@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.282');
+console.log('elementJS:', 'v1.0.0-preview.283');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -1390,17 +1390,19 @@ function reIndexStatePath(el, oldRoot, newRoot, depth) {
         reIndexStatePath(child, oldRoot, newRoot, depth + 1);
     }
     for(const prop in el.props){
-        let statePath = el.props[prop].statePath;
-        if (statePath) {
+        const stateProp = el.props[prop];
+        let statePath = stateProp.statePath;
+        if (statePath && statePath.startsWith(oldRoot)) {
             if (depth === 0) {
                 statePath = statePath.replace(oldRoot, newRoot);
             } else {
                 statePath = statePath.replace(oldRoot + '.', newRoot + '.');
             }
+            stateProp.statePath = statePath;
             const arrStatePath = statePath.split('.');
             arrStatePath[0] = 'state';
-            const value = el.props[prop];
-            if (value.rewatch) value.rewatch(arrStatePath.join('.'));
+            if (depth === 0) stateProp.propName = arrStatePath[arrStatePath.length - 1];
+            if (stateProp.rewatch) stateProp.rewatch(arrStatePath.join('.'));
         }
     }
 }
@@ -2143,7 +2145,7 @@ component('el', (el)=>{
             }
         },
         onCleanup: ()=>{
-            unwatchPageState();
+            if (unwatchPageState) unwatchPageState();
         }
     });
     function translate(value, params) {
@@ -2242,7 +2244,7 @@ component('list', (el)=>{
             const compIs = component.dataset.is + ':' + id;
             component.setAttribute('data-is', compIs);
             component.setAttribute(`data-${propName}`, `bind:src.${index}`);
-            component.setAttribute('data-index', String(index++));
+            component.setAttribute('data-index', 'num:' + index++);
             await insertElement(el, component, 'append', '', true);
         }
     }
@@ -2272,7 +2274,7 @@ component('list', (el)=>{
                 const compIs = component.dataset.is + ':' + id;
                 component.setAttribute('data-is', compIs);
                 component.setAttribute(`data-${propName}`, `bind:src.${i}`);
-                component.setAttribute('data-index', String(i));
+                component.setAttribute('data-index', 'num:' + i);
                 await insertElement(el, component, action, elId, true);
             } else {
                 const referenceNode = el.childNodes[i];
@@ -2281,10 +2283,11 @@ component('list', (el)=>{
                 } else if (node !== referenceNode) {
                     el.insertBefore(node, referenceNode);
                 }
+                if (node.props.index.value === i) continue;
                 node.props.index.value = i;
                 for(const prop in node.props){
                     const statePath = node.props[prop].statePath;
-                    if (statePath) {
+                    if (statePath && statePath.startsWith(el.props.src.statePath + '.')) {
                         const arrPath = statePath.split('.');
                         arrPath[arrPath.length - 1] = i.toString();
                         reIndexStatePath(el.components[id], statePath, arrPath.join('.'), 0);
