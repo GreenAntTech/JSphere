@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.283');
+console.log('elementJS:', 'v1.0.0-preview.284');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -405,6 +405,29 @@ class StateProp {
         }
         this.boundFunctions.add(fn);
         if (execute || this.el.hydratedOn) fn(this.stateObj[this.propName], this.pipedPropValue);
+        return ()=>{
+            this.boundFunctions.delete(fn);
+        };
+    }
+}
+class StatePrimitive {
+    isPrimitive = true;
+    boundFunctions = new Set();
+    propValue = undefined;
+    static isPrimitive(obj) {
+        return obj == null ? undefined : obj.isPrimitive;
+    }
+    constructor(){}
+    get value() {
+        return this.propValue;
+    }
+    set value(value) {
+        this.propValue = value;
+        this.boundFunctions.forEach((fn)=>fn(this.propValue));
+    }
+    onChange(fn, execute = false) {
+        this.boundFunctions.add(fn);
+        if (execute) fn(this.propValue);
         return ()=>{
             this.boundFunctions.delete(fn);
         };
@@ -1521,10 +1544,19 @@ function observe(objectToObserve, name, config) {
     function objectAccessor(path) {
         return {
             get (target, key, receiver) {
+                let $ = false;
                 if (key === '__proxy__') return true;
                 if (key == '__path__') return path;
+                if (key.endsWith('$')) {
+                    key = key.slice(0, -1);
+                    $ = true;
+                }
                 const value = Reflect.get(target, key, receiver);
-                if (Array.isArray(value) && !value.__proxy__) {
+                if (DerivedState.isDerived(value)) {
+                    return value.value;
+                } else if (StatePrimitive.isPrimitive(value)) {
+                    return $ ? value : value.value;
+                } else if (Array.isArray(value) && !value.__proxy__) {
                     const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
@@ -1532,8 +1564,12 @@ function observe(objectToObserve, name, config) {
                     const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
                     Reflect.set(target, key, proxiedValue, receiver);
                     return proxiedValue;
-                } else if (DerivedState.isDerived(value)) {
-                    return value.value;
+                } else if (isPrimitive(value)) {
+                    const primitive = new StatePrimitive();
+                    primitive.value = value;
+                    primitive.onChange((value)=>processListeners(`${path}.${key}`, value, key));
+                    Reflect.set(target, key, primitive, receiver);
+                    return value;
                 }
                 return value;
             },
@@ -1552,7 +1588,14 @@ function observe(objectToObserve, name, config) {
                 }
                 const oldValue = receiver[key];
                 if (deepEqual(value, oldValue)) return true;
-                const result = Reflect.set(target, key, value, receiver);
+                let result;
+                if (StatePrimitive.isPrimitive(target[key]) && isPrimitive(value)) {
+                    const primitive = target[key];
+                    primitive.value = value;
+                    result = true;
+                } else {
+                    result = Reflect.set(target, key, value, receiver);
+                }
                 if (DerivedState.isDerived(value)) {
                     value.onChange((value)=>processListeners(`${path}.${key}`, value, key));
                 }
@@ -1722,7 +1765,7 @@ function observe(objectToObserve, name, config) {
                         watch(item.__path__, cb);
                     }
                 }
-            } else if (Prop.isProp(prop) || StateProp.isStateProp(prop)) {
+            } else if (Prop.isProp(prop) || StateProp.isStateProp(prop) || StatePrimitive.isPrimitive(prop)) {
                 prop.onChange(()=>cb());
             } else if (prop !== null && prop !== undefined && prop.__path__) {
                 watch(prop.__path__, cb);
@@ -1878,6 +1921,9 @@ async function importModule(url) {
         console.log(e);
         throw new RenderError(`Either the requested resource or one of its dependencies was not found: ${url}`);
     }
+}
+function isPrimitive(value) {
+    return typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value === null;
 }
 async function loadDependencies(dependencies) {
     try {
