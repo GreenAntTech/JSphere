@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.284');
+console.log('elementJS:', 'v1.0.0-preview.285');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -15,6 +15,22 @@ const appContext = {
     documentElement: null,
     ctx: null
 };
+if (appContext.server) {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (path, options)=>{
+        if (!options) options = {};
+        if (options && options.headers === undefined) options.headers = [];
+        if (!path.startsWith('http://') && !path.startsWith('https://')) {
+            path = `${appContext.ctx.request.url.protocol}//127.0.0.1:${appContext.ctx.request.url.port || '80'}${path}`;
+            options.headers.push([
+                'element-server-request',
+                'true'
+            ]);
+        }
+        const response = await originalFetch(path, options);
+        return response;
+    };
+}
 const pipes = {
     currency (value, currency = 'USD', display = 'symbol', digits, locale = 'en') {
         const options = {
@@ -547,7 +563,7 @@ async function serverRenderDocument(htmlOrFile, ctx) {
             throw new RenderError('Invalid server context object provided');
         }
         if (!appContext.server) return;
-        appContext.ctx = ctx;
+        if (appContext.ctx == null) appContext.ctx = ctx;
         const pageState = observe({}, 'pageState');
         const el = appContext.documentElement = await getDocumentElement(htmlOrFile);
         el.setAttribute('data-is', 'document');
@@ -849,26 +865,26 @@ function initElementAsComponent(el, parent, appState, pageState, ctx) {
             }
         },
         addFirst: {
-            value: async (element, autoInit = false)=>{
-                const component = await insertElement(el, element, 'append', '', autoInit);
+            value: async (componentDef, autoInit = false)=>{
+                const component = await insertElement(el, componentDef, 'append', '', autoInit);
                 return component;
             }
         },
         addLast: {
-            value: async (element, autoInit = false)=>{
-                const component = await insertElement(el, element, 'prepend', '', autoInit);
+            value: async (componentDef, autoInit = false)=>{
+                const component = await insertElement(el, componentDef, 'prepend', '', autoInit);
                 return component;
             }
         },
         addBefore: {
-            value: async (element, elId, autoInit = false)=>{
-                const component = await insertElement(el, element, 'before', elId, autoInit);
+            value: async (componentDef, elId, autoInit = false)=>{
+                const component = await insertElement(el, componentDef, 'before', elId, autoInit);
                 return component;
             }
         },
         addAfter: {
-            value: async (element, elId, autoInit = false)=>{
-                const component = await insertElement(el, element, 'after', elId, autoInit);
+            value: async (componentDef, elId, autoInit = false)=>{
+                const component = await insertElement(el, componentDef, 'after', elId, autoInit);
                 return component;
             }
         }
@@ -1489,20 +1505,6 @@ function component(param1, param2) {
         return param1.name;
     }
 }
-async function elementFetch(path, options = {
-    headers: []
-}) {
-    let url = path;
-    if (appContext.server) {
-        url = `${appContext.ctx.request.url.protocol}//127.0.0.1:${appContext.ctx.request.url.port || '80'}${path}`;
-        if (options && options.headers === undefined) options.headers = [];
-        options.headers.push([
-            'element-server-request',
-            'true'
-        ]);
-    }
-    return await fetch(url, options);
-}
 async function emit(subject, data, target) {
     const docEl = appContext.server ? appContext.documentElement : document.documentElement;
     const el = docEl.querySelector(`[el-active]`);
@@ -1567,7 +1569,6 @@ function observe(objectToObserve, name, config) {
                 } else if (isPrimitive(value)) {
                     const primitive = new StatePrimitive();
                     primitive.value = value;
-                    primitive.onChange((value)=>processListeners(`${path}.${key}`, value, key));
                     Reflect.set(target, key, primitive, receiver);
                     return value;
                 }
@@ -1996,7 +1997,7 @@ component('el', (el)=>{
     const [pageState, _derivePageState, watchPageState] = el.pageState;
     let unwatchPageState;
     el.define({
-        onRender: (props)=>{
+        onRender: async (props)=>{
             for(const name in props){
                 if (name == 'checked') {
                     if (el.type == 'checkbox') {
@@ -2033,6 +2034,8 @@ component('el', (el)=>{
                         const className = parts[1];
                         el.classList.toggle(className, props[name].value);
                     }
+                } else if (name == 'component') {
+                    if (props[name].value) await loadComponent(props[name].value);
                 } else if (name == 'text') {
                     el.textContent = props[name].pipedValue || props[name].value;
                 } else if (name == 'value') {
@@ -2125,6 +2128,10 @@ component('el', (el)=>{
                             el.classList.toggle(className, value);
                         }
                     });
+                } else if (name == 'component') {
+                    props[name].onChange(async (value)=>{
+                        await loadComponent(value);
+                    });
                 } else if (name.startsWith('on:')) {
                     props[name].onChange((value)=>{
                         const onProp = name.replace(':', '');
@@ -2194,6 +2201,15 @@ component('el', (el)=>{
             if (unwatchPageState) unwatchPageState();
         }
     });
+    async function loadComponent(name) {
+        const component = {
+            'data-is': name + ':page'
+        };
+        const { page } = el.components;
+        if (page && page.compIs == name) return;
+        if (page) await el.unmountComponents();
+        await el.addLast(component, true);
+    }
     function translate(value, params) {
         const translateText = useTranslationPack(pageState.activeTranslationPack);
         if (Array.isArray(params)) {
@@ -2401,4 +2417,4 @@ component('translate', (el)=>{
         } else el.textContent = translate(el.compId);
     }
 });
-export { component as component, deviceSubscribesTo as deviceOn, elementFetch as retrieve, emit as emit, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack,  };
+export { component as component, deviceSubscribesTo as deviceOn, emit as emit, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack,  };
