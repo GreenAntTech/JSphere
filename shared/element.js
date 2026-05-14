@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.288');
+console.log('elementJS:', 'v1.0.0-preview.289');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -346,7 +346,7 @@ class Prop {
         this.#pipeChain = value;
         this.#pipedValue = this.#pipeChain.getValue(this.#value);
     }
-    removeListerners() {
+    removeListeners() {
         this.#listeners.clear();
     }
     onChange(fn, execute = false) {
@@ -395,22 +395,20 @@ class StateProp {
     set pipeChain(value) {
         this.#pipeChain = value;
     }
-    removeListerners() {
+    removeListeners() {
         if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
-            return this.#obj[this.#key + '$'].removeListerners();
-        }
-        if (this.#obj[this.#key + '$'] instanceof DerivedState) {
-            return this.#obj[this.#key + '$'].removeListerners();
+            return this.#obj[this.#key + '$'].removeListeners();
+        } else if (this.#obj[this.#key + '$'] instanceof DerivedState) {
+            return this.#obj[this.#key + '$'].removeListeners();
         } else {
-            return this.#obj[this.#key].removeListerners();
+            return this.#obj[this.#key].removeListeners();
         }
     }
     onChange(fn, execute = false) {
         if (execute || this.#el.hydratedOn) fn();
         if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
             return this.#obj[this.#key + '$'].onChange(fn);
-        }
-        if (this.#obj[this.#key + '$'] instanceof DerivedState) {
+        } else if (this.#obj[this.#key + '$'] instanceof DerivedState) {
             return this.#obj[this.#key + '$'].onChange(fn);
         } else {
             return this.#obj[this.#key].onChange(fn);
@@ -438,7 +436,7 @@ class PrimitiveWrapper {
         this.#listeners.forEach((fn)=>fn());
         this.#parent[Symbols.runListeners];
     }
-    removeListerners() {
+    removeListeners() {
         this.#listeners.clear();
     }
     onChange(fn, execute = false) {
@@ -477,7 +475,7 @@ class DerivedState {
     get watchers() {
         return this.#watchers;
     }
-    removeListerners() {
+    removeListeners() {
         this.#listeners.clear();
     }
     onChange(fn, execute = false) {
@@ -1515,7 +1513,7 @@ function unwatchElementProps(el) {
     }
     for(const prop in el.props){
         const value = el.props[prop];
-        value.removeListerners();
+        value.removeListeners();
     }
 }
 async function insertElement(parent, component, action, elId, autoInit) {
@@ -1638,6 +1636,9 @@ class ObjectWrapper {
         if (key == 'onChange') return (fn)=>{
             this.onChange(fn);
         };
+        if (key == 'removeListeners') return ()=>{
+            this.removeListeners();
+        };
         if (typeof key == 'string' && key.endsWith('$')) {
             key = key.slice(0, -1);
             returnWrapper = true;
@@ -1684,6 +1685,9 @@ class ObjectWrapper {
         }
         return result;
     }
+    removeListeners() {
+        this.#listeners.clear();
+    }
     onChange(fn) {
         const listenerKey = this.#listenerKey++;
         this.#listeners.set(listenerKey, fn);
@@ -1727,6 +1731,9 @@ class ArrayWrapper {
         if (key == 'parent$') return this.#parent;
         if (key == 'onChange') return (fn)=>{
             this.onChange(fn);
+        };
+        if (key == 'removeListeners') return ()=>{
+            this.removeListeners();
         };
         if (this.#mutatingMethods.includes(key)) {
             const listeners = this.#listeners;
@@ -1779,6 +1786,9 @@ class ArrayWrapper {
             this.#listeners.forEach((fn)=>fn());
         }
         return result;
+    }
+    removeListeners() {
+        this.#listeners.clear();
     }
     onChange(fn) {
         const listenerKey = this.#listenerKey++;
@@ -2108,7 +2118,7 @@ component('list', (el)=>{
             await createComponents(props);
         },
         onHydrate: (props)=>{
-            props.src.onChange(()=>{
+            props.source.onChange(()=>{
                 listItems = transformSourceList(props);
                 const currentOrder = [];
                 let index = 0;
