@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.285');
+console.log('elementJS:', 'v1.0.0-preview.286');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -7,7 +7,17 @@ const Symbols = {
     onRender: Symbol('onRender'),
     onHydrate: Symbol('onHydrate'),
     onReady: Symbol('onReady'),
-    onCleanup: Symbol('onCleanup')
+    onCleanup: Symbol('onCleanup'),
+    isWrappedObject: Symbol('isWrappedObject'),
+    isWrappedArray: Symbol('isWrappedArray'),
+    objectUID: Symbol('objectUID'),
+    runListeners: Symbol('runListeners')
+};
+const SymbolsLookUp = {
+    'Symbol(isWrappedObject)': true,
+    'Symbol(isWrappedArray)': true,
+    'Symbol(objectUID)': true,
+    'Symbol(runListeners)': true
 };
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -271,12 +281,17 @@ class Pipe {
     }
 }
 class PipeChain {
-    pipes;
+    #pipes = [];
+    #cachedValue = undefined;
+    #cachedPipedValue = undefined;
     constructor(expression){
-        this.pipes = expression.map((val)=>new Pipe(val.trim()));
+        this.#pipes = expression.map((val)=>new Pipe(val.trim()));
     }
     getValue(value) {
-        return this.pipes.reduce((val, pipe)=>pipe.getValue(val), value);
+        if (this.#cachedValue === value) return this.#cachedPipedValue;
+        this.#cachedValue = value;
+        this.#cachedPipedValue = this.#pipes.reduce((val, pipe)=>pipe.getValue(val), value);
+        return this.#cachedPipedValue;
     }
 }
 class Feature {
@@ -303,173 +318,206 @@ class RenderError extends Error {
     }
 }
 class Prop {
-    el = null;
-    isProp = true;
-    boundFunctions = new Set();
-    propValue = undefined;
-    pipedPropValue = undefined;
-    propPipeChain = undefined;
-    unwatchFn = ()=>{};
-    rewatchFn = ()=>{};
+    #el = null;
+    #listeners = new Map();
+    #listenerKey = 0;
+    #value = undefined;
+    #pipedValue = undefined;
+    #pipeChain = undefined;
     static isProp(obj) {
         return obj == null ? undefined : obj.isProp;
     }
     constructor(value, el){
-        this.el = el;
-        this.propValue = value;
+        this.#el = el;
+        this.#value = value;
+    }
+    get isProp() {
+        return true;
     }
     get value() {
-        return this.propValue;
+        return this.#pipedValue || this.#value;
     }
     set value(value) {
-        this.propValue = value;
-        this.pipedPropValue = this.propPipeChain.getValue(value);
-        this.boundFunctions.forEach((fn)=>fn(this.propValue, this.pipedPropValue));
+        this.#value = value;
+        this.#pipedValue = this.#pipeChain.getValue(this.#value);
+        this.#listeners.forEach((fn)=>fn());
     }
     set pipeChain(value) {
-        this.propPipeChain = value;
-        this.pipedPropValue = this.propPipeChain.getValue(this.propValue);
+        this.#pipeChain = value;
+        this.#pipedValue = this.#pipeChain.getValue(this.#value);
     }
-    get pipedValue() {
-        return this.pipedPropValue;
-    }
-    get unwatch() {
-        return this.unwatchFn;
-    }
-    set unwatch(value) {
-        this.unwatchFn = value;
-    }
-    get rewatch() {
-        return this.rewatchFn;
-    }
-    set rewatch(value) {
-        this.rewatchFn = value;
+    removeListerners() {
+        this.#listeners.clear();
     }
     onChange(fn, execute = false) {
-        this.boundFunctions.add(fn);
-        if (execute || this.el.hydratedOn) fn(this.propValue, this.pipedPropValue);
-        return ()=>{
-            this.boundFunctions.delete(fn);
-        };
+        if (execute || this.#el.hydratedOn) fn();
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
     }
 }
 class StateProp {
-    el = null;
-    isStateProp = true;
-    boundFunctions = new Set();
-    isBound = false;
-    stateObj = undefined;
-    path = undefined;
-    propName = undefined;
-    pipedPropValue = undefined;
-    propPipeChain = undefined;
-    bindFunction = ()=>{};
-    unwatchFn = ()=>{};
-    rewatchFn = ()=>{};
-    static isStateProp(obj) {
-        return obj == null ? undefined : obj.isStateProp;
+    #el = null;
+    #key = '';
+    #obj = {};
+    #pipeChain = undefined;
+    constructor(obj, key, el){
+        this.#el = el;
+        this.#key = key;
+        this.#obj = obj;
     }
-    constructor(statePath, stateObj, stateObjPropName, bindFunction, el){
-        this.el = el;
-        this.path = statePath;
-        this.stateObj = stateObj;
-        this.propName = stateObjPropName;
-        this.bindFunction = bindFunction;
-    }
-    get statePath() {
-        return this.path;
-    }
-    set statePath(value) {
-        this.pipedPropValue = this.propPipeChain.getValue(value);
-        this.path = value;
+    get isStateProp() {
+        return true;
     }
     get value() {
-        const value = this.stateObj[this.propName];
-        return DerivedState.isDerived(value) ? value.value : value;
+        let value;
+        if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
+            value = this.#obj[this.#key + '$'].value;
+        } else {
+            value = this.#obj[this.#key];
+        }
+        return this.#pipeChain.getValue(value);
     }
     set value(value) {
-        this.stateObj[this.propName] = value;
+        if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
+            this.#obj[this.#key + '$'].value = value;
+        } else {
+            this.#obj[this.#key] = value;
+        }
     }
     set pipeChain(value) {
-        this.propPipeChain = value;
-        this.pipedPropValue = this.propPipeChain.getValue(this.value);
+        this.#pipeChain = value;
     }
-    get pipedValue() {
-        return this.pipedPropValue;
-    }
-    get unwatch() {
-        return this.unwatchFn;
-    }
-    set unwatch(value) {
-        this.unwatchFn = value;
-    }
-    get rewatch() {
-        return this.rewatchFn;
-    }
-    set rewatch(value) {
-        this.rewatchFn = value;
+    removeListerners() {
+        if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
+            return this.#obj[this.#key + '$'].removeListerners();
+        }
+        if (this.#obj[this.#key + '$'] instanceof DerivedState) {
+            return this.#obj[this.#key + '$'].removeListerners();
+        } else {
+            return this.#obj[this.#key].removeListerners();
+        }
     }
     onChange(fn, execute = false) {
-        if (!this.isBound) {
-            this.bindFunction(()=>{
-                this.boundFunctions.forEach((fn)=>{
-                    const value = this.stateObj[this.propName];
-                    this.pipedPropValue = this.propPipeChain.getValue(value);
-                    fn(value, this.pipedPropValue);
-                });
-            });
+        if (execute || this.#el.hydratedOn) fn();
+        if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
+            return this.#obj[this.#key + '$'].onChange(fn);
         }
-        this.boundFunctions.add(fn);
-        if (execute || this.el.hydratedOn) fn(this.stateObj[this.propName], this.pipedPropValue);
-        return ()=>{
-            this.boundFunctions.delete(fn);
-        };
+        if (this.#obj[this.#key + '$'] instanceof DerivedState) {
+            return this.#obj[this.#key + '$'].onChange(fn);
+        } else {
+            return this.#obj[this.#key].onChange(fn);
+        }
     }
 }
-class StatePrimitive {
-    isPrimitive = true;
-    boundFunctions = new Set();
-    propValue = undefined;
-    static isPrimitive(obj) {
-        return obj == null ? undefined : obj.isPrimitive;
+class PrimitiveWrapper {
+    #listeners = new Map();
+    #listenerKey = 0;
+    #parent = undefined;
+    #value = undefined;
+    constructor(parent, value){
+        this.#parent = parent;
+        this.#value = value;
     }
-    constructor(){}
+    get isWrappedPrimitive() {
+        return true;
+    }
     get value() {
-        return this.propValue;
+        return this.#value;
     }
     set value(value) {
-        this.propValue = value;
-        this.boundFunctions.forEach((fn)=>fn(this.propValue));
+        if (this.#value === value) return;
+        this.#value = value;
+        this.#listeners.forEach((fn)=>fn());
+        this.#parent[Symbols.runListeners];
+    }
+    removeListerners() {
+        this.#listeners.clear();
     }
     onChange(fn, execute = false) {
-        this.boundFunctions.add(fn);
-        if (execute) fn(this.propValue);
-        return ()=>{
-            this.boundFunctions.delete(fn);
-        };
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        if (execute) fn();
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
     }
 }
 class DerivedState {
-    isDerived = true;
-    boundFunctions = new Set();
-    propValue = undefined;
-    static isDerived(obj) {
-        return obj == null ? undefined : obj.isDerived;
+    #watchers = [];
+    #listeners = new Map();
+    #listenerKey = 0;
+    #value = undefined;
+    constructor(value){
+        this.#value = value;
     }
-    constructor(){}
+    get isDerivedState() {
+        return true;
+    }
     get value() {
-        return this.propValue;
+        return this.#value;
     }
     set value(value) {
-        this.propValue = value;
-        this.boundFunctions.forEach((fn)=>fn(this.propValue));
+        if (this.#value === value) return;
+        this.#value = value;
+        this.#listeners.forEach((fn)=>fn());
+    }
+    get watchers() {
+        return this.#watchers;
+    }
+    removeListerners() {
+        this.#listeners.clear();
     }
     onChange(fn, execute = false) {
-        this.boundFunctions.add(fn);
-        if (execute) fn(this.propValue);
-        return ()=>{
-            this.boundFunctions.delete(fn);
-        };
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        if (execute) fn();
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
+    }
+    unwatch(deps) {
+        if (deps === undefined) {
+            for (const watcher of this.#watchers){
+                watcher[0]();
+            }
+        } else if (Number.isInteger(deps)) {
+            this.#watchers[deps][0]();
+        } else if (Array.isArray(deps)) {
+            for (const index of deps){
+                this.#watchers[index][0]();
+            }
+        }
+    }
+    rewatch(deps) {
+        if (deps === undefined) {
+            for (const watcher of this.#watchers){
+                watcher[1]();
+            }
+        } else if (Number.isInteger(deps)) {
+            this.#watchers[deps][1]();
+        } else if (Array.isArray(deps)) {
+            for (const index of deps){
+                this.#watchers[index][1]();
+            }
+        }
     }
 }
 const feature = new Feature();
@@ -564,7 +612,7 @@ async function serverRenderDocument(htmlOrFile, ctx) {
         }
         if (!appContext.server) return;
         if (appContext.ctx == null) appContext.ctx = ctx;
-        const pageState = observe({}, 'pageState');
+        const pageState = observe({});
         const el = appContext.documentElement = await getDocumentElement(htmlOrFile);
         el.setAttribute('data-is', 'document');
         el.setAttribute('el-server-rendering', 'true');
@@ -587,11 +635,11 @@ async function serverRenderDocument(htmlOrFile, ctx) {
 async function renderDocument() {
     try {
         if (appContext.server) return;
-        const appState = observe({}, 'appState', {
+        const appState = observe({}, {
             persist: true,
             key: 'elementJS_appState_' + globalThis.location.hostname
         });
-        const pageState = observe({}, 'pageState');
+        const pageState = observe({});
         const el = document.documentElement;
         el.setAttribute('data-is', 'document');
         if (el.hasAttribute('el-server-rendered')) {
@@ -802,7 +850,8 @@ function initElementAsComponent(el, parent, appState, pageState, ctx) {
         },
         setProp: {
             value: (name, value)=>{
-                if (appContext.server && !el.hasAttribute('data-' + name)) {
+                if (el.hasAttribute('data-' + name) && el.getAttribute('data-' + name) != '') return;
+                if (appContext.server) {
                     if (typeof value == 'boolean') {
                         value = 'bool:' + String(value);
                     } else if (typeof value == 'number') {
@@ -815,6 +864,7 @@ function initElementAsComponent(el, parent, appState, pageState, ctx) {
                 const prop = {};
                 name = toCamelCase(name);
                 prop[name] = value;
+                delete componentProps[name];
                 addProps(componentProps, el, prop);
                 return componentProps[name];
             }
@@ -841,7 +891,7 @@ function initElementAsComponent(el, parent, appState, pageState, ctx) {
         },
         state: {
             get: ()=>{
-                if (!stateObject) stateObject = observe({}, 'state');
+                if (!stateObject) stateObject = observe({});
                 return stateObject;
             }
         },
@@ -976,6 +1026,11 @@ function initElementAsComponent(el, parent, appState, pageState, ctx) {
                 set: (value)=>{
                     if (value === undefined) el.removeAttribute('value');
                     else el.setAttribute('value', value);
+                    if (el.tagName == 'SELECT') {
+                        for (const node of el.children){
+                            if (node.getAttribute('value') == value) node.setAttribute('selected', '');
+                        }
+                    }
                 },
                 get: ()=>{
                     return el.getAttribute('value') || '';
@@ -1081,7 +1136,23 @@ async function onTemplate(el, props) {
 }
 async function onRender(el, props) {
     for(const name in props){
-        if (name == 'class') {
+        if (name == 'checked' && el.tagName == 'INPUT') {
+            if (el.type == 'checkbox') {
+                if (Array.isArray(props[name].value)) {
+                    el.checked = props[name].value.includes(el.value);
+                } else if (typeof props[name].value == 'boolean') {
+                    el.checked = props[name].value;
+                } else {
+                    el.checked = props[name].value === el.value;
+                }
+            } else if (el.type == 'radio') {
+                if (typeof props[name].value == 'boolean') {
+                    el.checked = props[name].value;
+                } else {
+                    el.checked = props[name].value === el.value;
+                }
+            }
+        } else if (name == 'class') {
             const value = props[name].value;
             if (typeof value == 'string') {
                 el.className = value;
@@ -1119,6 +1190,10 @@ async function onRender(el, props) {
         } else if (name.startsWith('style:')) {
             const styleProp = name.split(':')[1];
             el.style[styleProp] = props[name].value;
+        } else if (name == 'value' && (el.tagName == 'INPUT' || el.tagName == 'SELECT')) {
+            el.value = props[name].value;
+        } else if (name in el) {
+            el[name] = props[name].value;
         }
     }
     await el[Symbols.onRender](props);
@@ -1138,7 +1213,38 @@ async function onResume(el) {
 }
 async function onHydrate(el, props) {
     for(const name in props){
-        if (name == 'class') {
+        if (name == 'checked' && el.tagName == 'INPUT') {
+            if (el.type == 'checkbox') {
+                props[name].onChange((value)=>{
+                    if (Array.isArray(props[name].value)) {
+                        el.checked = props[name].value.includes(el.value);
+                    } else if (typeof value == 'boolean') {
+                        el.checked = value;
+                    } else {
+                        el.checked = value === el.value;
+                    }
+                });
+                el.addEventListener('change', ()=>{
+                    if (Array.isArray(props[name].value)) {
+                        if (el.checked) {
+                            props[name].value.push(el.value);
+                        } else {
+                            const newList = props[name].value.filter((item)=>item !== el.value);
+                            props[name].value = newList;
+                        }
+                    } else {
+                        props[name].value = el.checked;
+                    }
+                });
+            } else if (el.type == 'radio') {
+                props[name].onChange((value)=>{
+                    el.checked = value === el.value;
+                });
+                el.addEventListener('change', ()=>{
+                    props[name].value = el.value;
+                });
+            }
+        } else if (name == 'class') {
             props[name].onChange((value)=>{
                 if (typeof value == 'string') {
                     el.className = value;
@@ -1153,7 +1259,8 @@ async function onHydrate(el, props) {
                 }
             });
         } else if (name.startsWith('class:')) {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 const parts = name.split(':');
                 if (parts.length === 2) {
                     const className = parts[1];
@@ -1161,11 +1268,13 @@ async function onHydrate(el, props) {
                 }
             });
         } else if (name == 'hidden') {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 el.hidden = value;
             });
         } else if (name.startsWith('on:')) {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 const onProp = name.replace(':', '');
                 if (typeof value == 'function') {
                     el[onProp] = value;
@@ -1174,13 +1283,15 @@ async function onHydrate(el, props) {
                         el.emit(value, data);
                     };
                 }
-            });
+            }, true);
         } else if (name == 'visible') {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 el.hidden = !value;
             });
         } else if (name == 'style') {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 if (typeof value == 'string') {
                     const styles = parseStyle(value);
                     for(const key in styles){
@@ -1193,9 +1304,21 @@ async function onHydrate(el, props) {
                 }
             });
         } else if (name.startsWith('style:')) {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 const styleProp = name.split(':')[1];
                 el.style[styleProp] = value;
+            });
+        } else if (name == 'value' && (el.tagName == 'INPUT' || el.tagName == 'SELECT')) {
+            props[name].onChange((value)=>{
+                el.value = value;
+            });
+            el.addEventListener('input', ()=>{
+                props[name].value = el.value;
+            });
+        } else if (name in el) {
+            props[name].onChange((value)=>{
+                el[name] = value;
             });
         }
     }
@@ -1309,7 +1432,7 @@ function addProps(componentProps, el, props = {}) {
             arrPropValue.splice(0, 1);
             pipeChain = new PipeChain(arrPropValue);
             if (propValue.startsWith('bind:')) {
-                propValue = getBoundEntity(el, propName, propValue.substring(5));
+                propValue = getBoundProp(el, propValue.substring(5));
             } else {
                 let value;
                 if (propValue.startsWith('num:')) {
@@ -1349,39 +1472,33 @@ function addPropsFromAttributes(componentProps, el) {
     }
     addProps(componentProps, el, attrs);
 }
-function getBoundEntity(el, propName, path) {
+function getBoundProp(el, path) {
     const arrPath = path.split('.');
-    const stateObjPropName = arrPath[arrPath.length - 1];
     if ([
         'appState',
         'pageState'
     ].includes(arrPath[0])) {
-        const statePath = path;
         let stateObj = el[arrPath[0]][0];
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
+        return new StateProp(stateObj, arrPath[arrPath.length - 1], el);
     } else if (arrPath[0] == 'state') {
         let stateObj = el.parent[arrPath[0]][0];
-        arrPath[0] = el.parent.id;
-        const statePath = arrPath.join('.');
         for(let i = 1; i < arrPath.length - 1; i++){
             stateObj = stateObj[arrPath[i]];
         }
-        return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
+        return new StateProp(stateObj, arrPath[arrPath.length - 1], el);
     } else {
         const parentProp = el.parent.props[arrPath[0]];
         if (arrPath.length === 1) {
             return parentProp;
-        } else if (parentProp.statePath) {
+        } else if (parentProp.isStateProp) {
             let stateObj = parentProp.value;
             for(let i = 1; i < arrPath.length - 1; i++){
                 stateObj = stateObj[arrPath[i]];
             }
-            arrPath.shift();
-            const statePath = parentProp.statePath + '.' + arrPath.join('.');
-            return new StateProp(statePath, stateObj, stateObjPropName, bind(el, propName, statePath), el);
+            return new StateProp(stateObj, arrPath[arrPath.length - 1], el);
         } else {
             let value = parentProp.value;
             for(let i = 1; i < arrPath.length; i++){
@@ -1391,26 +1508,6 @@ function getBoundEntity(el, propName, path) {
         }
     }
 }
-function bind(el, propName, statePath) {
-    return (fn)=>{
-        const arrPath = statePath.split('.');
-        let observer, path;
-        if (![
-            'appState',
-            'pageState'
-        ].includes(arrPath[0])) {
-            observer = el.ownerDocument.getElementById(arrPath[0]).state;
-            path = statePath.replace(arrPath[0] + '.', 'state.');
-        } else {
-            observer = el[arrPath[0]];
-            path = statePath;
-        }
-        const watch = observer[2];
-        const [unwatch, rewatch] = watch(path, fn, el);
-        el.props[propName].unwatch = unwatch;
-        el.props[propName].rewatch = rewatch;
-    };
-}
 function unwatchElementProps(el) {
     for(const id in el.components){
         const child = el.components[id];
@@ -1418,31 +1515,7 @@ function unwatchElementProps(el) {
     }
     for(const prop in el.props){
         const value = el.props[prop];
-        if (value.unwatch) {
-            value.unwatch();
-        }
-    }
-}
-function reIndexStatePath(el, oldRoot, newRoot, depth) {
-    for(const id in el.components){
-        const child = el.components[id];
-        reIndexStatePath(child, oldRoot, newRoot, depth + 1);
-    }
-    for(const prop in el.props){
-        const stateProp = el.props[prop];
-        let statePath = stateProp.statePath;
-        if (statePath && statePath.startsWith(oldRoot)) {
-            if (depth === 0) {
-                statePath = statePath.replace(oldRoot, newRoot);
-            } else {
-                statePath = statePath.replace(oldRoot + '.', newRoot + '.');
-            }
-            stateProp.statePath = statePath;
-            const arrStatePath = statePath.split('.');
-            arrStatePath[0] = 'state';
-            if (depth === 0) stateProp.propName = arrStatePath[arrStatePath.length - 1];
-            if (stateProp.rewatch) stateProp.rewatch(arrStatePath.join('.'));
-        }
+        value.removeListerners();
     }
 }
 async function insertElement(parent, component, action, elId, autoInit) {
@@ -1539,163 +1612,189 @@ function navigateTo(path) {
         dispatchEvent(new Event('popstate'));
     }
 }
-function observe(objectToObserve, name, config) {
-    const observablesCache = new WeakMap();
-    const watchList = new Map();
-    let listenerId = 0;
-    function objectAccessor(path) {
-        return {
-            get (target, key, receiver) {
-                let $ = false;
-                if (key === '__proxy__') return true;
-                if (key == '__path__') return path;
-                if (key.endsWith('$')) {
-                    key = key.slice(0, -1);
-                    $ = true;
-                }
-                const value = Reflect.get(target, key, receiver);
-                if (DerivedState.isDerived(value)) {
-                    return value.value;
-                } else if (StatePrimitive.isPrimitive(value)) {
-                    return $ ? value : value.value;
-                } else if (Array.isArray(value) && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
-                    Reflect.set(target, key, proxiedValue, receiver);
-                    return proxiedValue;
-                } else if (typeof value === 'object' && value !== null && !DerivedState.isDerived(value) && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
-                    Reflect.set(target, key, proxiedValue, receiver);
-                    return proxiedValue;
-                } else if (isPrimitive(value)) {
-                    const primitive = new StatePrimitive();
-                    primitive.value = value;
-                    Reflect.set(target, key, primitive, receiver);
-                    return value;
-                }
-                return value;
+let objectUID = 0;
+class ObjectWrapper {
+    #listeners = new Map();
+    #listenerKey = 0;
+    #parent;
+    #objectUID = objectUID++;
+    constructor(parent){
+        this.#parent = parent;
+    }
+    get(obj, key, wrapper) {
+        let returnWrapper = false;
+        if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
+        if (typeof key == 'symbol' && key === Symbols.objectUID) {
+            return this.#objectUID;
+        }
+        if (typeof key == 'symbol' && key === Symbols.runListeners) {
+            this.#listeners.forEach((fn)=>fn());
+            return;
+        }
+        if (typeof key == 'symbol') {
+            return key === Symbols.isWrappedObject;
+        }
+        if (key == 'parent$') return this.#parent;
+        if (key == 'onChange') return (fn)=>{
+            this.onChange(fn);
+        };
+        if (typeof key == 'string' && key.endsWith('$')) {
+            key = key.slice(0, -1);
+            returnWrapper = true;
+        }
+        const value = Reflect.get(obj, key, wrapper);
+        if (typeof value === 'object' && value.isDerivedState) {
+            return returnWrapper ? value : value.value;
+        } else if (typeof value === 'object' && value.isWrappedPrimitive) {
+            return returnWrapper ? value : value.value;
+        } else if (Array.isArray(value)) {
+            if (!value[Symbols.isWrappedArray]) {
+                const wrappedArray = new Proxy(value, new ArrayWrapper(wrapper));
+                Reflect.set(obj, key, wrappedArray, wrapper);
+                return wrappedArray;
+            }
+            return value;
+        } else if (typeof value === 'object' && value !== null && !value[Symbols.isWrappedObject]) {
+            const wrappedObject = new Proxy(value, new ObjectWrapper(wrapper));
+            Reflect.set(obj, key, wrappedObject, wrapper);
+            return wrappedObject;
+        } else if (isPrimitive(value)) {
+            const wrappedPrimitive = new PrimitiveWrapper(wrapper, value);
+            Reflect.set(obj, key, wrappedPrimitive, wrapper);
+            return returnWrapper ? wrappedPrimitive : value;
+        }
+        return value;
+    }
+    set(obj, key, value, wrapper) {
+        let result;
+        if (isPrimitive(value)) {
+            if (obj[key] instanceof PrimitiveWrapper) {
+                obj[key].value = value;
+            } else {
+                const wrappedPrimitive = new PrimitiveWrapper(wrapper, value);
+                Reflect.set(obj, key, wrappedPrimitive, wrapper);
+            }
+            result = true;
+        } else {
+            result = Reflect.set(obj, key, value, wrapper);
+        }
+        if (result) {
+            console.info('ObjectWrapper - Running listeners for change in:', obj, key, value);
+            this.#listeners.forEach((fn)=>fn());
+        }
+        return result;
+    }
+    onChange(fn) {
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
             },
-            set (target, key, value, receiver) {
-                if (key == '__path__') {
-                    path = value;
-                    if (Array.isArray(receiver)) {
-                        for (const item of receiver)item.__path__ = `${path}.${key}`;
-                    } else if (typeof receiver === 'object') {
-                        for(const item in receiver){
-                            if (typeof receiver[item] != 'object') continue;
-                            receiver[item].__path__ = `${path}.${key}`;
-                        }
-                    }
-                    return true;
-                }
-                const oldValue = receiver[key];
-                if (deepEqual(value, oldValue)) return true;
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
+    }
+}
+class ArrayWrapper {
+    #listeners = new Map();
+    #listenerKey = 0;
+    #parent;
+    #mutatingMethods = [
+        'move',
+        'pop',
+        'push',
+        'replace',
+        'replaceWith',
+        'reverse',
+        'shift',
+        'sort',
+        'splice',
+        'swap',
+        'unshift'
+    ];
+    constructor(parent){
+        this.#parent = parent;
+    }
+    get(obj, key, wrapper) {
+        if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
+        if (typeof key == 'symbol' && key === Symbols.runListeners) {
+            this.#listeners.forEach((fn)=>fn());
+            return;
+        }
+        if (key === Symbols.isWrappedArray) return true;
+        if (key == 'parent$') return this.#parent;
+        if (key == 'onChange') return (fn)=>{
+            this.onChange(fn);
+        };
+        if (this.#mutatingMethods.includes(key)) {
+            const listeners = this.#listeners;
+            return (...args)=>{
                 let result;
-                if (StatePrimitive.isPrimitive(target[key]) && isPrimitive(value)) {
-                    const primitive = target[key];
-                    primitive.value = value;
+                if (key === 'replace') {
+                    result = obj[args[0]] = args[1];
+                } else if (key == 'replaceWith') {
+                    obj.length = 0;
+                    result = obj.push(...args[0]);
+                } else if (key == 'move') {
+                    const index = args[0];
+                    const position = args[1] === undefined ? 0 : args[1];
+                    const value = obj.splice(index, 1);
+                    result = obj.splice(position, 0, ...value);
+                } else if (key == 'swap') {
+                    const value = obj[args[0]];
+                    obj[args[0]] = obj[args[1]];
+                    obj[args[1]] = value;
                     result = true;
                 } else {
-                    result = Reflect.set(target, key, value, receiver);
+                    result = obj[key].apply(obj, args);
                 }
-                if (DerivedState.isDerived(value)) {
-                    value.onChange((value)=>processListeners(`${path}.${key}`, value, key));
+                if (result || result === 0) {
+                    console.info('ArrayWrapper(MutatingMethod) - Running listeners for change in:', obj, key, args);
+                    listeners.forEach((fn)=>fn());
                 }
-                if (result) processListeners(`${path}.${key}`, value, key, oldValue);
                 return result;
-            }
-        };
-    }
-    function arrayAccessor(path, parentTarget, parentKey) {
-        return {
-            get (target, key, receiver) {
-                if (key === '__proxy__') return true;
-                if (key == '__path__') return path;
-                const mutatingMethods = [
-                    'push',
-                    'pop',
-                    'shift',
-                    'unshift',
-                    'splice',
-                    'replace',
-                    'reverse',
-                    'sort',
-                    'move',
-                    'swap'
-                ];
-                if (mutatingMethods.includes(key)) {
-                    return function(...args) {
-                        let result, oldValue;
-                        if (key === 'replace') {
-                            oldValue = target[args[0]];
-                            result = target[args[0]] = args[1];
-                        } else if (key == 'move') {
-                            const index = args[0];
-                            const position = args[1] === undefined ? 0 : args[1];
-                            const value = target.splice(index, 1);
-                            result = target.splice(position, 0, ...value);
-                        } else if (key == 'swap') {
-                            const value = target[args[0]];
-                            target[args[0]] = target[args[1]];
-                            target[args[1]] = value;
-                            result = true;
-                        } else {
-                            result = target[key].apply(target, args);
-                        }
-                        receiver.forEach((item, index)=>{
-                            if (typeof path === 'object') item.__path__ = `${path}.${index}`;
-                        });
-                        if (result) processListeners(path, parentTarget, parentKey, oldValue);
-                        return result;
-                    };
-                }
-                const value = Reflect.get(target, key, receiver);
-                if (Array.isArray(value) && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, arrayAccessor(`${path}.${key}`, receiver, key));
-                    Reflect.set(target, key, proxiedValue, receiver);
-                    return proxiedValue;
-                } else if (typeof value === 'object' && value !== null && !value.__proxy__) {
-                    const proxiedValue = new Proxy(value, objectAccessor(`${path}.${key}`));
-                    Reflect.set(target, key, proxiedValue, receiver);
-                    return proxiedValue;
-                }
-                return value;
-            },
-            set (target, key, value, receiver) {
-                if (value && value.__proxy__) return true;
-                if (key == '__path__') {
-                    path = value;
-                    if (Array.isArray(receiver)) {
-                        for (const item of receiver)item.__path__ = `${path}.${key}`;
-                    } else if (typeof receiver === 'object') {
-                        for(const item in receiver){
-                            receiver[item].__path__ = `${path}.${key}`;
-                        }
-                    }
-                    return true;
-                }
-                const oldValue = receiver[key];
-                if (deepEqual(value, oldValue)) return true;
-                const result = Reflect.set(target, key, value, receiver);
-                if (DerivedState.isDerived(value)) {
-                    value.onChange((value)=>processListeners(`${path}.${key}`, value, key));
-                }
-                if (result) processListeners(path, parentTarget[parentKey], key, oldValue);
-                return result;
-            }
-        };
-    }
-    function processListeners(path, value, key, oldValue) {
-        const rootState = path.split('.')[0];
-        const parentPath = path.substring(0, path.lastIndexOf('.'));
-        let listeners = watchList.get(path);
-        if (listeners) listeners.forEach((listener)=>listener(value, key, oldValue));
-        listeners = watchList.get(parentPath);
-        if (listeners) listeners.forEach((listener)=>listener(value, key, oldValue));
-        if (parentPath != rootState) {
-            listeners = watchList.get(rootState);
-            if (listeners) listeners.forEach((listener)=>listener(value, key, oldValue));
+            };
         }
+        const value = Reflect.get(obj, key, wrapper);
+        if (Array.isArray(value)) {
+            if (!value[Symbols.isWrappedArray]) {
+                const wrappedArray = new Proxy(value, new ArrayWrapper(wrapper));
+                Reflect.set(obj, key, wrappedArray, wrapper);
+                return wrappedArray;
+            }
+            return value;
+        } else if (typeof value === 'object' && value !== null && !value[Symbols.isWrappedObject]) {
+            const wrappedObject = new Proxy(value, new ObjectWrapper(wrapper));
+            Reflect.set(obj, key, wrappedObject, wrapper);
+            return wrappedObject;
+        }
+        return value;
     }
+    set(obj, key, value, wrapper) {
+        const result = Reflect.set(obj, key, value, wrapper);
+        if (result) {
+            console.info('ArrayWrapper - Running listeners for change in:', obj, key, value);
+            this.#listeners.forEach((fn)=>fn());
+        }
+        return result;
+    }
+    onChange(fn) {
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
+    }
+}
+function observe(objectToObserve, config) {
+    const observablesCache = new WeakMap();
     function makeObservable(obj) {
         if (!obj || typeof obj !== 'object') {
             console.warn('Only objects can be observed. The following was provided:', obj);
@@ -1704,74 +1803,21 @@ function observe(objectToObserve, name, config) {
         if (observablesCache.has(obj)) {
             return observablesCache.get(obj);
         }
-        const proxy = new Proxy(obj, objectAccessor(name));
+        const proxy = new Proxy(obj, new ObjectWrapper());
         observablesCache.set(obj, proxy);
         return proxy;
-    }
-    function watch(path, fn, el) {
-        const entryId = listenerId++;
-        const getListeners = (path)=>{
-            let listeners = watchList.get(path);
-            if (!listeners) {
-                listeners = new Map();
-                watchList.set(path, listeners);
-            }
-            return listeners;
-        };
-        const getListener = (path, fn, el)=>{
-            return (object, key, oldValue)=>{
-                if (el && !el.parentElement) {
-                    const listeners = watchList.get(path);
-                    listeners.delete(entryId);
-                    return;
-                }
-                fn(object[key], oldValue);
-            };
-        };
-        let currentPath = path;
-        const listeners = getListeners(currentPath);
-        listeners.set(entryId, getListener(currentPath, fn, el));
-        return [
-            ()=>{
-                const listeners = watchList.get(currentPath);
-                if (listeners) {
-                    listeners.delete(entryId);
-                    if (listeners.size === 0) watchList.delete(currentPath);
-                }
-            },
-            (newPath)=>{
-                let listeners = watchList.get(currentPath);
-                if (listeners) {
-                    listeners.delete(entryId);
-                    if (listeners.size === 0) watchList.delete(currentPath);
-                }
-                currentPath = newPath;
-                listeners = getListeners(currentPath);
-                listeners.set(entryId, getListener(currentPath, fn, el));
-            }
-        ];
     }
     function derive(fn, deps) {
         const derivedObj = new DerivedState();
         derivedObj.value = fn();
-        deps.forEach((prop, index)=>{
+        deps.forEach((dep, index)=>{
             const cb = ()=>{
                 derivedObj.value = fn();
             };
-            if (Array.isArray(prop)) {
-                for (const item of prop){
-                    if (Prop.isProp(item) || StateProp.isStateProp(item)) {
-                        item.onChange(()=>cb());
-                    } else if (item.__path__) {
-                        watch(item.__path__, cb);
-                    }
-                }
-            } else if (Prop.isProp(prop) || StateProp.isStateProp(prop) || StatePrimitive.isPrimitive(prop)) {
-                prop.onChange(()=>cb());
-            } else if (prop !== null && prop !== undefined && prop.__path__) {
-                watch(prop.__path__, cb);
+            if (Array.isArray(dep) || dep.isProp || dep.isStateProp || dep.isWrappedPrimitive) {
+                derivedObj.watchers.push(dep.onChange(()=>cb()));
             } else {
-                throw `Dependency ${index} cannot be tracked as it has a value of:${prop}`;
+                throw new Error(`Dependency ${index} cannot be tracked as it has a value of:`, dep);
             }
         });
         return derivedObj;
@@ -1788,13 +1834,11 @@ function observe(objectToObserve, name, config) {
     const proxy = makeObservable(objectToObserve);
     if (config && config.persist && config.key) {
         loadState();
-        watch('appState', persistState);
+        proxy.onChange(persistState);
     }
     return [
         proxy,
-        derive,
-        watch,
-        watchList
+        derive
     ];
 }
 function registerAllowedOrigin(uri) {
@@ -1848,27 +1892,6 @@ function useTranslationPack(name) {
         }
         return translation;
     };
-}
-function deepEqual(a, b) {
-    if (a === b) return true;
-    if (a === null || b === null) return a === b;
-    if (Array.isArray(a) && Array.isArray(b)) {
-        if (a.length !== b.length) return false;
-        for(let i = 0; i < a.length; i++){
-            if (!deepEqual(a[i], b[i])) return false;
-        }
-        return true;
-    }
-    if (typeof a === 'object' && typeof b === 'object') {
-        const keysA = Object.keys(a);
-        const keysB = Object.keys(b);
-        if (keysA.length !== keysB.length) return false;
-        for (const key of keysA){
-            if (!deepEqual(a[key], b[key])) return false;
-        }
-        return true;
-    }
-    return false;
 }
 async function getDependencies(el) {
     const dependencies = [
@@ -1924,7 +1947,7 @@ async function importModule(url) {
     }
 }
 function isPrimitive(value) {
-    return typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value === null;
+    return typeof value == 'string' || typeof value == 'number' || typeof value == 'boolean' || value === null || value === undefined;
 }
 async function loadDependencies(dependencies) {
     try {
@@ -1994,206 +2017,45 @@ const toCamelCase = (str)=>{
     return str.replace(/-([a-z])/g, (_match, letter)=>letter.toUpperCase());
 };
 component('el', (el)=>{
-    const [pageState, _derivePageState, watchPageState] = el.pageState;
+    const [pageState] = el.pageState;
     let unwatchPageState;
     el.define({
         onRender: async (props)=>{
             for(const name in props){
-                if (name == 'checked') {
-                    if (el.type == 'checkbox') {
-                        if (Array.isArray(props[name].value)) {
-                            el.checked = props[name].value.includes(el.value);
-                        } else if (typeof props[name].value == 'boolean') {
-                            el.checked = props[name].value;
-                        } else {
-                            el.checked = props[name].value === el.value;
-                        }
-                    } else if (el.type == 'radio') {
-                        if (typeof props[name].value == 'boolean') {
-                            el.checked = props[name].value;
-                        } else {
-                            el.checked = props[name].value === el.value;
-                        }
-                    }
-                } else if (name == 'class') {
-                    const value = props[name].value;
-                    if (typeof value == 'string') {
-                        el.className = value;
-                    } else if (Array.isArray(value)) {
-                        el.className = value.join(' ');
-                    } else if (typeof value == 'object') {
-                        const names = [];
-                        for(const key in value){
-                            if (value[key]) names.push(key);
-                        }
-                        el.className = names.join(' ');
-                    }
-                } else if (name.startsWith('class:')) {
-                    const parts = name.split(':');
-                    if (parts.length === 2) {
-                        const className = parts[1];
-                        el.classList.toggle(className, props[name].value);
-                    }
-                } else if (name == 'component') {
+                if (name == 'component') {
                     if (props[name].value) await loadComponent(props[name].value);
                 } else if (name == 'text') {
                     el.textContent = props[name].pipedValue || props[name].value;
-                } else if (name == 'value') {
-                    el.value = props[name].value;
-                } else if (name == 'visible') {
-                    el.hidden = !props[name].value;
-                } else if (name == 'style') {
-                    const value = props[name].value;
-                    if (typeof value == 'string') {
-                        const styles = parseStyle(value);
-                        for(const key in styles){
-                            if (styles[key]) el.style[key] = styles[key];
-                        }
-                    } else if (typeof value == 'object' && !Array.isArray(value)) {
-                        for(const key in value){
-                            if (value[key]) el.style[key] = value[key];
-                        }
-                    }
-                } else if (name.startsWith('style:')) {
-                    const styleProp = name.split(':')[1];
-                    el.style[styleProp] = props[name].value;
                 } else if (name == 'translate') {
                     if (props['params'] === undefined) el.setProp('params', 'json:[]');
                     translate(props[name].value, props['params'].value);
-                } else if (name in el) {
-                    el[name] = props[name].value;
                 }
             }
         },
         onHydrate: (props)=>{
             for(const name in props){
-                if (name == 'checked') {
-                    if (el.type == 'checkbox') {
-                        props[name].onChange((value)=>{
-                            if (el.type == 'checkbox') {
-                                if (Array.isArray(props[name].value)) {
-                                    el.checked = props[name].value.includes(el.value);
-                                } else if (typeof value == 'boolean') {
-                                    el.checked = value;
-                                } else {
-                                    el.checked = value === el.value;
-                                }
-                            } else if (el.type == 'radio') {
-                                if (typeof value == 'boolean') {
-                                    el.checked = value;
-                                } else {
-                                    el.checked = value === el.value;
-                                }
-                            }
-                        });
-                        el.addEventListener('change', ()=>{
-                            if (Array.isArray(props[name].value)) {
-                                if (el.checked) {
-                                    props[name].value.push(el.value);
-                                } else {
-                                    const newList = props[name].value.filter((item)=>item !== el.value);
-                                    props[name].value = newList;
-                                }
-                            } else {
-                                props[name].value = el.checked;
-                            }
-                        });
-                    } else if (el.type == 'radio') {
-                        props[name].onChange((value)=>{
-                            el.checked = value === el.value;
-                        });
-                        el.addEventListener('change', ()=>{
-                            props[name].value = el.value;
-                        });
-                    }
-                } else if (name == 'class') {
-                    props[name].onChange((value)=>{
-                        if (typeof value == 'string') {
-                            el.className = value;
-                        } else if (Array.isArray(value)) {
-                            el.className = value.join(' ');
-                        } else if (typeof value == 'object') {
-                            const names = [];
-                            for(const key in value){
-                                if (value[key]) names.push(key);
-                            }
-                            el.className = names.join(' ');
-                        }
+                if (name == 'component') {
+                    props[name].onChange(async ()=>{
+                        await loadComponent(props[name].value);
                     });
-                } else if (name.startsWith('class:')) {
-                    props[name].onChange((value)=>{
-                        const parts = name.split(':');
-                        if (parts.length === 2) {
-                            const className = parts[1];
-                            el.classList.toggle(className, value);
-                        }
-                    });
-                } else if (name == 'component') {
-                    props[name].onChange(async (value)=>{
-                        await loadComponent(value);
-                    });
-                } else if (name.startsWith('on:')) {
-                    props[name].onChange((value)=>{
-                        const onProp = name.replace(':', '');
-                        if (typeof value == 'function') {
-                            el[onProp] = value;
-                        } else if (typeof value == 'string') {
-                            el[onProp] = (data)=>{
-                                el.emit(value, data);
-                            };
-                        }
-                    }, true);
                 } else if (name == 'text') {
-                    props[name].onChange((value, pipedValue)=>{
-                        el.textContent = pipedValue || value;
+                    props[name].onChange(()=>{
+                        el.textContent = props[name].pipedValue || props[name].value;
                     });
                     el.addEventListener('input', ()=>{
                         props[name].value = el.textContent;
                     });
-                } else if (name == 'value') {
-                    props[name].onChange((value)=>{
-                        el.value = value;
-                    });
-                    el.addEventListener('input', ()=>{
-                        props[name].value = el.value;
-                    });
-                } else if (name == 'visible') {
-                    props[name].onChange((value)=>{
-                        el.hidden = !value;
-                    });
-                } else if (name == 'style') {
-                    props[name].onChange((value)=>{
-                        if (typeof value == 'string') {
-                            const styles = parseStyle(value);
-                            for(const key in styles){
-                                if (styles[key]) el.style[key] = styles[key];
-                            }
-                        } else if (typeof value == 'object' && !Array.isArray(value)) {
-                            for(const key in value){
-                                if (value[key]) el.style[key] = value[key];
-                            }
-                        }
-                    });
-                } else if (name.startsWith('style:')) {
-                    props[name].onChange((value)=>{
-                        const styleProp = name.split(':')[1];
-                        el.style[styleProp] = value;
-                    });
                 } else if (name == 'translate') {
                     if (props['params'] === undefined) el.setProp('params', 'json:[]');
-                    props[name].onChange((value)=>{
-                        translate(value, props['params'].value);
+                    props[name].onChange(()=>{
+                        translate(props['translate'].value, props['params'].value);
                     });
-                    props['params'].onChange((value)=>{
-                        translate(props['translate'].value, value);
+                    props['params'].onChange(()=>{
+                        translate(props['translate'].value, props['params'].value);
                     });
-                    unwatchPageState = watchPageState('pageState.activeTranslationPack', ()=>{
+                    unwatchPageState = pageState.activeTranslationPack$.onChange(()=>{
                         translate(props['translate'].value, props['params'].value);
                     })[0];
-                } else {
-                    props[name].onChange((value)=>{
-                        el[name] = value;
-                    });
                 }
             }
         },
@@ -2246,28 +2108,28 @@ component('list', (el)=>{
             await createComponents(props);
         },
         onHydrate: (props)=>{
-            props.src.onChange((src)=>{
-                props.src.value = src;
+            props.src.onChange(()=>{
                 listItems = transformSourceList(props);
                 const currentOrder = [];
                 let index = 0;
                 for(const id in el.components){
                     currentOrder.push({
                         id,
-                        index: index++
+                        index: index++,
+                        uid: el.components[id].props.uid.value
                     });
                 }
                 const newOrder = [];
                 index = 0;
-                for (const item of props.src.value){
-                    const id = item.id;
+                for (const item of props.source.value){
                     newOrder.push({
-                        id,
-                        index: index++
+                        id: item.id,
+                        index: index++,
+                        uid: item[Symbols.objectUID]
                     });
                 }
                 reconcileDom(currentOrder, newOrder);
-                if (currentOrder.length === 0) {
+                if (newOrder.length === currentOrder.length) {
                     el.emit('ItemsUpdated', null, {
                         async: true
                     });
@@ -2288,7 +2150,7 @@ component('list', (el)=>{
     });
     function transformSourceList(props) {
         const items = {};
-        for (const item of props.src.value){
+        for (const item of props.source.value){
             items[String(item[props.componentId.value])] = item;
         }
         return items;
@@ -2305,18 +2167,19 @@ component('list', (el)=>{
             const component = el.ownerDocument.importNode(templateFragment, true);
             const compIs = component.dataset.is + ':' + id;
             component.setAttribute('data-is', compIs);
-            component.setAttribute(`data-${propName}`, `bind:src.${index}`);
+            component.setAttribute(`data-${propName}`, `bind:source.${index}`);
             component.setAttribute('data-index', 'num:' + index++);
+            component.setAttribute('data-uid', 'num:' + listItems[id][Symbols.objectUID]);
             await insertElement(el, component, 'append', '', true);
         }
     }
     async function reconcileDom(currentOrder, newOrder) {
-        const nextById = newOrder.map((item)=>item.id.toString());
-        for (const { id } of currentOrder){
-            if (!nextById.includes(id)) {
-                const node = el.components[id];
+        const nextByUID = newOrder.map((item)=>item.uid);
+        for (const item of currentOrder){
+            if (!nextByUID.includes(item.uid)) {
+                const node = el.components[item.id];
                 if (node && node.parent === el) {
-                    el.components[id].unmount();
+                    await el.components[item.id].unmount();
                 }
             }
         }
@@ -2335,8 +2198,9 @@ component('list', (el)=>{
                 const component = el.ownerDocument.importNode(templateFragment, true);
                 const compIs = component.dataset.is + ':' + id;
                 component.setAttribute('data-is', compIs);
-                component.setAttribute(`data-${propName}`, `bind:src.${i}`);
+                component.setAttribute(`data-${propName}`, `bind:source.${i}`);
                 component.setAttribute('data-index', 'num:' + i);
+                component.setAttribute('data-uid', 'num:' + newOrder[i].uid);
                 await insertElement(el, component, action, elId, true);
             } else {
                 const referenceNode = el.childNodes[i];
@@ -2347,14 +2211,6 @@ component('list', (el)=>{
                 }
                 if (node.props.index.value === i) continue;
                 node.props.index.value = i;
-                for(const prop in node.props){
-                    const statePath = node.props[prop].statePath;
-                    if (statePath && statePath.startsWith(el.props.src.statePath + '.')) {
-                        const arrPath = statePath.split('.');
-                        arrPath[arrPath.length - 1] = i.toString();
-                        reIndexStatePath(el.components[id], statePath, arrPath.join('.'), 0);
-                    }
-                }
             }
         }
     }
@@ -2367,7 +2223,7 @@ component('link', (el)=>{
         },
         onHydrate: ({ href, disabled, onclick })=>{
             let onClick = ()=>true;
-            if (href) href.onChange((value)=>el.setAttribute('href', value));
+            if (href) href.onChange(()=>el.setAttribute('href', href.value));
             if (onclick) onClick = onclick.value;
             el.addEventListener('click', (event)=>{
                 event.preventDefault();
@@ -2380,8 +2236,8 @@ component('link', (el)=>{
     });
 });
 component('translate', (el)=>{
-    const [appState, _deriveAppState, watchAppState] = el.appState;
-    const [pageState, _derivePageState, watchPageState] = el.pageState;
+    const [appState] = el.appState;
+    const [pageState] = el.pageState;
     const [state] = el.state;
     el.define({
         onRender: ({ params })=>{
@@ -2389,15 +2245,9 @@ component('translate', (el)=>{
             state.params = params.value;
         },
         onHydrate: ({ params })=>{
-            params.onChange((value)=>{
-                setCaption(value);
-                state.params = value;
-            });
-            watchAppState('appState.activeTranslationPack', ()=>{
-                setCaption(state.params);
-            });
-            watchPageState('pageState.activeTranslationPack', ()=>{
-                setCaption(state.params);
+            params.onChange(()=>{
+                setCaption(params.value);
+                state.params = params.value;
             });
         }
     });
@@ -2410,7 +2260,7 @@ component('translate', (el)=>{
                 try {
                     const paramsArray = JSON.parse(params);
                     el.textContent = translate(el.compId, ...paramsArray);
-                } catch (e) {
+                } catch (_e) {
                     el.textContent = translate(el.compId, params);
                 }
             }
