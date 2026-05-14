@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.289');
+console.log('elementJS:', 'v1.0.0-preview.290');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -324,9 +324,6 @@ class Prop {
     #value = undefined;
     #pipedValue = undefined;
     #pipeChain = undefined;
-    static isProp(obj) {
-        return obj == null ? undefined : obj.isProp;
-    }
     constructor(value, el){
         this.#el = el;
         this.#value = value;
@@ -1213,7 +1210,8 @@ async function onHydrate(el, props) {
     for(const name in props){
         if (name == 'checked' && el.tagName == 'INPUT') {
             if (el.type == 'checkbox') {
-                props[name].onChange((value)=>{
+                props[name].onChange(()=>{
+                    const value = props[name].value;
                     if (Array.isArray(props[name].value)) {
                         el.checked = props[name].value.includes(el.value);
                     } else if (typeof value == 'boolean') {
@@ -1235,7 +1233,8 @@ async function onHydrate(el, props) {
                     }
                 });
             } else if (el.type == 'radio') {
-                props[name].onChange((value)=>{
+                props[name].onChange(()=>{
+                    const value = props[name].value;
                     el.checked = value === el.value;
                 });
                 el.addEventListener('change', ()=>{
@@ -1243,7 +1242,8 @@ async function onHydrate(el, props) {
                 });
             }
         } else if (name == 'class') {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 if (typeof value == 'string') {
                     el.className = value;
                 } else if (Array.isArray(value)) {
@@ -1308,14 +1308,16 @@ async function onHydrate(el, props) {
                 el.style[styleProp] = value;
             });
         } else if (name == 'value' && (el.tagName == 'INPUT' || el.tagName == 'SELECT')) {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 el.value = value;
             });
             el.addEventListener('input', ()=>{
                 props[name].value = el.value;
             });
         } else if (name in el) {
-            props[name].onChange((value)=>{
+            props[name].onChange(()=>{
+                const value = props[name].value;
                 el[name] = value;
             });
         }
@@ -1376,7 +1378,6 @@ async function onCleanup(el) {
         descendant.parent = null;
     }
     await el[Symbols.onCleanup]();
-    unwatchElementProps(el);
     delete el.parent.components[el.compId];
     setTimeout(()=>{
         el.parent = null;
@@ -1504,16 +1505,6 @@ function getBoundProp(el, path) {
             }
             return new Prop(value, el);
         }
-    }
-}
-function unwatchElementProps(el) {
-    for(const id in el.components){
-        const child = el.components[id];
-        unwatchElementProps(child);
-    }
-    for(const prop in el.props){
-        const value = el.props[prop];
-        value.removeListeners();
     }
 }
 async function insertElement(parent, component, action, elId, autoInit) {
