@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.294');
+console.log('elementJS:', 'v1.0.0-preview.295');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -420,44 +420,6 @@ class StateProp {
         }
     }
 }
-class PrimitiveWrapper {
-    #listeners = new Map();
-    #listenerKey = 0;
-    #parent = undefined;
-    #value = undefined;
-    constructor(parent, value){
-        this.#parent = parent;
-        this.#value = value;
-    }
-    get isWrappedPrimitive() {
-        return true;
-    }
-    get value() {
-        return this.#value;
-    }
-    set value(value) {
-        if (this.#value === value) return;
-        this.#value = value;
-        this.#listeners.forEach((fn)=>fn());
-        this.#parent[Symbols.runListeners];
-    }
-    removeListeners() {
-        this.#listeners.clear();
-    }
-    onChange(fn, execute = false) {
-        const listenerKey = this.#listenerKey++;
-        this.#listeners.set(listenerKey, fn);
-        if (execute) fn();
-        return [
-            ()=>{
-                this.#listeners.delete(listenerKey);
-            },
-            ()=>{
-                this.#listeners.set(listenerKey, fn);
-            }
-        ];
-    }
-}
 class DerivedState {
     #watchers = [];
     #listeners = new Map();
@@ -523,6 +485,239 @@ class DerivedState {
         }
     }
 }
+class ObjectWrapper {
+    #listeners = new Map();
+    #listenerKey = 0;
+    #parent;
+    #objectUID = objectUID++;
+    constructor(parent){
+        this.#parent = parent;
+    }
+    get(obj, key, wrapper) {
+        let returnWrapper = false;
+        if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
+        if (typeof key == 'symbol' && key === Symbols.target) {
+            return obj;
+        }
+        if (typeof key == 'symbol' && key === Symbols.objectUID) {
+            return this.#objectUID;
+        }
+        if (typeof key == 'symbol' && key === Symbols.runListeners) {
+            this.#listeners.forEach((fn)=>fn());
+            return;
+        }
+        if (typeof key == 'symbol') {
+            return key === Symbols.isWrappedObject;
+        }
+        if (key == 'parent$') return this.#parent;
+        if (key == 'onChange') return (fn)=>{
+            this.onChange(fn);
+        };
+        if (key == 'removeListeners') return ()=>{
+            this.removeListeners();
+        };
+        if (typeof key == 'string' && key.endsWith('$')) {
+            key = key.slice(0, -1);
+            returnWrapper = true;
+        }
+        const value = Reflect.get(obj, key, wrapper);
+        if (typeof value === 'object' && value.isDerivedState) {
+            return returnWrapper ? value : value.value;
+        } else if (typeof value === 'object' && value.isWrappedPrimitive) {
+            return returnWrapper ? value : value.value;
+        } else if (Array.isArray(value)) {
+            if (!value[Symbols.isWrappedArray]) {
+                const wrappedArray = new Proxy(value, new ArrayWrapper(wrapper));
+                Reflect.set(obj, key, wrappedArray, wrapper);
+                return wrappedArray;
+            }
+            return value;
+        } else if (typeof value === 'object' && value !== null && !value[Symbols.isWrappedObject]) {
+            const wrappedObject = new Proxy(value, new ObjectWrapper(wrapper));
+            Reflect.set(obj, key, wrappedObject, wrapper);
+            return wrappedObject;
+        } else if (isPrimitive(value)) {
+            const wrappedPrimitive = new PrimitiveWrapper(wrapper, value);
+            Reflect.set(obj, key, wrappedPrimitive, wrapper);
+            return returnWrapper ? wrappedPrimitive : value;
+        }
+        return value;
+    }
+    set(obj, key, value, wrapper) {
+        let result;
+        if (isPrimitive(value)) {
+            if (obj[key] instanceof PrimitiveWrapper) {
+                obj[key].value = value;
+            } else {
+                const wrappedPrimitive = new PrimitiveWrapper(wrapper, value);
+                Reflect.set(obj, key, wrappedPrimitive, wrapper);
+            }
+            result = true;
+        } else {
+            result = Reflect.set(obj, key, value, wrapper);
+        }
+        if (result) {
+            this.#listeners.forEach((fn)=>fn());
+        }
+        return result;
+    }
+    removeListeners() {
+        this.#listeners.clear();
+    }
+    onChange(fn) {
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
+    }
+}
+class ArrayWrapper {
+    #listeners = new Map();
+    #listenerKey = 0;
+    #parent;
+    #mutatingMethods = [
+        'move',
+        'pop',
+        'push',
+        'replace',
+        'replaceWith',
+        'reverse',
+        'shift',
+        'sort',
+        'splice',
+        'swap',
+        'unshift'
+    ];
+    constructor(parent){
+        this.#parent = parent;
+    }
+    get(obj, key, wrapper) {
+        if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
+        if (typeof key == 'symbol' && key === Symbols.target) {
+            return obj;
+        }
+        if (typeof key == 'symbol' && key === Symbols.runListeners) {
+            this.#listeners.forEach((fn)=>fn());
+            return;
+        }
+        if (key === Symbols.isWrappedArray) return true;
+        if (key == 'parent$') return this.#parent;
+        if (key == 'onChange') return (fn)=>{
+            this.onChange(fn);
+        };
+        if (key == 'removeListeners') return ()=>{
+            this.removeListeners();
+        };
+        if (this.#mutatingMethods.includes(key)) {
+            const listeners = this.#listeners;
+            return (...args)=>{
+                let result;
+                if (key === 'replace') {
+                    result = obj[args[0]] = args[1];
+                } else if (key == 'replaceWith') {
+                    obj.length = 0;
+                    result = obj.push(...args[0]);
+                } else if (key == 'move') {
+                    const index = args[0];
+                    const position = args[1] === undefined ? 0 : args[1];
+                    const value = obj.splice(index, 1);
+                    result = obj.splice(position, 0, ...value);
+                } else if (key == 'swap') {
+                    const value = obj[args[0]];
+                    obj[args[0]] = obj[args[1]];
+                    obj[args[1]] = value;
+                    result = true;
+                } else {
+                    result = obj[key].apply(obj, args);
+                }
+                if (result || result === 0) {
+                    listeners.forEach((fn)=>fn());
+                }
+                return result;
+            };
+        }
+        const value = Reflect.get(obj, key, wrapper);
+        if (Array.isArray(value)) {
+            if (!value[Symbols.isWrappedArray]) {
+                const wrappedArray = new Proxy(value, new ArrayWrapper(wrapper));
+                Reflect.set(obj, key, wrappedArray, wrapper);
+                return wrappedArray;
+            }
+            return value;
+        } else if (typeof value === 'object' && value !== null && !value[Symbols.isWrappedObject]) {
+            const wrappedObject = new Proxy(value, new ObjectWrapper(wrapper));
+            Reflect.set(obj, key, wrappedObject, wrapper);
+            return wrappedObject;
+        }
+        return value;
+    }
+    set(obj, key, value, wrapper) {
+        const result = Reflect.set(obj, key, value, wrapper);
+        if (result) {
+            this.#listeners.forEach((fn)=>fn());
+        }
+        return result;
+    }
+    removeListeners() {
+        this.#listeners.clear();
+    }
+    onChange(fn) {
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
+    }
+}
+class PrimitiveWrapper {
+    #listeners = new Map();
+    #listenerKey = 0;
+    #parent = undefined;
+    #value = undefined;
+    constructor(parent, value){
+        this.#parent = parent;
+        this.#value = value;
+    }
+    get isWrappedPrimitive() {
+        return true;
+    }
+    get value() {
+        return this.#value;
+    }
+    set value(value) {
+        if (this.#value === value) return;
+        this.#value = value;
+        this.#listeners.forEach((fn)=>fn());
+        this.#parent[Symbols.runListeners];
+    }
+    removeListeners() {
+        this.#listeners.clear();
+    }
+    onChange(fn, execute = false) {
+        const listenerKey = this.#listenerKey++;
+        this.#listeners.set(listenerKey, fn);
+        if (execute) fn();
+        return [
+            ()=>{
+                this.#listeners.delete(listenerKey);
+            },
+            ()=>{
+                this.#listeners.set(listenerKey, fn);
+            }
+        ];
+    }
+}
 const feature = new Feature();
 const registeredAllowedOrigins = [
     ''
@@ -537,6 +732,7 @@ const registeredRoutes = {};
 const resourceCache = new Map();
 let intersectionObserver;
 let idCount = 0;
+let objectUID = 0;
 (function() {
     globalThis.addEventListener('message', processMessageEvent, false);
     globalThis.addEventListener('popstate', processPopStateEvent, false);
@@ -1607,202 +1803,6 @@ function navigateTo(path) {
     else {
         globalThis.history.pushState({}, '', path);
         dispatchEvent(new Event('popstate'));
-    }
-}
-let objectUID = 0;
-class ObjectWrapper {
-    #listeners = new Map();
-    #listenerKey = 0;
-    #parent;
-    #objectUID = objectUID++;
-    constructor(parent){
-        this.#parent = parent;
-    }
-    get(obj, key, wrapper) {
-        let returnWrapper = false;
-        if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
-        if (typeof key == 'symbol' && key === Symbols.target) {
-            return obj;
-        }
-        if (typeof key == 'symbol' && key === Symbols.objectUID) {
-            return this.#objectUID;
-        }
-        if (typeof key == 'symbol' && key === Symbols.runListeners) {
-            this.#listeners.forEach((fn)=>fn());
-            return;
-        }
-        if (typeof key == 'symbol') {
-            return key === Symbols.isWrappedObject;
-        }
-        if (key == 'parent$') return this.#parent;
-        if (key == 'onChange') return (fn)=>{
-            this.onChange(fn);
-        };
-        if (key == 'removeListeners') return ()=>{
-            this.removeListeners();
-        };
-        if (typeof key == 'string' && key.endsWith('$')) {
-            key = key.slice(0, -1);
-            returnWrapper = true;
-        }
-        const value = Reflect.get(obj, key, wrapper);
-        if (typeof value === 'object' && value.isDerivedState) {
-            return returnWrapper ? value : value.value;
-        } else if (typeof value === 'object' && value.isWrappedPrimitive) {
-            return returnWrapper ? value : value.value;
-        } else if (Array.isArray(value)) {
-            if (!value[Symbols.isWrappedArray]) {
-                const wrappedArray = new Proxy(value, new ArrayWrapper(wrapper));
-                Reflect.set(obj, key, wrappedArray, wrapper);
-                return wrappedArray;
-            }
-            return value;
-        } else if (typeof value === 'object' && value !== null && !value[Symbols.isWrappedObject]) {
-            const wrappedObject = new Proxy(value, new ObjectWrapper(wrapper));
-            Reflect.set(obj, key, wrappedObject, wrapper);
-            return wrappedObject;
-        } else if (isPrimitive(value)) {
-            const wrappedPrimitive = new PrimitiveWrapper(wrapper, value);
-            Reflect.set(obj, key, wrappedPrimitive, wrapper);
-            return returnWrapper ? wrappedPrimitive : value;
-        }
-        return value;
-    }
-    set(obj, key, value, wrapper) {
-        let result;
-        if (isPrimitive(value)) {
-            if (obj[key] instanceof PrimitiveWrapper) {
-                obj[key].value = value;
-            } else {
-                const wrappedPrimitive = new PrimitiveWrapper(wrapper, value);
-                Reflect.set(obj, key, wrappedPrimitive, wrapper);
-            }
-            result = true;
-        } else {
-            result = Reflect.set(obj, key, value, wrapper);
-        }
-        if (result) {
-            this.#listeners.forEach((fn)=>fn());
-        }
-        return result;
-    }
-    removeListeners() {
-        this.#listeners.clear();
-    }
-    onChange(fn) {
-        const listenerKey = this.#listenerKey++;
-        this.#listeners.set(listenerKey, fn);
-        return [
-            ()=>{
-                this.#listeners.delete(listenerKey);
-            },
-            ()=>{
-                this.#listeners.set(listenerKey, fn);
-            }
-        ];
-    }
-}
-class ArrayWrapper {
-    #listeners = new Map();
-    #listenerKey = 0;
-    #parent;
-    #mutatingMethods = [
-        'move',
-        'pop',
-        'push',
-        'replace',
-        'replaceWith',
-        'reverse',
-        'shift',
-        'sort',
-        'splice',
-        'swap',
-        'unshift'
-    ];
-    constructor(parent){
-        this.#parent = parent;
-    }
-    get(obj, key, wrapper) {
-        if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
-        if (typeof key == 'symbol' && key === Symbols.target) {
-            return obj;
-        }
-        if (typeof key == 'symbol' && key === Symbols.runListeners) {
-            this.#listeners.forEach((fn)=>fn());
-            return;
-        }
-        if (key === Symbols.isWrappedArray) return true;
-        if (key == 'parent$') return this.#parent;
-        if (key == 'onChange') return (fn)=>{
-            this.onChange(fn);
-        };
-        if (key == 'removeListeners') return ()=>{
-            this.removeListeners();
-        };
-        if (this.#mutatingMethods.includes(key)) {
-            const listeners = this.#listeners;
-            return (...args)=>{
-                let result;
-                if (key === 'replace') {
-                    result = obj[args[0]] = args[1];
-                } else if (key == 'replaceWith') {
-                    obj.length = 0;
-                    result = obj.push(...args[0]);
-                } else if (key == 'move') {
-                    const index = args[0];
-                    const position = args[1] === undefined ? 0 : args[1];
-                    const value = obj.splice(index, 1);
-                    result = obj.splice(position, 0, ...value);
-                } else if (key == 'swap') {
-                    const value = obj[args[0]];
-                    obj[args[0]] = obj[args[1]];
-                    obj[args[1]] = value;
-                    result = true;
-                } else {
-                    result = obj[key].apply(obj, args);
-                }
-                if (result || result === 0) {
-                    listeners.forEach((fn)=>fn());
-                }
-                return result;
-            };
-        }
-        const value = Reflect.get(obj, key, wrapper);
-        if (Array.isArray(value)) {
-            if (!value[Symbols.isWrappedArray]) {
-                const wrappedArray = new Proxy(value, new ArrayWrapper(wrapper));
-                Reflect.set(obj, key, wrappedArray, wrapper);
-                return wrappedArray;
-            }
-            return value;
-        } else if (typeof value === 'object' && value !== null && !value[Symbols.isWrappedObject]) {
-            const wrappedObject = new Proxy(value, new ObjectWrapper(wrapper));
-            Reflect.set(obj, key, wrappedObject, wrapper);
-            return wrappedObject;
-        }
-        return value;
-    }
-    set(obj, key, value, wrapper) {
-        const result = Reflect.set(obj, key, value, wrapper);
-        if (result) {
-            this.#listeners.forEach((fn)=>fn());
-        }
-        return result;
-    }
-    removeListeners() {
-        this.#listeners.clear();
-    }
-    onChange(fn) {
-        const listenerKey = this.#listenerKey++;
-        this.#listeners.set(listenerKey, fn);
-        return [
-            ()=>{
-                this.#listeners.delete(listenerKey);
-            },
-            ()=>{
-                this.#listeners.set(listenerKey, fn);
-            }
-        ];
     }
 }
 function observe(objectToObserve, config) {
