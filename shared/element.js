@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.292');
+console.log('elementJS:', 'v1.0.0-preview.293');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -11,13 +11,15 @@ const Symbols = {
     isWrappedObject: Symbol('isWrappedObject'),
     isWrappedArray: Symbol('isWrappedArray'),
     objectUID: Symbol('objectUID'),
-    runListeners: Symbol('runListeners')
+    runListeners: Symbol('runListeners'),
+    target: Symbol('target')
 };
 const SymbolsLookUp = {
     'Symbol(isWrappedObject)': true,
     'Symbol(isWrappedArray)': true,
     'Symbol(objectUID)': true,
-    'Symbol(runListeners)': true
+    'Symbol(runListeners)': true,
+    'Symbol(target)': true
 };
 const appContext = {
     server: globalThis.Deno ? true : false,
@@ -1619,6 +1621,9 @@ class ObjectWrapper {
     get(obj, key, wrapper) {
         let returnWrapper = false;
         if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
+        if (typeof key == 'symbol' && key === Symbols.target) {
+            return obj;
+        }
         if (typeof key == 'symbol' && key === Symbols.objectUID) {
             return this.#objectUID;
         }
@@ -1719,6 +1724,9 @@ class ArrayWrapper {
     }
     get(obj, key, wrapper) {
         if (typeof key == 'symbol' && !SymbolsLookUp[key.toString()]) return Reflect.get(obj, key, wrapper);
+        if (typeof key == 'symbol' && key === Symbols.target) {
+            return obj;
+        }
         if (typeof key == 'symbol' && key === Symbols.runListeners) {
             this.#listeners.forEach((fn)=>fn());
             return;
