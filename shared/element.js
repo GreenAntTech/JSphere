@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.293');
+console.log('elementJS:', 'v1.0.0-preview.294');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -69,7 +69,7 @@ const pipes = {
     },
     date (value, format = 'mediumDate', locale = 'en-US', timezone) {
         let date = value instanceof Date ? value : new Date(value);
-        if ('__target__' in date) date = date.__target__;
+        if (date[Symbols.target]) date = date[Symbols.target];
         const tz = normalizeTimezone(timezone);
         if (tz && tz.type === 'offset') {
             date = shiftDateByOffset(date, tz.offsetMinutes);
