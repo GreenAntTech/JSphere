@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.291');
+console.log('elementJS:', 'v1.0.0-preview.292');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -372,6 +372,12 @@ class StateProp {
     }
     get isStateProp() {
         return true;
+    }
+    get key() {
+        return this.#key;
+    }
+    set key(value) {
+        this.#key = value;
     }
     get value() {
         let value;
@@ -1671,7 +1677,6 @@ class ObjectWrapper {
             result = Reflect.set(obj, key, value, wrapper);
         }
         if (result) {
-            console.info('ObjectWrapper - Running listeners for change in:', obj, key, value);
             this.#listeners.forEach((fn)=>fn());
         }
         return result;
@@ -1749,7 +1754,6 @@ class ArrayWrapper {
                     result = obj[key].apply(obj, args);
                 }
                 if (result || result === 0) {
-                    console.info('ArrayWrapper(MutatingMethod) - Running listeners for change in:', obj, key, args);
                     listeners.forEach((fn)=>fn());
                 }
                 return result;
@@ -1773,7 +1777,6 @@ class ArrayWrapper {
     set(obj, key, value, wrapper) {
         const result = Reflect.set(obj, key, value, wrapper);
         if (result) {
-            console.info('ArrayWrapper - Running listeners for change in:', obj, key, value);
             this.#listeners.forEach((fn)=>fn());
         }
         return result;
@@ -2187,6 +2190,7 @@ component('list', (el)=>{
         for(let i = 0; i < newOrder.length; i++){
             const { id } = newOrder[i];
             const node = el.components[id];
+            const propName = el.props.item && el.props.item.value ? el.props.item.value : 'item';
             if (node === undefined) {
                 let action;
                 let elId;
@@ -2195,7 +2199,6 @@ component('list', (el)=>{
                 } else {
                     action = 'after', elId = newOrder[i - 1].id;
                 }
-                const propName = el.props.item && el.props.item.value ? el.props.item.value : 'item';
                 const component = el.ownerDocument.importNode(templateFragment, true);
                 const compIs = component.dataset.is + ':' + id;
                 component.setAttribute('data-is', compIs);
@@ -2212,6 +2215,9 @@ component('list', (el)=>{
                 }
                 if (node.props.index.value === i) continue;
                 node.props.index.value = i;
+                if (node.props[propName].isStateProp) {
+                    node.props[propName].key = i;
+                }
             }
         }
     }
