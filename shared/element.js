@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.295');
+console.log('elementJS:', 'v1.0.0-preview.296');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -403,7 +403,7 @@ class StateProp {
     removeListeners() {
         if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
             return this.#obj[this.#key + '$'].removeListeners();
-        } else if (this.#obj[this.#key + '$'] instanceof DerivedState) {
+        } else if (this.#obj[this.#key + '$'] instanceof ComputedState) {
             return this.#obj[this.#key + '$'].removeListeners();
         } else {
             return this.#obj[this.#key].removeListeners();
@@ -413,14 +413,14 @@ class StateProp {
         if (execute || this.#el.hydratedOn) fn();
         if (this.#obj[this.#key + '$'] instanceof PrimitiveWrapper) {
             return this.#obj[this.#key + '$'].onChange(fn);
-        } else if (this.#obj[this.#key + '$'] instanceof DerivedState) {
+        } else if (this.#obj[this.#key + '$'] instanceof ComputedState) {
             return this.#obj[this.#key + '$'].onChange(fn);
         } else {
             return this.#obj[this.#key].onChange(fn);
         }
     }
 }
-class DerivedState {
+class ComputedState {
     #watchers = [];
     #listeners = new Map();
     #listenerKey = 0;
@@ -428,7 +428,7 @@ class DerivedState {
     constructor(value){
         this.#value = value;
     }
-    get isDerivedState() {
+    get isComputedState() {
         return true;
     }
     get value() {
@@ -521,7 +521,7 @@ class ObjectWrapper {
             returnWrapper = true;
         }
         const value = Reflect.get(obj, key, wrapper);
-        if (typeof value === 'object' && value.isDerivedState) {
+        if (typeof value === 'object' && value.isComputedState) {
             return returnWrapper ? value : value.value;
         } else if (typeof value === 'object' && value.isWrappedPrimitive) {
             return returnWrapper ? value : value.value;
@@ -1819,20 +1819,20 @@ function observe(objectToObserve, config) {
         observablesCache.set(obj, proxy);
         return proxy;
     }
-    function derive(fn, deps) {
-        const derivedObj = new DerivedState();
-        derivedObj.value = fn();
+    function computed(fn, deps) {
+        const computedObj = new ComputedState();
+        computedObj.value = fn();
         deps.forEach((dep, index)=>{
             const cb = ()=>{
-                derivedObj.value = fn();
+                computedObj.value = fn();
             };
             if (Array.isArray(dep) || dep.isProp || dep.isStateProp || dep.isWrappedPrimitive) {
-                derivedObj.watchers.push(dep.onChange(()=>cb()));
+                computedObj.watchers.push(dep.onChange(()=>cb()));
             } else {
                 throw new Error(`Dependency ${index} cannot be tracked as it has a value of:`, dep);
             }
         });
-        return derivedObj;
+        return computedObj;
     }
     function persistState() {
         localStorage.setItem(config.key, JSON.stringify(proxy));
@@ -1850,7 +1850,7 @@ function observe(objectToObserve, config) {
     }
     return [
         proxy,
-        derive
+        computed
     ];
 }
 function registerAllowedOrigin(uri) {
