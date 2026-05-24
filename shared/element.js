@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.297');
+console.log('elementJS:', 'v1.0.0-preview.298');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -1437,13 +1437,12 @@ async function onHydrate(el, props) {
         if (name == 'checked' && el.tagName == 'INPUT') {
             if (el.type == 'checkbox') {
                 props.checked$.onChange(()=>{
-                    const value = props.checked;
                     if (Array.isArray(props.checked)) {
                         el.checked = props.checked.includes(el.value);
-                    } else if (typeof value == 'boolean') {
-                        el.checked = value;
+                    } else if (typeof props.checked == 'boolean') {
+                        el.checked = props.checked;
                     } else {
-                        el.checked = value === el.value;
+                        el.checked = props.checked === el.value;
                     }
                 });
                 el.addEventListener('change', ()=>{
@@ -1712,7 +1711,7 @@ function getBoundProp(el, path) {
         if (arrPath.length === 1) {
             return el.parent.props[arrPath[0] + '$'];
         } else if (el.parent.props[arrPath[0] + '$'].isStateProp) {
-            let stateObj = parentPropValue.value;
+            let stateObj = parentPropValue;
             for(let i = 1; i < arrPath.length - 1; i++){
                 stateObj = stateObj[arrPath[i]];
             }
@@ -2061,7 +2060,6 @@ component('el', (el)=>{
                 } else if (name == 'text') {
                     el.textContent = props.text$.pipedValue || props.text;
                 } else if (name == 'translate') {
-                    if (props['params'] === undefined) el.setProp('params', 'json:[]');
                     translate(props.translate, props.params);
                 }
             }
@@ -2138,7 +2136,6 @@ component('list', (el)=>{
             el.setProp('componentId', 'id');
         },
         onRender: async (props)=>{
-            if (!props.componentId) el.setProp('componentId', 'id');
             listItems = transformSourceList(props);
             await clearComponents();
             await createComponents(props);
@@ -2263,7 +2260,7 @@ component('link', (el)=>{
         onHydrate: (props)=>{
             let onClick = ()=>true;
             if (props.href) props.href$.onChange(()=>el.setAttribute('href', props.href));
-            if (onclick) onClick = onclick;
+            if (props.onclick) onClick = props.onclick;
             el.addEventListener('click', (event)=>{
                 event.preventDefault();
                 if (props.disabled) return;
