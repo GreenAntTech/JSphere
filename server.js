@@ -25265,7 +25265,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.298';
+const version = 'v1.0.0-preview.299';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25442,6 +25442,7 @@ async function init1(config) {
     }
 }
 async function handleRequest7(request) {
+    debugger;
     let response;
     const directives = [];
     const serverContext = await getServerContext(request);
