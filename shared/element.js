@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.299');
+console.log('elementJS:', 'v1.0.0-preview.300');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
