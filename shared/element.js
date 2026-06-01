@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.300');
+console.log('elementJS:', 'v1.0.0-preview.301');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -2025,7 +2025,7 @@ function removeAttributes(el) {
     for (const attr of attrs)el.removeAttribute(attr);
 }
 function serializeStyle(obj) {
-    return Object.entries(obj).map(([k, v])=>`${k}:${v}`).join(";");
+    return Object.entries(obj).map(([k, v])=>`${camelToDash(k)}:${v}`).join(";");
 }
 function setupIntersectionObserver() {
     intersectionObserver = new IntersectionObserver(async (entries)=>{
@@ -2039,9 +2039,12 @@ function setupIntersectionObserver() {
         threshold: 0
     });
 }
-const toCamelCase = (str)=>{
+function toCamelCase(str) {
     return str.replace(/-([a-z])/g, (_match, letter)=>letter.toUpperCase());
-};
+}
+function camelToDash(property) {
+    return property.replace(/([A-Z])/g, '-$1').toLowerCase();
+}
 component('el', (el)=>{
     const [pageState] = el.pageState;
     let unwatchPageState;
