@@ -25171,7 +25171,9 @@ async function handleRequest6(ctx) {
             'healthcheck'
         ];
         const isPublicEndpoint = publicEndpoints.includes(cmd);
-        if (!isPublicEndpoint && url.hostname !== 'localhost') {
+        if (isPublicEndpoint) {
+            accessAllowed = true;
+        } else if (!isPublicEndpoint && url.hostname !== 'localhost') {
             const auth = ctx.request.headers.get('Authorization');
             const token = Deno.env.get('JSPHERE_AUTH_TOKEN');
             accessAllowed = auth && token ? auth === `token ${token}` : false;
@@ -25265,7 +25267,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.302';
+const version = 'v1.0.0-preview.303';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
