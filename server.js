@@ -3972,30 +3972,40 @@ const decompressProcess = async (zipSourcePath, destinationPath)=>{
     Deno.close(unzipCommandProcess.rid);
     return processStatus;
 };
-function debounce(fn, wait) {
+function debounce(fn, wait, options) {
+    if (!Number.isInteger(wait) || wait < 0) {
+        throw new RangeError("'wait' must be a positive integer");
+    }
     let timeout = null;
-    let flush = null;
+    let pendingFlush = null;
     const debounced = (...args)=>{
         debounced.clear();
-        flush = ()=>{
+        pendingFlush = ()=>{
             debounced.clear();
             fn.call(debounced, ...args);
         };
-        timeout = Number(setTimeout(flush, wait));
+        timeout = Number(setTimeout(pendingFlush, wait));
     };
     debounced.clear = ()=>{
-        if (typeof timeout === "number") {
+        if (timeout !== null) {
             clearTimeout(timeout);
             timeout = null;
-            flush = null;
+            pendingFlush = null;
         }
     };
     debounced.flush = ()=>{
-        flush?.();
+        pendingFlush?.();
     };
     Object.defineProperty(debounced, "pending", {
-        get: ()=>typeof timeout === "number"
+        get: ()=>timeout !== null
     });
+    const signal = options?.signal;
+    if (signal) {
+        signal.throwIfAborted();
+        signal.addEventListener("abort", ()=>debounced.clear(), {
+            once: true
+        });
+    }
     return debounced;
 }
 function deferred() {
@@ -24843,6 +24853,7 @@ const mod13 = {
     getInstance: getInstance1
 };
 async function handleRequest1(ctx) {
+    debugger;
     const url = new URL(ctx.request.url);
     const project = mod14.project;
     if (!project.application) {
@@ -25267,7 +25278,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.304';
+const version = 'v1.0.0-preview.305';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25313,6 +25324,7 @@ function getCurrentConfig() {
     return currentConfig;
 }
 async function init1(config) {
+    debugger;
     if (typeof config == 'object') {
         for(const key in currentConfig)Deno.env.delete(key);
         currentConfig = config;
@@ -25434,7 +25446,6 @@ async function init1(config) {
                 }
             })();
         }
-        project.ready = true;
     } else if (project.ready) {
         project.packageItemCache?.invalidatePackage('*');
         project.currentCacheDTS = Date.now();

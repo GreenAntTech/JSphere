@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.304');
+console.log('elementJS:', 'v1.0.0-preview.305');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -752,14 +752,12 @@ const registeredDependencies = {};
 const registeredServerDependencies = {};
 const deviceMessageHandlers = new Map();
 const messageHandlers = new Map();
-const registeredRoutes = {};
 const resourceCache = new Map();
 let intersectionObserver;
 let idCount = 0;
 let objectUID = 0;
 (function() {
     globalThis.addEventListener('message', processMessageEvent, false);
-    globalThis.addEventListener('popstate', processPopStateEvent, false);
     if (globalThis.location) registerAllowedOrigin(globalThis.location.origin);
 })();
 async function processMessageEvent(event) {
@@ -809,21 +807,6 @@ async function processMessageEvent(event) {
 }
 function isValidMessage(data) {
     return typeof data === 'object' && data !== null && 'subject' in data && typeof data.subject === 'string';
-}
-async function processPopStateEvent() {
-    for(const routePath in registeredRoutes){
-        const route = {
-            path: routePath,
-            handler: registeredRoutes[routePath]
-        };
-        const pattern = new globalThis.URLPattern({
-            pathname: route.path
-        });
-        if (pattern.test(globalThis.location.href)) {
-            await route.handler();
-            break;
-        }
-    }
 }
 async function serverRenderDocument(htmlOrFile, ctx) {
     try {
@@ -1139,13 +1122,13 @@ function initElementAsComponent(el, parent, appState, pageState, ctx) {
         },
         addFirst: {
             value: async (componentDef, autoInit = false)=>{
-                const component = await insertElement(el, componentDef, 'append', '', autoInit);
+                const component = await insertElement(el, componentDef, 'prepend', '', autoInit);
                 return component;
             }
         },
         addLast: {
             value: async (componentDef, autoInit = false)=>{
-                const component = await insertElement(el, componentDef, 'prepend', '', autoInit);
+                const component = await insertElement(el, componentDef, 'append', '', autoInit);
                 return component;
             }
         },
@@ -1418,11 +1401,11 @@ async function onRender(el, props) {
         }
     }
     await el[Symbols.onRender](props);
-    if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
     for(const id in el.components){
         const child = el.components[id];
         if (child.componentState == -1) await child.init();
     }
+    if (appContext.server) el.setAttribute('style', serializeStyle(el.style));
 }
 async function onResume(el) {
     await getDependencies(el);
@@ -1745,10 +1728,11 @@ async function insertElement(parent, component, action, elId, autoInit) {
     }
     const isParts = component.getAttribute('data-is').split(':');
     const compIs = isParts[0];
-    const compId = isParts[1];
+    let compId = isParts[1];
     if (!component.hasAttribute('id')) component.setAttribute('id', `el${++idCount}`);
     if (!compId) {
-        component.setAttribute('data-is', `${isParts[0]}:${component.getAttribute('id')})`);
+        compId = component.getAttribute('id');
+        component.setAttribute('data-is', `${isParts[0]}:${compId})`);
     }
     await loadDependencies([
         compIs
@@ -1811,14 +1795,6 @@ async function emit(subject, data, target) {
 function deviceSubscribesTo(subject) {
     deviceMessageHandlers.set(subject, true);
 }
-function navigateTo(path) {
-    if (path === undefined) globalThis.dispatchEvent(new Event('popstate'));
-    else if (path == globalThis.location.pathname) return;
-    else {
-        globalThis.history.pushState({}, '', path);
-        dispatchEvent(new Event('popstate'));
-    }
-}
 function observe(objectToObserve, config) {
     const observablesCache = new WeakMap();
     function makeObservable(obj) {
@@ -1875,17 +1851,6 @@ function registerTranslationPack(name, translations) {
 }
 function registerDependencies(dependencies) {
     Object.assign(registeredDependencies, dependencies);
-}
-function registerRoute(path, handler) {
-    if (path === undefined || typeof path != 'string') {
-        console.warn('A path must be specified when registering a route:', path);
-        return;
-    }
-    if (typeof handler != 'function') {
-        console.warn('A valid hanlder must be specified when registering a route:', handler);
-        return;
-    }
-    registeredRoutes[path] = handler;
 }
 function registerServerDependencies(dependencies) {
     Object.assign(registeredServerDependencies, dependencies);
@@ -2056,12 +2021,16 @@ component('el', (el)=>{
                 }
             }
         },
-        onRender: async (props)=>{
+        onRender: (props)=>{
             for(const name in props){
-                if (name == 'component') {
-                    if (props.component) await loadComponent(props.component);
+                if (name == 'innerHtml') {
+                    el.innerHTML = props.innerHtml$.pipedValue || props.innerHtml;
+                } else if (name == 'innerText') {
+                    el.innerText = props.innerText$.pipedValue || props.innerText;
                 } else if (name == 'text') {
                     el.textContent = props.text$.pipedValue || props.text;
+                } else if (name == 'textContent') {
+                    el.textContent = props.textContent$.pipedValue || props.textContent;
                 } else if (name == 'translate') {
                     translate(props.translate, props.params);
                 }
@@ -2069,16 +2038,19 @@ component('el', (el)=>{
         },
         onHydrate: (props)=>{
             for(const name in props){
-                if (name == 'component') {
-                    props.component$.onChange(async ()=>{
-                        await loadComponent(props.component);
-                    });
-                } else if (name == 'text') {
+                if (name == 'text') {
                     props.text$.onChange(()=>{
                         el.textContent = props.text$.pipedValue || props.text;
                     });
                     el.addEventListener('input', ()=>{
                         props.text = el.textContent;
+                    });
+                } else if (name == 'textContent') {
+                    props.textContent$.onChange(()=>{
+                        el.textContent = props.textContent$.pipedValue || props.textContent;
+                    });
+                    el.addEventListener('input', ()=>{
+                        props.textContent = el.textContent;
                     });
                 } else if (name == 'translate') {
                     props.translate$.onChange(()=>{
@@ -2097,15 +2069,6 @@ component('el', (el)=>{
             if (unwatchPageState) unwatchPageState();
         }
     });
-    async function loadComponent(name) {
-        const component = {
-            'data-is': name + ':page'
-        };
-        const { page } = el.components;
-        if (page && page.compIs == name) return;
-        if (page) await el.unmountComponents();
-        await el.addLast(component, true);
-    }
     function translate(value, params) {
         const translateText = useTranslationPack(pageState.activeTranslationPack);
         if (Array.isArray(params)) {
@@ -2115,21 +2078,84 @@ component('el', (el)=>{
 });
 component('document', (el)=>{
     el.define({
-        onRender: async (props)=>{
-            for(const id in el.components){
-                const child = el.components[id];
-                if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
-                else await child.init(props);
-            }
+        onRender: async ()=>{},
+        onHydrate: async ()=>{}
+    });
+});
+component('view', (el)=>{
+    const registeredRoutes = new Map();
+    const componentInstanceCache = new Map();
+    el.define({
+        onRender: async ({ component })=>{
+            if (component) await loadComponent(component);
         },
-        onHydrate: async (props)=>{
-            for(const id in el.components){
-                const child = el.components[id];
-                if (Array.isArray(child)) child.forEach(async (child)=>await child.init(props));
-                else await child.init(props);
+        onHydrate: (props)=>{
+            addNavigationEventListerner();
+            props.component$.onChange(async ()=>{
+                await loadComponent(props.component);
+            });
+        },
+        registerRoute: (path, handler)=>{
+            if (path === undefined || typeof path != 'string') {
+                console.warn('A path must be specified when registering a route:', path);
+                return;
             }
+            if (typeof handler != 'function') {
+                console.warn('A valid hanlder must be specified when registering a route:', handler);
+                return;
+            }
+            registeredRoutes.set(path, handler);
         }
     });
+    async function loadComponent(name) {
+        const component = {
+            'data-is': name + ':comp'
+        };
+        const { comp } = el.components;
+        if (comp && comp.compIs == name) return;
+        if (comp) await el.unmountComponents();
+        await el.addLast(component, true);
+    }
+    function addNavigationEventListerner() {
+        if (globalThis.navigation) {
+            globalThis.navigation.addEventListener("navigate", (event)=>{
+                if (!event.canIntercept) {
+                    return;
+                }
+                if (event.hashChange || event.downloadRequest !== null) {
+                    return;
+                }
+                const currentKey = globalThis.navigation.currentEntry.id;
+                const targetKey = event.destination.id;
+                componentInstanceCache.set(currentKey, el.components['comp']);
+                if (componentInstanceCache.has(targetKey)) {
+                    event.intercept({
+                        handler () {
+                            el.components['comp'].remove();
+                            const component = componentInstanceCache.get(targetKey);
+                            component.parent = el;
+                            el.components[component.compId] = component;
+                            el.append(component);
+                        }
+                    });
+                }
+                const url = new URL(event.destination.url);
+                if (registeredRoutes.has(url.pathname)) {
+                    event.intercept({
+                        async handler () {
+                            await registeredRoutes.get(url.pathname)();
+                        }
+                    });
+                } else if (registeredRoutes.has('*')) {
+                    event.intercept({
+                        async handler () {
+                            await registeredRoutes.get('*')();
+                        }
+                    });
+                }
+            });
+        }
+    }
 });
 component('list', (el)=>{
     let listItems;
@@ -2268,7 +2294,7 @@ component('link', (el)=>{
                 event.preventDefault();
                 if (props.disabled) return;
                 if (onClick(event) === false) return;
-                if (props.href) navigateTo(props.href);
+                if (props.href) location.href = props.href;
                 else if (el.getAttribute('href')) globalThis.location.href = el.getAttribute('href') || '';
             });
         }
@@ -2306,4 +2332,4 @@ component('translate', (el)=>{
         } else el.textContent = translate(el.compId);
     }
 });
-export { component as component, deviceSubscribesTo as deviceOn, emit as emit, feature as feature, navigateTo as navigateTo, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, registerRoute as registerRoute, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack,  };
+export { component as component, deviceSubscribesTo as deviceOn, emit as emit, feature as feature, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack,  };
