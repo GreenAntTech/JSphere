@@ -24853,7 +24853,6 @@ const mod13 = {
     getInstance: getInstance1
 };
 async function handleRequest1(ctx) {
-    debugger;
     const url = new URL(ctx.request.url);
     const project = mod14.project;
     if (!project.application) {
@@ -25278,7 +25277,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.305';
+const version = 'v1.0.0-preview.306';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};

@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.305');
+console.log('elementJS:', 'v1.0.0-preview.306');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -338,7 +338,7 @@ class Prop {
     }
     set value(value) {
         this.#value = value;
-        this.#pipedValue = this.#pipeChain.getValue(this.#value);
+        if (this.#pipeChain) this.#pipedValue = this.#pipeChain.getValue(this.#value);
         this.#listeners.forEach((fn)=>fn());
     }
     set pipeChain(value) {
@@ -545,9 +545,9 @@ class ObjectWrapper {
             returnWrapper = true;
         }
         const value = Reflect.get(obj, key, wrapper);
-        if (typeof value === 'object' && value.isComputedState) {
+        if (typeof value === 'object' && value !== null && value.isComputedState) {
             return returnWrapper ? value : value.value;
-        } else if (typeof value === 'object' && value.isWrappedPrimitive) {
+        } else if (typeof value === 'object' && value !== null && value.isWrappedPrimitive) {
             return returnWrapper ? value : value.value;
         } else if (Array.isArray(value)) {
             if (!value[Symbols.isWrappedArray]) {
@@ -1709,6 +1709,7 @@ function getBoundProp(el, path) {
     }
 }
 async function insertElement(parent, component, action, elId, autoInit) {
+    let element = {};
     if (!component.nodeType) {
         const tagNameMap = {
             ul: 'li',
@@ -1717,7 +1718,7 @@ async function insertElement(parent, component, action, elId, autoInit) {
             thead: 'tr',
             tbody: 'tr'
         };
-        const element = component;
+        element = component;
         if (element.tagName === undefined && tagNameMap[parent.tagName.toLowerCase()] === undefined) element.tagName = 'div';
         else element.tagName = tagNameMap[parent.tagName.toLowerCase()];
         component = parent.ownerDocument.createElement(element.tagName);
@@ -1732,7 +1733,7 @@ async function insertElement(parent, component, action, elId, autoInit) {
     if (!component.hasAttribute('id')) component.setAttribute('id', `el${++idCount}`);
     if (!compId) {
         compId = component.getAttribute('id');
-        component.setAttribute('data-is', `${isParts[0]}:${compId})`);
+        component.setAttribute('data-is', `${isParts[0]}:${compId}`);
     }
     await loadDependencies([
         compIs
@@ -1757,7 +1758,7 @@ async function insertElement(parent, component, action, elId, autoInit) {
         default:
             parent.append(component);
     }
-    if (autoInit) await component.init(component.props);
+    if (autoInit) await component.init(element.props);
     return component;
 }
 function component(param1, param2) {
@@ -2003,6 +2004,29 @@ function setupIntersectionObserver() {
         rootMargin: '100px',
         threshold: 0
     });
+}
+function toRaw(obj) {
+    if (Array.isArray(obj)) {
+        const newArray = [];
+        for (const item of obj){
+            if (isPrimitive(item)) {
+                newArray.push(item);
+            } else {
+                newArray.push(toRaw(item));
+            }
+        }
+        return newArray;
+    } else {
+        const newObj = {};
+        for(const key in obj){
+            if (isPrimitive(obj[key])) {
+                newObj[key] = obj[key];
+            } else {
+                newObj[key] = toRaw(obj[key]);
+            }
+        }
+        return newObj;
+    }
 }
 function toCamelCase(str) {
     return str.replace(/-([a-z])/g, (_match, letter)=>letter.toUpperCase());
@@ -2332,4 +2356,4 @@ component('translate', (el)=>{
         } else el.textContent = translate(el.compId);
     }
 });
-export { component as component, deviceSubscribesTo as deviceOn, emit as emit, feature as feature, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack,  };
+export { component as component, deviceSubscribesTo as deviceOn, emit as emit, feature as feature, registerAllowedOrigin as registerAllowedOrigin, registerTranslationPack as registerTranslationPack, registerDependencies as registerDependencies, registerServerDependencies as registerServerDependencies, renderDocument as renderDocument, runAt as runAt, serverRenderDocument as serverRenderDocument, subscribeTo as on, useTranslationPack as useTranslationPack, toRaw as toRaw,  };
