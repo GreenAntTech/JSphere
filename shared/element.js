@@ -1,4 +1,4 @@
-console.log('elementJS:', 'v1.0.0-preview.306');
+console.log('elementJS:', 'v1.0.0-preview.307');
 const Symbols = {
     use: Symbol('use'),
     onInit: Symbol('onInit'),
@@ -1926,13 +1926,8 @@ async function getResource(path) {
 }
 async function importModule(url) {
     try {
-        if (appContext.server) {
-            const module = await import(url + `?eTag=${appContext.ctx.cacheDTS}`);
-            return module;
-        } else {
-            const module = await import(url);
-            return module;
-        }
+        const module = await import(url);
+        return module;
     } catch (e) {
         console.log(e);
         throw new RenderError(`Either the requested resource or one of its dependencies was not found: ${url}`);

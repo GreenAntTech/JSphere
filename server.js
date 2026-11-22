@@ -24871,7 +24871,7 @@ async function handleRequest1(ctx) {
             else if (prop === 'feature' && contextExtension.uri === 'jsphere://Feature') module1 = mod4;
             else if (contextExtension.uri.startsWith('/')) {
                 try {
-                    module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${contextExtension.uri}?eTag=${project.currentCacheDTS}`);
+                    module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${contextExtension.uri}`);
                 } catch (e) {
                     warning(`Failed to load extension: ` + contextExtension.uri);
                     error('Error: ' + e.message);
@@ -24912,11 +24912,8 @@ const td = new TextDecoder();
 async function handleRequest2(ctx) {
     if (ctx.request.url.hostname == '127.0.0.1' && ctx.request.method == 'GET' && ctx.request.headers.get('user-agent')?.startsWith('Deno')) {
         try {
-            const eTag = ctx.request.params.eTag;
+            const eTag = ctx.request.params.eTag || mod14.project.currentCacheDTS?.toString();
             const ts = ctx.request.params.ts;
-            if (!eTag) return new Response('', {
-                status: 200
-            });
             const item = await mod14.getPackageItem(ctx.request.url.pathname);
             if (item) {
                 const content = ts === 'true' ? item.content : parseContent(item.content, eTag);
@@ -24957,7 +24954,7 @@ async function handleRequest4(ctx) {
             if (!item || item.contentType === 'application/typescript; charset=utf-8') {
                 if (pathname.endsWith('.ts')) {
                     const port = ctx.request.url.port;
-                    const url = `http://127.0.0.1${port ? ':' + port : ''}${pathname}?ts=true&eTag=${mod14.project.currentCacheDTS}`;
+                    const url = `http://127.0.0.1${port ? ':' + port : ''}${pathname}?ts=true`;
                     const result1 = await mod12.transpile(url);
                     item = mod14.project.packageItemCache.getPackageItem(pathname);
                     item.parsedContent = new TextEncoder().encode(result1.get(url));
@@ -25003,7 +25000,7 @@ async function handleRequest5(ctx) {
             const slash = pathname.startsWith('/');
             let module1;
             try {
-                module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${slash ? '' : '/'}${pathname}?eTag=${mod14.project.currentCacheDTS}`);
+                module1 = await import(`http://127.0.0.1:${ctx.request.url.port}${slash ? '' : '/'}${pathname}`);
             } catch (e) {
                 mod5.error(e);
                 return new Response('API Endpoint: Failed To Load Dependency', {
@@ -25277,7 +25274,7 @@ async function handleRequest6(ctx) {
         }
     }
 }
-const version = 'v1.0.0-preview.306';
+const version = 'v1.0.0-preview.307';
 const denoVersion = '2.2.4';
 let currentConfig = {};
 const project = {};
@@ -25465,7 +25462,7 @@ async function handleRequest7(request) {
         if (!response) {
             for (const path of project.appConfig.directives){
                 const slash = path.startsWith('/');
-                const module1 = await import(`http://127.0.0.1:${serverContext.request.url.port}${slash ? '' : '/'}${path}?eTag=${project.currentCacheDTS}`);
+                const module1 = await import(`http://127.0.0.1:${serverContext.request.url.port}${slash ? '' : '/'}${path}`);
                 if (module1.onRequest) {
                     response = await module1.onRequest(serverContext);
                     if (response) break;
